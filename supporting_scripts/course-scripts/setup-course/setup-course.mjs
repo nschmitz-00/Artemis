@@ -18,7 +18,7 @@
  * assessment for programming/quiz and manual assessment for others.
  *
  * Usage: pnpm run setupCourse -- [options]
- *   --server-url=<url>         Server URL (default: http://localhost:8080)
+ *   --server-url=<url>         Server URL (default: http://localhost:8081)
  *   --admin-user=<username>    Admin username (default: artemis_admin)
  *   --admin-password=<pass>    Admin password (default: artemis_admin)
  *   --student-password=<pass>  Password for created students/tutors (default: Password123!)
@@ -38,7 +38,7 @@ if (args.help) {
 }
 
 const config = {
-    serverUrl: args['server-url'] || process.env.ARTEMIS_SERVER_URL || 'http://localhost:8080',
+    serverUrl: args['server-url'] || process.env.ARTEMIS_SERVER_URL || 'http://localhost:8081',
     adminUser: args['admin-user'] || process.env.ARTEMIS_ADMIN_USER || 'artemis_admin',
     adminPassword: args['admin-password'] || process.env.ARTEMIS_ADMIN_PASSWORD || 'artemis_admin',
     studentPassword: args['student-password'] || process.env.ARTEMIS_STUDENT_PASSWORD || 'Password123!',

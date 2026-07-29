@@ -99,7 +99,7 @@ class EurekaInstanceHelperAddressTest {
     class FormatAddressForHazelcastTests {
 
         @ParameterizedTest(name = "IPv4: {0}:{1} → {2}")
-        @CsvSource({ "'192.168.1.1', '5701', '192.168.1.1:5701'", "'10.0.0.1', '5701', '10.0.0.1:5701'", "'127.0.0.1', '8080', '127.0.0.1:8080'",
+        @CsvSource({ "'192.168.1.1', '5701', '192.168.1.1:5701'", "'10.0.0.1', '5701', '10.0.0.1:5701'", "'127.0.0.1', '8081', '127.0.0.1:8081'",
                 "'0.0.0.0', '5701', '0.0.0.0:5701'", "'255.255.255.255', '5701', '255.255.255.255:5701'" })
         void shouldFormatIPv4AddressesWithoutBrackets(String host, String port, String expected) {
             assertThat(eurekaInstanceHelper.formatAddressForHazelcast(host, port)).isEqualTo(expected);
@@ -118,7 +118,7 @@ class EurekaInstanceHelperAddressTest {
         void shouldHandleDifferentPorts() {
             assertThat(eurekaInstanceHelper.formatAddressForHazelcast("192.168.1.1", "5701")).isEqualTo("192.168.1.1:5701");
             assertThat(eurekaInstanceHelper.formatAddressForHazelcast("192.168.1.1", "5702")).isEqualTo("192.168.1.1:5702");
-            assertThat(eurekaInstanceHelper.formatAddressForHazelcast("192.168.1.1", "8080")).isEqualTo("192.168.1.1:8080");
+            assertThat(eurekaInstanceHelper.formatAddressForHazelcast("192.168.1.1", "8081")).isEqualTo("192.168.1.1:8081");
             assertThat(eurekaInstanceHelper.formatAddressForHazelcast("::1", "5701")).isEqualTo("[::1]:5701");
             assertThat(eurekaInstanceHelper.formatAddressForHazelcast("::1", "443")).isEqualTo("[::1]:443");
         }
@@ -242,7 +242,7 @@ class EurekaInstanceHelperAddressTest {
 
         @Test
         void shouldReturnFalseWhenPortsDoNotMatch() {
-            when(registration.getPort()).thenReturn(8080);
+            when(registration.getPort()).thenReturn(8081);
             when(serviceInstance.getPort()).thenReturn(8081);
 
             assertThat(helperWithRegistration.isCurrentInstance(serviceInstance)).isFalse();
@@ -251,9 +251,9 @@ class EurekaInstanceHelperAddressTest {
         @Test
         void shouldReturnTrueWhenHostsMatch() {
             when(registration.getHost()).thenReturn("192.168.1.5");
-            when(registration.getPort()).thenReturn(8080);
+            when(registration.getPort()).thenReturn(8081);
             when(serviceInstance.getHost()).thenReturn("192.168.1.5");
-            when(serviceInstance.getPort()).thenReturn(8080);
+            when(serviceInstance.getPort()).thenReturn(8081);
 
             assertThat(helperWithRegistration.isCurrentInstance(serviceInstance)).isTrue();
         }
@@ -262,9 +262,9 @@ class EurekaInstanceHelperAddressTest {
         void shouldReturnTrueWhenLocalhostMatchesLoopbackIp() {
             // This tests the IP resolution fallback for Docker-style hostname/IP mismatches
             when(registration.getHost()).thenReturn("localhost");
-            when(registration.getPort()).thenReturn(8080);
+            when(registration.getPort()).thenReturn(8081);
             when(serviceInstance.getHost()).thenReturn("127.0.0.1");
-            when(serviceInstance.getPort()).thenReturn(8080);
+            when(serviceInstance.getPort()).thenReturn(8081);
 
             assertThat(helperWithRegistration.isCurrentInstance(serviceInstance)).isTrue();
         }
@@ -273,9 +273,9 @@ class EurekaInstanceHelperAddressTest {
         void shouldHandleIPv6LocalhostVariants() {
             // Test IPv6 loopback matches
             when(registration.getHost()).thenReturn("::1");
-            when(registration.getPort()).thenReturn(8080);
+            when(registration.getPort()).thenReturn(8081);
             when(serviceInstance.getHost()).thenReturn("::1");
-            when(serviceInstance.getPort()).thenReturn(8080);
+            when(serviceInstance.getPort()).thenReturn(8081);
 
             assertThat(helperWithRegistration.isCurrentInstance(serviceInstance)).isTrue();
         }
@@ -283,9 +283,9 @@ class EurekaInstanceHelperAddressTest {
         @Test
         void shouldReturnFalseForDifferentIpAddresses() {
             when(registration.getHost()).thenReturn("192.168.1.5");
-            when(registration.getPort()).thenReturn(8080);
+            when(registration.getPort()).thenReturn(8081);
             when(serviceInstance.getHost()).thenReturn("192.168.1.6");
-            when(serviceInstance.getPort()).thenReturn(8080);
+            when(serviceInstance.getPort()).thenReturn(8081);
 
             assertThat(helperWithRegistration.isCurrentInstance(serviceInstance)).isFalse();
         }
@@ -294,9 +294,9 @@ class EurekaInstanceHelperAddressTest {
         void shouldHandleNormalizedBracketedIPv6() {
             // Eureka may store IPv6 with brackets
             when(registration.getHost()).thenReturn("[::1]");
-            when(registration.getPort()).thenReturn(8080);
+            when(registration.getPort()).thenReturn(8081);
             when(serviceInstance.getHost()).thenReturn("[::1]");
-            when(serviceInstance.getPort()).thenReturn(8080);
+            when(serviceInstance.getPort()).thenReturn(8081);
 
             assertThat(helperWithRegistration.isCurrentInstance(serviceInstance)).isTrue();
         }

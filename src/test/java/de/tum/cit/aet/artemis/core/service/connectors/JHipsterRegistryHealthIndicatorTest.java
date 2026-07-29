@@ -45,10 +45,10 @@ class JHipsterRegistryHealthIndicatorTest {
         when(registration.getServiceId()).thenReturn("Artemis");
         when(registration.getInstanceId()).thenReturn("Artemis:1");
         when(registration.getHost()).thenReturn("192.168.1.10");
-        when(registration.getPort()).thenReturn(8080);
+        when(registration.getPort()).thenReturn(8081);
 
-        ServiceInstance thisInstance = new DefaultServiceInstance("Artemis:1", "Artemis", "192.168.1.10", 8080, false);
-        ServiceInstance otherInstance = new DefaultServiceInstance("Artemis:2", "Artemis", "192.168.1.11", 8080, false);
+        ServiceInstance thisInstance = new DefaultServiceInstance("Artemis:1", "Artemis", "192.168.1.10", 8081, false);
+        ServiceInstance otherInstance = new DefaultServiceInstance("Artemis:2", "Artemis", "192.168.1.11", 8081, false);
         when(discoveryClient.getInstances("Artemis")).thenReturn(List.of(thisInstance, otherInstance));
 
         // When
@@ -60,7 +60,7 @@ class JHipsterRegistryHealthIndicatorTest {
         assertThat(health.getDetails()).containsEntry("serviceId", "Artemis");
         assertThat(health.getDetails()).containsEntry("instanceId", "Artemis:1");
         assertThat(health.getDetails()).containsEntry("host", "192.168.1.10");
-        assertThat(health.getDetails()).containsEntry("port", 8080);
+        assertThat(health.getDetails()).containsEntry("port", 8081);
         assertThat(health.getDetails()).containsEntry("registeredInstances", 2);
         assertThat(health.getDetails()).containsEntry("thisInstanceRegistered", true);
     }
@@ -72,10 +72,10 @@ class JHipsterRegistryHealthIndicatorTest {
         when(registration.getServiceId()).thenReturn("Artemis");
         when(registration.getInstanceId()).thenReturn("Artemis:1");
         when(registration.getHost()).thenReturn("192.168.1.10");
-        when(registration.getPort()).thenReturn(8080);
+        when(registration.getPort()).thenReturn(8081);
 
         // Only other instance is registered, not this one
-        ServiceInstance otherInstance = new DefaultServiceInstance("Artemis:2", "Artemis", "192.168.1.11", 8080, false);
+        ServiceInstance otherInstance = new DefaultServiceInstance("Artemis:2", "Artemis", "192.168.1.11", 8081, false);
         when(discoveryClient.getInstances("Artemis")).thenReturn(List.of(otherInstance));
 
         // When
@@ -122,7 +122,7 @@ class JHipsterRegistryHealthIndicatorTest {
         when(registration.getServiceId()).thenReturn("Artemis");
         when(registration.getInstanceId()).thenReturn("Artemis:1");
         when(registration.getHost()).thenReturn("localhost");
-        when(registration.getPort()).thenReturn(8080);
+        when(registration.getPort()).thenReturn(8081);
         when(discoveryClient.getInstances("Artemis")).thenReturn(List.of());
 
         // When

@@ -179,7 +179,7 @@ const test = baseTest.extend<
                     // "monocart-reporter" handle that while generating a coverage report.
                     if (process.env.CI) {
                         for (const entry of jsCoverage) {
-                            entry.url = entry.url.replace(process.env.BASE_URL!, 'http://artemis-app:8080');
+                            entry.url = entry.url.replace(process.env.BASE_URL!, 'http://artemis-app:8081');
                         }
                     }
                     await addCoverageReport(jsCoverage, test.info());

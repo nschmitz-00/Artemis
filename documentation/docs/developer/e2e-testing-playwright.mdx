@@ -37,7 +37,7 @@ Playwright tests rely on the Playwright Node.js library, browser binaries, and s
 
 **The recommended way to run E2E tests locally is the [fast local runner](#fast-local-runner-recommended-for-development)** — a single script
 (`./run-e2e-tests-local-fast.sh`) that handles database, server, client, and Playwright setup automatically.
-It auto-kills conflicting processes on ports 8080/9000, keeps services running between re-runs, and supports filtering individual tests.
+It auto-kills conflicting processes on ports 8081/9000, keeps services running between re-runs, and supports filtering individual tests.
 
 Alternatively, you can use the Docker-based scripts in `supporting_scripts/playwright` (see the README there),
 or set up everything manually as described below. The manual setup relies on fully configuring your local Artemis instance
@@ -67,7 +67,7 @@ This is the **recommended way to run E2E tests locally** for both developers and
 Unlike the Docker-based approach above, this script runs only PostgreSQL in Docker while running the server and client directly on the host.
 Services stay running between test runs, so re-runs only take seconds.
 
-The script automatically kills any processes occupying ports 8080 (server), 9000 (client), and 7921 (local VC SSH),
+The script automatically kills any processes occupying ports 8081 (server), 9000 (client), and 7921 (local VC SSH),
 so you don't need to manually stop conflicting processes before running it.
 
 **Prerequisites:** Docker, Java 25+, Node.js 24+, pnpm (activate via `corepack enable`).
@@ -75,8 +75,8 @@ so you don't need to manually stop conflicting processes before running it.
 **Architecture:**
 
 - **Docker:** PostgreSQL only (port 5432)
-- **Host:** Spring Boot server via `./gradlew bootRun -x webapp` (port 8080)
-- **Host:** Angular client via `pnpm start` (port 9000, proxies API calls to 8080)
+- **Host:** Spring Boot server via `./gradlew bootRun -x webapp` (port 8081)
+- **Host:** Angular client via `pnpm start` (port 9000, proxies API calls to 8081)
 - **Host:** Playwright tests connect to `http://localhost:9000`
 
 **First run (starts everything):**

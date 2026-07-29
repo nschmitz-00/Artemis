@@ -673,7 +673,7 @@ public class HazelcastConfiguration {
             log.warn("Failed to register actual Hazelcast address: {}. Registering configured address as fallback.", e.getMessage());
             // Fallback: register the configured interface or Eureka host as a best effort
             String fallbackHost = (hazelcastInterface != null && !hazelcastInterface.isEmpty()) ? hazelcastInterface : registration.get().getHost();
-            int fallbackPort = hazelcastLocalInstances ? (serverProperties.getPort() != null ? serverProperties.getPort() : 8080) + hazelcastPort : hazelcastPort;
+            int fallbackPort = hazelcastLocalInstances ? (serverProperties.getPort() != null ? serverProperties.getPort() : 8081) + hazelcastPort : hazelcastPort;
             eurekaInstanceHelper.registerHazelcastAddress(fallbackHost, fallbackPort);
         }
     }
@@ -840,8 +840,8 @@ public class HazelcastConfiguration {
      * <p>
      * <strong>Local Instances Mode ({@code spring.hazelcast.localInstances=true}):</strong>
      * For development environments running multiple Artemis instances on a single machine,
-     * the Hazelcast port is derived from the HTTP server port (e.g., server port 8080 -> Hazelcast
-     * port 8080 + 5701 = 13781). This ensures each instance gets a unique port.
+     * the Hazelcast port is derived from the HTTP server port (e.g., server port 8081 -> Hazelcast
+     * port 8081 + 5701 = 13781). This ensures each instance gets a unique port.
      *
      * <p>
      * <strong>Production Mode ({@code spring.hazelcast.localInstances=false}):</strong>
@@ -860,7 +860,7 @@ public class HazelcastConfiguration {
         if (hazelcastLocalInstances) {
             log.info("Running with localInstances setting, Hazelcast cluster will only work with localhost instances");
             Integer serverPort = serverProperties.getPort();
-            int basePort = serverPort != null ? serverPort : 8080;
+            int basePort = serverPort != null ? serverPort : 8081;
             int effectivePort = basePort + hazelcastPort;
             config.getNetworkConfig().setPort(effectivePort);
         }

@@ -74,7 +74,7 @@ export class StarRatingComponent implements OnDestroy {
 
     /**
      * The color applied to unchecked (empty) stars.
-     * @example 'gray', '#808080', 'rgb(128, 128, 128)'
+     * @example 'gray', '#808180', 'rgb(128, 128, 128)'
      */
     readonly uncheckedColor = input<string | undefined>(undefined);
 

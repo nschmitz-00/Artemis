@@ -98,11 +98,11 @@ jobs:
           retry_wait_seconds: 10
           max_attempts: 60
           warning_on_retry: false
-          command: wget -nv -t1 --spider http://localhost:8080/actuator/health || exit 1
+          command: wget -nv -t1 --spider http://localhost:8081/actuator/health || exit 1
 
         # The android tests depend on certain user accounts to be available. Create them here.
       - name: Create test users
-        run: ./main-repo/supporting_scripts/create_test_users.sh localhost:8080
+        run: ./main-repo/supporting_scripts/create_test_users.sh localhost:8081
 
         # Necessary to build the android app
       - name: Set local.properties

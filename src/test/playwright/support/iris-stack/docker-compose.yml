@@ -11,7 +11,7 @@
 #                (gRPC). Required for chat to run AND for Pyris's /health to be UP.
 #   pyris-app  - real Pyris. Reads /config/application.yml + /config/llm_config.yml
 #                (mounted from this dir). Exposes :8000. Calls back to Artemis on
-#                the host via http://host.docker.internal:8080 (the server.url
+#                the host via http://host.docker.internal:8081 (the server.url
 #                Artemis hands to Pyris must be host-reachable from the container).
 #
 # Build the Pyris image first (its build context is the edutelligence repo root,

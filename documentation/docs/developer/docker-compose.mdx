@@ -292,7 +292,7 @@ services:
       - "traefik.http.routers.jenkins.entrypoints=websecure"
       - "traefik.http.routers.jenkins.tls=true"
       - "traefik.http.routers.jenkins.tls.certresolver=customresolver"
-      - "traefik.http.services.jenkins.loadbalancer.server.port=8080"
+      - "traefik.http.services.jenkins.loadbalancer.server.port=8081"
 
   artemis:
     image: ghcr.io/ls1intum/artemis:${ARTEMIS_VERSION}
@@ -320,7 +320,7 @@ services:
       - "traefik.http.routers.artemis.entrypoints=websecure"
       - "traefik.http.routers.artemis.tls=true"
       - "traefik.http.routers.artemis.tls.certresolver=customresolver"
-      - "traefik.http.services.artemis.loadbalancer.server.port=8080"
+      - "traefik.http.services.artemis.loadbalancer.server.port=8081"
 
   artemis-db:
     image: mysql:9.5.0

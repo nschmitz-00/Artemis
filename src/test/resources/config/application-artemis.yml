@@ -80,7 +80,7 @@ artemis:
             auth-token: fake-token
     apollon:
         enabled: true
-        conversion-service-url: http://localhost:8080
+        conversion-service-url: http://localhost:8081
     telemetry:
         enabled: false
         sendAdminDetails: true

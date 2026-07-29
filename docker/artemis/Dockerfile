@@ -148,13 +148,13 @@ VOLUME ["/opt/artemis/config"]
 VOLUME ["/opt/artemis/data"]
 VOLUME ["/opt/artemis/public/content"]
 
-EXPOSE 8080 5701 7921
+EXPOSE 8081 5701 7921
 
 # Mirrors docker/artemis.yml's compose-level healthcheck so `docker run`/`docker ps` report
 # health even for anyone running the raw image directly, outside the provided compose files.
 # When run via compose, the service's own `healthcheck:` block there takes precedence over this.
 HEALTHCHECK --interval=1s --timeout=5s --start-period=600s --retries=3 \
-  CMD wget -q -t1 -T5 -O - http://localhost:8080/management/health/readiness | grep -xq '{"status":"UP"}' || exit 1
+  CMD wget -q -t1 -T5 -O - http://localhost:8081/management/health/readiness | grep -xq '{"status":"UP"}' || exit 1
 
 # use exec format (square brackets) as otherwise the shell fromat will not forward signals
 CMD [ "java", \

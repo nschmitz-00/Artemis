@@ -66,7 +66,7 @@ File: `supporting_scripts/course-scripts/config.ini`
 [Settings]
 admin_user = artemis_admin
 admin_password = artemis_admin
-server_url = http://localhost:8080/api
+server_url = http://localhost:8081/api
 client_url = http://localhost:9000/api
 ```
 

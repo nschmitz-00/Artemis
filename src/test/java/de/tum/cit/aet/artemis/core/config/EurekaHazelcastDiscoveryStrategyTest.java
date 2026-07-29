@@ -123,7 +123,7 @@ class EurekaHazelcastDiscoveryStrategyTest {
     class AddressParsingTests {
 
         @ParameterizedTest(name = "IPv4 address: {0}")
-        @CsvSource({ "'192.168.1.1:5701', '192.168.1.1', 5701", "'10.0.0.1:5702', '10.0.0.1', 5702", "'127.0.0.1:8080', '127.0.0.1', 8080",
+        @CsvSource({ "'192.168.1.1:5701', '192.168.1.1', 5701", "'10.0.0.1:5702', '10.0.0.1', 5702", "'127.0.0.1:8081', '127.0.0.1', 8081",
                 "'255.255.255.255:5701', '255.255.255.255', 5701" })
         void shouldParseIPv4Addresses(String address, String expectedHost, int expectedPort) {
             when(eurekaInstanceHelper.discoverCoreNodeAddresses()).thenReturn(List.of(address));

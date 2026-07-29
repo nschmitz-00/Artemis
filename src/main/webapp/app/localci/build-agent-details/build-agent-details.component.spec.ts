@@ -75,7 +75,7 @@ describe('BuildAgentDetailsComponent', () => {
         {
             id: '2',
             name: 'Build Job 2',
-            buildAgent: { name: 'agent2', memberAddress: 'localhost:8080', displayName: 'Agent 2' },
+            buildAgent: { name: 'agent2', memberAddress: 'localhost:8081', displayName: 'Agent 2' },
             participationId: 102,
             courseId: 10,
             exerciseId: 100,
@@ -88,7 +88,7 @@ describe('BuildAgentDetailsComponent', () => {
         {
             id: '4',
             name: 'Build Job 4',
-            buildAgent: { name: 'agent4', memberAddress: 'localhost:8080', displayName: 'Agent 4' },
+            buildAgent: { name: 'agent4', memberAddress: 'localhost:8081', displayName: 'Agent 4' },
             participationId: 104,
             courseId: 10,
             exerciseId: 100,
@@ -102,7 +102,7 @@ describe('BuildAgentDetailsComponent', () => {
 
     const mockBuildAgent: BuildAgentInformation = {
         id: 1,
-        buildAgent: { name: 'agent1', memberAddress: 'localhost:8080', displayName: 'Agent 1' },
+        buildAgent: { name: 'agent1', memberAddress: 'localhost:8081', displayName: 'Agent 1' },
         maxNumberOfConcurrentBuildJobs: 2,
         numberOfCurrentBuildJobs: 2,
         status: BuildAgentStatus.ACTIVE,
@@ -117,7 +117,7 @@ describe('BuildAgentDetailsComponent', () => {
     };
 
     const filterOptionsEmpty = {
-        buildAgentAddress: 'localhost:8080',
+        buildAgentAddress: 'localhost:8081',
         buildDurationFilterLowerBound: undefined,
         buildDurationFilterUpperBound: undefined,
         buildSubmissionDateFilterFrom: undefined,
@@ -370,7 +370,7 @@ describe('BuildAgentDetailsComponent', () => {
         const requestWithSearchTerm = { ...request };
         requestWithSearchTerm.searchTerm = 'search';
         await new Promise((resolve) => setTimeout(resolve, 110));
-        expect(mockBuildQueueService.getFinishedBuildJobs).toHaveBeenLastCalledWith(requestWithSearchTerm, expect.objectContaining({ buildAgentAddress: 'localhost:8080' }));
+        expect(mockBuildQueueService.getFinishedBuildJobs).toHaveBeenLastCalledWith(requestWithSearchTerm, expect.objectContaining({ buildAgentAddress: 'localhost:8081' }));
     });
 
     it('should set build job duration', () => {
@@ -453,12 +453,12 @@ describe('BuildAgentDetailsComponent', () => {
         mockBuildAgentsService.getBuildAgentDetails.mockReturnValue(throwError(() => notFoundError));
 
         // Set the agentName to simulate navigation from finished jobs with an address
-        component.agentName.set('[127.0.0.1]:8080');
+        component.agentName.set('[127.0.0.1]:8081');
 
         component.loadAgentData();
 
         // When 404, the component should use the query param (agentName) directly for filtering
-        expect(component.finishedBuildJobFilter().buildAgentAddress).toBe('[127.0.0.1]:8080');
+        expect(component.finishedBuildJobFilter().buildAgentAddress).toBe('[127.0.0.1]:8081');
         expect(mockBuildQueueService.getFinishedBuildJobs).toHaveBeenCalled();
     });
 
@@ -466,14 +466,14 @@ describe('BuildAgentDetailsComponent', () => {
         // Simulate navigation by address - the query param contains an address, not a name
         const addressBasedAgent: BuildAgentInformation = {
             ...mockBuildAgent,
-            buildAgent: { name: 'actual-agent-name', memberAddress: '[127.0.0.1]:8080', displayName: 'Agent 1' },
+            buildAgent: { name: 'actual-agent-name', memberAddress: '[127.0.0.1]:8081', displayName: 'Agent 1' },
         };
         // Mock getBuildAgentSummary to return the matching agent (agent is online)
         mockBuildAgentsService.getBuildAgentSummary.mockReturnValue(of([addressBasedAgent]));
         mockBuildAgentsService.getBuildAgentDetails.mockReturnValue(of(addressBasedAgent));
 
         // Set initial agentName to the address (simulating navigation from finished jobs)
-        activatedRoute.setParameters({ agentName: '[127.0.0.1]:8080' });
+        activatedRoute.setParameters({ agentName: '[127.0.0.1]:8081' });
         component.ngOnInit();
 
         // After resolution, agentName should be updated to the actual name
@@ -569,7 +569,7 @@ describe('BuildAgentDetailsComponent', () => {
         const agentJobs: BuildJob[] = [
             {
                 ...mockRunningJobs1[0],
-                buildAgent: { name: mockBuildAgent.buildAgent?.name, memberAddress: 'localhost:8080', displayName: 'Agent 1' },
+                buildAgent: { name: mockBuildAgent.buildAgent?.name, memberAddress: 'localhost:8081', displayName: 'Agent 1' },
             },
         ];
         runningJobsSubject.next(agentJobs);

@@ -158,7 +158,7 @@ This will start Weaviate with the following configuration:
 |------------------|-------|------------------------------------------|
 | REST API         | 8001  | HTTP REST interface                      |
 | gRPC             | 50051 | gRPC interface                           |
-| t2v-transformers | 8080  | Embedding model (internal, not exposed)  |
+| t2v-transformers | 8081  | Embedding model (internal, not exposed)  |
 
 <Callout variant={CalloutVariant.info}>
   The configuration should be kept aligned with the settings in the [edutelligence/iris repository](https://github.com/ls1intum/edutelligence/tree/main/iris).
@@ -274,7 +274,7 @@ AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true
 PERSISTENCE_DATA_PATH=/var/lib/weaviate
 DEFAULT_VECTORIZER_MODULE=text2vec-transformers
 ENABLE_MODULES=text2vec-transformers
-TRANSFORMERS_INFERENCE_API=http://t2v-transformers:8080
+TRANSFORMERS_INFERENCE_API=http://t2v-transformers:8081
 CLUSTER_HOSTNAME=artemis
 LIMIT_RESOURCES=true
 DISK_USE_WARNING_PERCENTAGE=80
@@ -323,7 +323,7 @@ DISK_USE_WARNING_PERCENTAGE=80
 | `PERSISTENCE_DATA_PATH`                   | /var/lib/weaviate                                 | Path for data persistence inside container                                        |
 | `DEFAULT_VECTORIZER_MODULE`               | none / text2vec-transformers / text2vec-openai    | Default vectorizer module                                                         |
 | `ENABLE_MODULES`                          | (empty) / text2vec-transformers / text2vec-openai | Modules to enable                                                                 |
-| `TRANSFORMERS_INFERENCE_API`              | http://t2v-transformers:8080                      | URL of the transformer inference service (embeddings only)                        |
+| `TRANSFORMERS_INFERENCE_API`              | http://t2v-transformers:8081                      | URL of the transformer inference service (embeddings only)                        |
 | `CLUSTER_HOSTNAME`                        | artemis                                           | Hostname for the Weaviate cluster node                                            |
 | `LIMIT_RESOURCES`                         | true                                              | Enable resource limiting                                                          |
 | `DISK_USE_WARNING_PERCENTAGE`             | 80                                                | Warn when disk usage exceeds this percentage                                      |

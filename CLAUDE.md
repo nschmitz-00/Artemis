@@ -72,7 +72,7 @@ pnpm run vitest:coverage             # With coverage
 pnpm run vitest -- path/to/spec.ts   # Single Vitest file
 
 # E2E Tests (Playwright) — preferred way to run locally
-# The script auto-kills processes on ports 8080/9000/7921, starts Postgres, server, and client.
+# The script auto-kills processes on ports 8081/9000/7921, starts Postgres, server, and client.
 ./run-e2e-tests-local-fast.sh                              # Run all E2E tests
 ./run-e2e-tests-local-fast.sh --filter "Quiz"              # Run tests matching "Quiz"
 ./run-e2e-tests-local-fast.sh --filter "ExamAssessment|SystemHealth"  # Multiple patterns
@@ -231,7 +231,7 @@ Organized by feature module:
 - Name server tests `*Test.java`; reuse module base classes when present
 - When comparing `ZonedDateTime` values in tests, use `toInstant()` for comparisons since PostgreSQL stores timestamps as UTC (timezone offset is not preserved through database round-trips)
 - **E2E tests: Use `./run-e2e-tests-local-fast.sh`** — this is the intended way to run Playwright E2E tests locally (for both developers and AI agents)
-    - The script automatically kills processes on ports 8080, 9000, and 7921 before starting
+    - The script automatically kills processes on ports 8081, 9000, and 7921 before starting
     - Use `--filter "TestName"` to run specific tests; supports regex patterns (e.g., `--filter "Quiz|Exam"`)
     - After the first run, reuse running services with `--skip-server --skip-client --skip-db`
 - Add screenshots for UI changes in PRs

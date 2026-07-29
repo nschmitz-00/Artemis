@@ -17,7 +17,7 @@
     }
 
     openApi {
-        apiDocsUrl.set("http://localhost:8080/api-docs.yaml")
+        apiDocsUrl.set("http://localhost:8081/api-docs.yaml")
         outputDir.set(file("$rootDir/openapi"))
         outputFileName.set("openapi.yaml")
         // This is the time we wait for the Artemis server to start. The default is 30s, which might not suffice on less powerful machines.

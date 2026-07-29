@@ -16,7 +16,7 @@ services:
     moodle:
         image: docker.io/bitnamilegacy/moodle:${MOODLE_VERSION}
         ports:
-            - '8085:8080'
+            - '8085:8081'
             - '443:8443'
         environment:
             - MOODLE_DATABASE_HOST=mariadb

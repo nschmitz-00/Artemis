@@ -133,8 +133,8 @@ public class VcsRepositoryUri {
      * <p>
      * Examples:
      * <ul>
-     * <li>http://localhost:8080/git/GREAT/great-artemis_admin.git --> artemis_admin</li>
-     * <li>http://localhost:8080/git/GREAT/great-practice-artemis_admin.git --> artemis_admin</li>
+     * <li>http://localhost:8081/git/GREAT/great-artemis_admin.git --> artemis_admin</li>
+     * <li>http://localhost:8081/git/GREAT/great-practice-artemis_admin.git --> artemis_admin</li>
      * </ul>
      *
      * @return The repository name without the project key and the practice prefix, in lowercase.
@@ -151,7 +151,7 @@ public class VcsRepositoryUri {
      * <p>
      * Example:
      * <ul>
-     * <li>From the URI "http://localhost:8080/git/GREAT/great-artemis_admin.git", it extracts "great-artemis_admin".</li>
+     * <li>From the URI "http://localhost:8081/git/GREAT/great-artemis_admin.git", it extracts "great-artemis_admin".</li>
      * </ul>
      *
      * @return The repository slug derived from the URI's path.
@@ -169,7 +169,7 @@ public class VcsRepositoryUri {
      * <p>
      * Example:
      * <ul>
-     * <li>From the URI "http://localhost:8080/git/GREAT/great-artemis_admin.git", it extracts "GREAT".</li>
+     * <li>From the URI "http://localhost:8081/git/GREAT/great-artemis_admin.git", it extracts "GREAT".</li>
      * </ul>
      *
      * @return The project key in lowercase, as found in the URI's path.

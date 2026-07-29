@@ -21,4 +21,4 @@ spring:
 
 server:
     # see application.yml for further comments
-    url: http://artemis-app:8080
+    url: http://artemis-app:8081

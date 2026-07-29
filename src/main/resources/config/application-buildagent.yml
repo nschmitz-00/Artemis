@@ -137,7 +137,7 @@ spring:
                 enabled: false #not needed for build agents
 
 server:
-    port: 8080
+    port: 8081
     url: http://localhost # NOTE you need to override this
 
 # at the moment metrics are disabled for build agents

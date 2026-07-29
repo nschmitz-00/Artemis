@@ -291,7 +291,7 @@ zonky:
                         max_connections: 200
 
 server:
-    port: 8080
+    port: 8081
     url: http://localhost
     forward-headers-strategy: native
 
@@ -345,7 +345,7 @@ jhipster:
             ring-buffer-size: 512
     mail: # specific JHipster mail property, for standard properties see MailProperties
         from: test@localhost
-        base-url: http://127.0.0.1:8080
+        base-url: http://127.0.0.1:8081
     security:
         authentication:
             jwt:

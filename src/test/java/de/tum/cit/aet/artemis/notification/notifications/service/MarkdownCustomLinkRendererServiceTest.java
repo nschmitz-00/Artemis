@@ -20,13 +20,13 @@ class MarkdownCustomLinkRendererServiceTest {
     void setUp() throws MalformedURLException, URISyntaxException {
         markdownCustomLinkRendererService = new MarkdownCustomLinkRendererService();
 
-        ReflectionTestUtils.setField(markdownCustomLinkRendererService, "artemisServerUrl", new URI("http://localhost:8080").toURL());
+        ReflectionTestUtils.setField(markdownCustomLinkRendererService, "artemisServerUrl", new URI("http://localhost:8081").toURL());
     }
 
     @Test
     void shouldRenderProperlyWhenProgrammingTagIsSupplied() {
         String input = "[programming]Example (/example)[/programming]";
-        String expected = "<a href=\"http://localhost:8080/example\">Example</a>";
+        String expected = "<a href=\"http://localhost:8081/example\">Example</a>";
 
         String result = markdownCustomLinkRendererService.render(input);
 
@@ -36,7 +36,7 @@ class MarkdownCustomLinkRendererServiceTest {
     @Test
     void shouldRenderMultipleTagsWhenMultipleTagsAreSupplied() {
         String input = "[programming]Code (/code)[/programming] and [quiz]Quiz (/quiz)[/quiz]";
-        String expected = "<a href=\"http://localhost:8080/code\">Code</a> and <a href=\"http://localhost:8080/quiz\">Quiz</a>";
+        String expected = "<a href=\"http://localhost:8081/code\">Code</a> and <a href=\"http://localhost:8081/quiz\">Quiz</a>";
 
         String result = markdownCustomLinkRendererService.render(input);
 

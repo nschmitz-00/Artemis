@@ -56,7 +56,7 @@ public final class WeaviateTestContainerFactory {
             String image = "cr.weaviate.io/semitechnologies/weaviate:" + version;
             WeaviateContainer container = new WeaviateContainer(image);
             container.start();
-            log.info("Weaviate Testcontainer started successfully on ports HTTP={}, gRPC={}", container.getMappedPort(8080), container.getMappedPort(50051));
+            log.info("Weaviate Testcontainer started successfully on ports HTTP={}, gRPC={}", container.getMappedPort(8081), container.getMappedPort(50051));
             return container;
         }
         catch (Exception e) {

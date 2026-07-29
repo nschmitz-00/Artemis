@@ -201,7 +201,7 @@ java -jar build/libs/*.war --spring.profiles.active=dev,localci,localvc,artemis,
 
 (You might need to copy a yml file into the folder build/libs before, also see [development setup](https://docs.artemis.tum.de/developer/setup))
 
-Then navigate to [http://localhost:8080](http://localhost:8080) in your browser.
+Then navigate to [http://localhost:8081](http://localhost:8081) in your browser.
 
 Refer to [Using JHipster in production](http://www.jhipster.tech/production) for more details.
 

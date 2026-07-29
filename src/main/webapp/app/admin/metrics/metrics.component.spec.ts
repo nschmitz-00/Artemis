@@ -21,8 +21,8 @@ describe('MetricsComponent', () => {
     const mockMetrics = { jvm: {}, processMetrics: {}, garbageCollector: {}, 'http.server.requests': {}, cache: {}, services: {}, databases: {} } as unknown as Metrics;
     const mockThreadDump = { threads: [{ threadName: 'main', threadState: 'RUNNABLE' }] } as unknown as ThreadDump;
     const mockNodes: NodeInfo[] = [
-        { nodeId: 'node-1', label: '192.168.1.1:8080' },
-        { nodeId: 'node-2', label: '192.168.1.2:8080' },
+        { nodeId: 'node-1', label: '192.168.1.1:8081' },
+        { nodeId: 'node-2', label: '192.168.1.2:8081' },
     ];
 
     beforeEach(async () => {
@@ -83,7 +83,7 @@ describe('MetricsComponent', () => {
             expect(options[0].value).toBe('all');
             expect(options[0].label).toBe('All Nodes (Aggregated)');
             expect(options[1].value).toBe('node-1');
-            expect(options[1].label).toContain('192.168.1.1:8080');
+            expect(options[1].label).toContain('192.168.1.1:8081');
             expect(options[2].value).toBe('node-2');
         });
 

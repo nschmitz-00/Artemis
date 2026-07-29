@@ -61,7 +61,7 @@ describe('color utils', () => {
         });
 
         it('threshold at 128 returns false', () => {
-            expect(isColorDark('#808080')).toBe(false);
+            expect(isColorDark('#808180')).toBe(false);
         });
     });
 

@@ -20,12 +20,12 @@ export default [
             "/oauth2/",
             "/login/oauth2/",
         ],
-        target: `http://localhost:8080`,
+        target: `http://localhost:8081`,
         secure: false
     },
     {
         context: ["/websocket/"],
-        target: "ws://127.0.0.1:8080",
+        target: "ws://127.0.0.1:8081",
         ws: true
     }
 ];

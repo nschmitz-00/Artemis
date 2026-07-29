@@ -86,7 +86,7 @@ artemis:
     secret: abcdef12345
     restricted-modules: module_text_llm,module_programming_llm
   apollon:
-    conversion-service-url: http://localhost:8080
+    conversion-service-url: http://localhost:8081
   hyperion:
     enabled: false  # Set this to true to enable the hyperion service on startup, requires Spring AI to be configured below.
   llm:  # Shared LLM configuration for Spring AI-based services (Hyperion, Atlas)

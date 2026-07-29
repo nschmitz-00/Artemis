@@ -20,7 +20,7 @@ Artemis Course Setup Script
 Usage: pnpm run setupCourse -- [options]
 
 Options:
-  --server-url=<url>         Server URL (default: http://localhost:8080)
+  --server-url=<url>         Server URL (default: http://localhost:8081)
   --admin-user=<username>    Admin username (default: artemis_admin)
   --admin-password=<pass>    Admin password (default: artemis_admin)
   --student-password=<pass>  Password for created students/tutors (default: Password123!)

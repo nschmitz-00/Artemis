@@ -38,7 +38,7 @@ public final class WeaviateTestConfiguration {
         if (container != null && container.isRunning()) {
             registry.add("artemis.weaviate.enabled", () -> true);
             registry.add("artemis.weaviate.http-host", container::getHost);
-            registry.add("artemis.weaviate.http-port", () -> container.getMappedPort(8080));
+            registry.add("artemis.weaviate.http-port", () -> container.getMappedPort(8081));
             registry.add("artemis.weaviate.grpc-port", () -> container.getMappedPort(50051));
             registry.add("artemis.weaviate.scheme", () -> "http");
             registry.add("artemis.weaviate.vectorizer-module", () -> "none");

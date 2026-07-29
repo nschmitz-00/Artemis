@@ -54,7 +54,7 @@ IRIS_STACK_COMPOSE="src/test/playwright/support/iris-stack/docker-compose.yml"
 IRIS_SECRET_TOKEN="${IRIS_SECRET_TOKEN:-iris-e2e-secret-token}"
 # Pyris (in a container) reaches Artemis (on the host) for status callbacks via
 # host.docker.internal. This is the server.url Artemis hands to Pyris.
-IRIS_ARTEMIS_CALLBACK_URL="${IRIS_ARTEMIS_CALLBACK_URL:-http://host.docker.internal:8080}"
+IRIS_ARTEMIS_CALLBACK_URL="${IRIS_ARTEMIS_CALLBACK_URL:-http://host.docker.internal:8081}"
 # The Iris-enabled seed course whose course-level Iris settings get turned on.
 IRIS_COURSE_ID="${IRIS_COURSE_ID:-9022}"
 
@@ -138,7 +138,7 @@ check_port_available() {
 if [ "$STOP" = true ]; then
     echo -e "${BLUE}Stopping all E2E services...${NC}"
 
-    # Kill server (PID file first, then any remaining process on port 8080)
+    # Kill server (PID file first, then any remaining process on port 8081)
     if [ -f "$LOCAL_DIR/server.pid" ]; then
         SERVER_PID=$(cat "$LOCAL_DIR/server.pid")
         if kill -0 "$SERVER_PID" 2>/dev/null; then
@@ -146,7 +146,7 @@ if [ "$STOP" = true ]; then
             kill_tree "$SERVER_PID"
         fi
     fi
-    check_port_available 8080 "Artemis server"
+    check_port_available 8081 "Artemis server"
 
     # Kill client (PID file first, then any remaining process on port 9000)
     if [ -f "$LOCAL_DIR/client.pid" ]; then
@@ -267,7 +267,7 @@ if [ "$SKIP_SERVER" = false ]; then
         fi
     fi
 
-    check_port_available 8080 "Artemis server"
+    check_port_available 8081 "Artemis server"
     check_port_available 7921 "local VC SSH server"
 
     # Optional: bring up the REAL Pyris stack and enable Iris on the server.
@@ -323,7 +323,7 @@ if [ "$SKIP_SERVER" = false ]; then
     export ARTEMIS_USERMANAGEMENT_INTERNALADMIN_PASSWORD="artemis_admin"
     export ARTEMIS_USERMANAGEMENT_USEEXTERNAL="false"
     export ARTEMIS_USERMANAGEMENT_PASSKEY_ENABLED="true"
-    export ARTEMIS_VERSIONCONTROL_URL="http://localhost:8080"
+    export ARTEMIS_VERSIONCONTROL_URL="http://localhost:8081"
     export ARTEMIS_VERSIONCONTROL_USER="artemis_admin"
     export ARTEMIS_VERSIONCONTROL_PASSWORD="artemis_admin"
     export ARTEMIS_CONTINUOUSINTEGRATION_EMPTYCOMMITNECESSARY="true"
@@ -346,7 +346,7 @@ if [ "$SKIP_SERVER" = false ]; then
     export ARTEMIS_VERSIONCONTROL_SSHHOSTKEYPATH="$(pwd)/src/test/playwright/ssh-keys"
     export ARTEMIS_VERSIONCONTROL_SSHPORT="7921"
     export ARTEMIS_TELEMETRY_ENABLED="false"
-    export SERVER_URL="http://localhost:8080"
+    export SERVER_URL="http://localhost:8081"
     # When Iris is enabled, Pyris runs in a container and must reach Artemis on the
     # host for status callbacks. server.url is the artemisBaseUrl Artemis hands to
     # Pyris, so point it at host.docker.internal. The Playwright browser uses
@@ -380,8 +380,8 @@ if [ "$SKIP_SERVER" = false ]; then
 else
     echo ""
     echo -e "${YELLOW}Step 2a: Skipping server (--skip-server)${NC}"
-    if ! curl -sf http://localhost:8080/management/health >/dev/null 2>&1; then
-        echo -e "${RED}WARNING: Server does not appear to be running at http://localhost:8080${NC}"
+    if ! curl -sf http://localhost:8081/management/health >/dev/null 2>&1; then
+        echo -e "${RED}WARNING: Server does not appear to be running at http://localhost:8081${NC}"
     fi
 fi
 
@@ -426,7 +426,7 @@ if [ "$NEED_WAIT_SERVER" = true ]; then
     echo "Waiting for server to be ready (this may take a few minutes on first run)..."
     TIMEOUT=300
     ELAPSED=0
-    until curl -sf http://localhost:8080/management/health >/dev/null 2>&1; do
+    until curl -sf http://localhost:8081/management/health >/dev/null 2>&1; do
         if ! kill -0 "$SERVER_PID" 2>/dev/null; then
             echo -e "${RED}ERROR: Server process died. Check $LOCAL_DIR/server.log${NC}"
             tail -20 "$LOCAL_DIR/server.log"

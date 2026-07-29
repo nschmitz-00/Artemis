@@ -278,7 +278,7 @@ class PyrisLectureIngestionTest extends AbstractIrisIntegrationTest {
         lecture1 = lectureRepository.save(lecture1);
         testUnit = attachmentVideoUnitTestRepository.save(testUnit);
 
-        String expectedBaseUrl = "http://localhost:8080"; // Default test server URL
+        String expectedBaseUrl = "http://localhost:8081"; // Default test server URL
         ReflectionTestUtils.setField(pyrisWebhookService, "artemisBaseUrl", expectedBaseUrl);
         String expectedUrl = expectedBaseUrl + ARTEMIS_FILE_PATH_PREFIX + attachmentLink;
 

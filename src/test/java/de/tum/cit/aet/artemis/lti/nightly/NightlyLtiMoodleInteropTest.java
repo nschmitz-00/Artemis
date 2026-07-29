@@ -129,7 +129,7 @@ class NightlyLtiMoodleInteropTest extends AbstractLtiIntegrationTest {
             .withEnv("POSTGRESQL_USERNAME", MOODLE_DB_USER).withEnv("POSTGRESQL_PASSWORD", MOODLE_DB_PASSWORD).withEnv("POSTGRESQL_DATABASE", MOODLE_DB_NAME).withExposedPorts(5432)
             .waitingFor(Wait.forLogMessage(".*database system is ready to accept connections.*", 1).withStartupTimeout(Duration.ofMinutes(3)));
 
-    private static final GenericContainer<?> moodle = new GenericContainer<>(DockerImageName.parse(MOODLE_IMAGE)).withNetwork(network).withExposedPorts(8080)
+    private static final GenericContainer<?> moodle = new GenericContainer<>(DockerImageName.parse(MOODLE_IMAGE)).withNetwork(network).withExposedPorts(8081)
             .withEnv("MOODLE_DATABASE_TYPE", "pgsql").withEnv("MOODLE_DATABASE_HOST", "moodle-db").withEnv("MOODLE_DATABASE_PORT_NUMBER", "5432")
             .withEnv("MOODLE_DATABASE_NAME", MOODLE_DB_NAME).withEnv("MOODLE_DATABASE_USER", MOODLE_DB_USER).withEnv("MOODLE_DATABASE_PASSWORD", MOODLE_DB_PASSWORD)
             .withEnv("MOODLE_USERNAME", "admin").withEnv("MOODLE_PASSWORD", "Artemis-Nightly-Pass1!").withEnv("MOODLE_EMAIL", "admin@example.com")
@@ -165,7 +165,7 @@ class NightlyLtiMoodleInteropTest extends AbstractLtiIntegrationTest {
         moodleDb.start();
         moodle.start();
 
-        String moodleHostUrl = "http://" + moodle.getHost() + ":" + moodle.getMappedPort(8080);
+        String moodleHostUrl = "http://" + moodle.getHost() + ":" + moodle.getMappedPort(8081);
         moodleAuthUri = moodleHostUrl + "/mod/lti/auth.php";
         moodleJwksUri = moodleHostUrl + "/mod/lti/certs.php";
         moodlePrivateKey = readMoodlePrivateKey();

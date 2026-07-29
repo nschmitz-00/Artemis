@@ -18,7 +18,7 @@ describe('RunningJobsTableComponent', () => {
         {
             id: '1',
             name: 'Build Job 1',
-            buildAgent: { name: 'agent1', memberAddress: 'localhost:8080', displayName: 'Agent 1' },
+            buildAgent: { name: 'agent1', memberAddress: 'localhost:8081', displayName: 'Agent 1' },
             participationId: 101,
             courseId: 10,
             exerciseId: 100,
