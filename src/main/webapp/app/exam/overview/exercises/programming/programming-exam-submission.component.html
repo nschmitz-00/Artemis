@@ -100,3 +100,6 @@
         }
     </div>
 }
+@if (exercise().requiresExplanationVideo && studentParticipation()) {
+    <jhi-programming-exercise-explanation-video class="d-block mt-3" [participation]="studentParticipation()" />
+}

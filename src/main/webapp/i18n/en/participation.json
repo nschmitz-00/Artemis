@@ -38,6 +38,9 @@
                 "preconditionsNotMet": "The pre conditions to request AI Feedback are not met."
             },
             "repository": "Repository",
+            "explanationVideo": "Explanation Video",
+            "watchExplanationVideo": "Watch explanation video",
+            "noExplanationVideo": "No video uploaded yet",
             "buildPlanId": "Build Plan Id",
             "initializationState": "Status",
             "initializationDate": "Start Date",

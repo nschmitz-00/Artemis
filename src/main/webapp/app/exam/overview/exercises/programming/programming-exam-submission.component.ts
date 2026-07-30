@@ -27,6 +27,7 @@ import { CodeEditorConflictStateService } from 'app/programming/shared/code-edit
 import { CodeEditorRepositoryIsLockedComponent } from 'app/programming/shared/code-editor/layout/code-editor-repository-is-locked.component';
 import { DomainService } from 'app/programming/shared/code-editor/services/code-editor-domain.service';
 import { CommitState, DomainType, EditorState } from 'app/programming/shared/code-editor/model/code-editor.model';
+import { ProgrammingExerciseExplanationVideoComponent } from 'app/programming/shared/explanation-video/programming-exercise-explanation-video.component';
 
 @Component({
     selector: 'jhi-programming-submission-exam',
@@ -50,6 +51,7 @@ import { CommitState, DomainType, EditorState } from 'app/programming/shared/cod
         UpdatingResultComponent,
         ProgrammingExerciseStudentTriggerBuildButtonComponent,
         ProgrammingExerciseInstructionComponent,
+        ProgrammingExerciseExplanationVideoComponent,
     ],
 })
 export class ProgrammingExamSubmissionComponent extends ExamSubmissionComponent implements OnInit {

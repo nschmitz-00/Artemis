@@ -1,0 +1,53 @@
+<div class="card explanation-video-panel">
+    <div class="card-body">
+        <h5 jhiTranslate="artemisApp.programmingExercise.explanationVideo.title">Explanation Video</h5>
+        <p class="text-muted-color" jhiTranslate="artemisApp.programmingExercise.explanationVideo.description">
+            Upload a short video explaining the code you wrote. Your automatic result will not count towards your score until the video has been uploaded.
+        </p>
+
+        @if (hasVideo()) {
+            <p class="explanation-video-status d-flex align-items-center gap-2">
+                <fa-icon [icon]="faCheckCircle" class="text-state-success" />
+                <span jhiTranslate="artemisApp.programmingExercise.explanationVideo.uploaded" [translateValues]="{ fileName: explanationVideoFileName() }"
+                    >Uploaded: {{ explanationVideoFileName() }}</span
+                >
+                @if (explanationVideoUploadDate()) {
+                    <span class="text-muted-color"
+                        >({{ 'artemisApp.programmingExercise.explanationVideo.uploadedOn' | artemisTranslate }} {{ explanationVideoUploadDate() | artemisDate }})</span
+                    >
+                }
+            </p>
+            <video [src]="videoUrl()" controls class="w-100 mb-3 explanation-video-player"></video>
+        }
+
+        @if (!readOnly()) {
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                <input #explanationVideoInput type="file" accept="video/mp4,video/webm,video/quicktime" (change)="onFileSelected($event)" hidden />
+                <button pButton severity="primary" size="small" type="button" class="explanation-video-upload-btn" [disabled]="isUploading()" (click)="selectFile()">
+                    <fa-icon [icon]="faUpload" [animation]="isUploading() ? 'spin' : undefined" />
+                    <span jhiTranslate="artemisApp.programmingExercise.explanationVideo.upload">Upload</span>
+                </button>
+                @if (isUploading() && selectedFile(); as file) {
+                    <span class="text-muted-color">{{ file.name }}</span>
+                }
+                @if (hasVideo()) {
+                    <button
+                        pButton
+                        jhiDeleteButton
+                        severity="danger"
+                        size="small"
+                        class="explanation-video-delete-btn"
+                        [renderButtonStyle]="false"
+                        [entityTitle]="explanationVideoFileName() || ''"
+                        deleteQuestion="artemisApp.programmingExercise.explanationVideo.deleteQuestion"
+                        [dialogError]="dialogError$"
+                        (delete)="deleteVideo()"
+                    >
+                        <fa-icon [icon]="faTrash" />
+                        <span jhiTranslate="artemisApp.programmingExercise.explanationVideo.delete">Delete</span>
+                    </button>
+                }
+            </div>
+        }
+    </div>
+</div>

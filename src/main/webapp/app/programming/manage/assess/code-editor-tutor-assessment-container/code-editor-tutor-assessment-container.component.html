@@ -132,6 +132,9 @@
                     [gradingCriteria]="exercise().gradingCriteria"
                 />
             }
+            @if (exercise()?.requiresExplanationVideo && participation()) {
+                <jhi-programming-exercise-explanation-video class="card-body" [participation]="participation()" [readOnly]="true" />
+            }
         </ng-template>
         <ng-template #editorBottom>
             <div class="row mt-3">

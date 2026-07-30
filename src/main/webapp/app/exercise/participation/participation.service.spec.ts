@@ -65,6 +65,7 @@ describe('Participation Service', () => {
     });
 
     it('should merge student participations for programming exercises', () => {
+        const explanationVideoUploadDate = dayjs('2026-07-30T10:00:00Z');
         const participation1: ProgrammingExerciseStudentParticipation = {
             id: 1,
             type: ParticipationType.PROGRAMMING,
@@ -72,6 +73,8 @@ describe('Participation Service', () => {
             buildPlanId: 'build-plan-id',
             student: { id: 1, login: 'student1', internal: true },
             team: { id: 1, name: 'team1' },
+            explanationVideoPath: 'programming-exercises/1/participations/1/explanation.mp4',
+            explanationVideoUploadDate,
 
             submissions: [{ id: 1, results: [{ id: 3 }] }],
         };
@@ -95,6 +98,27 @@ describe('Participation Service', () => {
         expect(mergedParticipation?.id).toEqual(participation1.id);
         expect(mergedParticipation?.submissions).toEqual([...participation1.submissions!, ...participation2.submissions!]);
         mergedParticipation?.submissions?.forEach((submission) => expect(submission.participation).toMatchObject(mergedParticipation));
+    });
+
+    it('regression (previously broken): should preserve explanationVideoPath and explanationVideoUploadDate when merging programming participations', () => {
+        // mergeProgrammingParticipations() builds a brand-new object and copies over a hardcoded list of fields -
+        // it's easy to add a new field to the participation model/entity and forget to add it here, which silently
+        // drops it on every fresh page load (a student who already uploaded a video would see it as "not uploaded").
+        const explanationVideoUploadDate = dayjs('2026-07-30T10:00:00Z');
+        const participation: ProgrammingExerciseStudentParticipation = {
+            id: 1,
+            type: ParticipationType.PROGRAMMING,
+            repositoryUri: 'repo-url',
+            buildPlanId: 'build-plan-id',
+            explanationVideoPath: 'programming-exercises/1/participations/1/explanation.mp4',
+            explanationVideoUploadDate,
+            submissions: [],
+        };
+
+        const mergedParticipation = service.mergeStudentParticipations([participation])[0] as ProgrammingExerciseStudentParticipation;
+
+        expect(mergedParticipation.explanationVideoPath).toBe(participation.explanationVideoPath);
+        expect(mergedParticipation.explanationVideoUploadDate).toEqual(explanationVideoUploadDate);
     });
 
     it('should not merge practice participation for programming exercises', () => {

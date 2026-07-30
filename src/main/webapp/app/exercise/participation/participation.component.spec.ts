@@ -141,6 +141,30 @@ describe('ParticipationComponent', () => {
         });
     });
 
+    describe('Explanation video column', () => {
+        it('should not include the explanation video column for programming exercises that do not require one', () => {
+            component.exercise.set({ ...exercise, type: ExerciseType.PROGRAMMING, requiresExplanationVideo: false } as Exercise);
+
+            expect(component.columns().some((col) => col.headerKey === 'artemisApp.participation.explanationVideo')).toBe(false);
+        });
+
+        it('should not include the explanation video column for non-programming exercises even if the flag is set', () => {
+            component.exercise.set({ ...exercise, type: ExerciseType.TEXT, requiresExplanationVideo: true } as Exercise);
+
+            expect(component.columns().some((col) => col.headerKey === 'artemisApp.participation.explanationVideo')).toBe(false);
+        });
+
+        it('should include the explanation video column for programming exercises that require one', () => {
+            component.exercise.set({ ...exercise, type: ExerciseType.PROGRAMMING, requiresExplanationVideo: true } as Exercise);
+
+            expect(component.columns().some((col) => col.headerKey === 'artemisApp.participation.explanationVideo')).toBe(true);
+        });
+
+        it('should build the explanation video URL for a given participation id', () => {
+            expect(component.explanationVideoUrl(5)).toBe('api/programming/programming-exercise-participations/5/explanation-video');
+        });
+    });
+
     describe('Navigation', () => {
         it('should return correct participation link for non-exam exercise', () => {
             expect(component.getParticipationLink(42)).toEqual(['42', 'submissions']);

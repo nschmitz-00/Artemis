@@ -1,8 +1,13 @@
 package de.tum.cit.aet.artemis.programming.domain;
 
+import java.net.URI;
+import java.time.ZonedDateTime;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
+import jakarta.persistence.PostRemove;
+import jakarta.persistence.Transient;
 import jakarta.validation.constraints.Size;
 
 import org.jspecify.annotations.NonNull;
@@ -10,6 +15,9 @@ import org.jspecify.annotations.NonNull;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import de.tum.cit.aet.artemis.core.FilePathType;
+import de.tum.cit.aet.artemis.core.service.FileService;
+import de.tum.cit.aet.artemis.core.util.FilePathConverter;
 import de.tum.cit.aet.artemis.exercise.domain.Exercise;
 import de.tum.cit.aet.artemis.exercise.domain.participation.StudentParticipation;
 import de.tum.cit.aet.artemis.localvc.service.LocalVCRepositoryUri;
@@ -28,6 +36,15 @@ public class ProgrammingExerciseStudentParticipation extends StudentParticipatio
 
     @Column(name = "branch")
     private String branch;
+
+    @Transient
+    private final transient FileService fileService = new FileService();
+
+    @Column(name = "explanation_video_path")
+    private String explanationVideoPath;
+
+    @Column(name = "explanation_video_upload_date")
+    private ZonedDateTime explanationVideoUploadDate;
 
     public ProgrammingExerciseStudentParticipation() {
         // Default constructor
@@ -72,6 +89,38 @@ public class ProgrammingExerciseStudentParticipation extends StudentParticipatio
 
     public void setBranch(String branch) {
         this.branch = branch;
+    }
+
+    public String getExplanationVideoPath() {
+        return explanationVideoPath;
+    }
+
+    public void setExplanationVideoPath(String explanationVideoPath) {
+        this.explanationVideoPath = explanationVideoPath;
+    }
+
+    public ZonedDateTime getExplanationVideoUploadDate() {
+        return explanationVideoUploadDate;
+    }
+
+    public void setExplanationVideoUploadDate(ZonedDateTime explanationVideoUploadDate) {
+        this.explanationVideoUploadDate = explanationVideoUploadDate;
+    }
+
+    @JsonIgnore
+    public boolean hasExplanationVideo() {
+        return explanationVideoPath != null;
+    }
+
+    /**
+     * Deletes the previously stored explanation video (if any) for this participation.
+     */
+    @PostRemove
+    public void onDelete() {
+        if (explanationVideoPath != null) {
+            var actualPath = FilePathConverter.fileSystemPathForExternalUri(URI.create(explanationVideoPath), FilePathType.PROGRAMMING_EXPLANATION_VIDEO);
+            fileService.schedulePathForDeletion(actualPath, 0);
+        }
     }
 
     @Override

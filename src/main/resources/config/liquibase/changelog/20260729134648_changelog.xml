@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- Programming exercises can optionally require students to submit an explanation video alongside their code. -->
+    <changeSet id="20260729134648-01-add-requires-explanation-video-column" author="niklas.oelde">
+        <addColumn tableName="programming_exercise_details">
+            <column name="requires_explanation_video" type="boolean"/>
+        </addColumn>
+    </changeSet>
+
+    <!-- One explanation video per programming exercise participation, stored on disk like file upload submissions. -->
+    <changeSet id="20260729134648-02-add-explanation-video-path-column" author="niklas.oelde">
+        <addColumn tableName="participation">
+            <column name="explanation_video_path" type="varchar(255)"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

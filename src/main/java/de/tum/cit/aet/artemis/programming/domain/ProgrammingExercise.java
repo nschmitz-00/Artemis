@@ -146,6 +146,9 @@ public class ProgrammingExercise extends Exercise {
     @Column(name = "release_tests_with_example_solution", table = "programming_exercise_details", nullable = false)
     private boolean releaseTestsWithExampleSolution = false;
 
+    @Column(name = "requires_explanation_video", table = "programming_exercise_details")
+    private Boolean requiresExplanationVideo;
+
     @OneToOne(cascade = CascadeType.REMOVE, orphanRemoval = true, fetch = FetchType.LAZY)
     @JoinColumn(unique = true, name = "programming_exercise_build_config_id", table = "programming_exercise_details")
     @JsonIgnoreProperties("programmingExercise")
@@ -296,6 +299,22 @@ public class ProgrammingExercise extends Exercise {
 
     public boolean isReleaseTestsWithExampleSolution() {
         return releaseTestsWithExampleSolution;
+    }
+
+    public Boolean getRequiresExplanationVideo() {
+        return requiresExplanationVideo;
+    }
+
+    public void setRequiresExplanationVideo(Boolean requiresExplanationVideo) {
+        this.requiresExplanationVideo = requiresExplanationVideo;
+    }
+
+    /**
+     * @return true if an explanation video is required for this exercise, false otherwise (including when unset)
+     */
+    @JsonIgnore
+    public boolean requiresExplanationVideo() {
+        return Boolean.TRUE.equals(requiresExplanationVideo);
     }
 
     /**

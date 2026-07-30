@@ -221,6 +221,12 @@ public class ProgrammingExerciseGradingService {
             newResult.setSubmission(latestSubmission);
             newResult.setExerciseId(participation.getExercise().getId());
             newResult.setRatedIfNotAfterDueDate();
+            // If the exercise requires an explanation video and the student hasn't uploaded one yet, withhold the automatic
+            // result from the score until the video is present (re-rated in ProgrammingExerciseExplanationVideoService).
+            if (exercise.requiresExplanationVideo() && participation instanceof ProgrammingExerciseStudentParticipation studentParticipation
+                    && !studentParticipation.hasExplanationVideo()) {
+                newResult.setRated(false);
+            }
             // NOTE: the result is not saved yet, but is connected to the submission, the submission is not completely saved yet
             return processNewProgrammingExerciseResult(participation, newResult);
         }

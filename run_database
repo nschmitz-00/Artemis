@@ -1,0 +1,11 @@
+su -s /bin/bash mysql -c '
+mysqld \
+  --datadir=/workspace/mysql/data \
+  --socket=/workspace/mysql/run/mysql.sock \
+  --port=3306 \
+  --bind-address=127.0.0.1 \
+  --character-set-server=utf8mb4 \
+  --collation-server=utf8mb4_unicode_ci \
+  --log-error=/workspace/mysql/log/mysql.log \
+  --pid-file=/workspace/mysql/run/mysql.pid
+'

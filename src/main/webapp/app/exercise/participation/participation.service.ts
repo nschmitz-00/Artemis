@@ -281,6 +281,8 @@ export class ParticipationService {
             combinedParticipation.repositoryUri = participations[0].repositoryUri;
             combinedParticipation.buildPlanId = participations[0].buildPlanId;
             combinedParticipation.buildPlanUrl = participations[0].buildPlanUrl;
+            combinedParticipation.explanationVideoPath = participations[0].explanationVideoPath;
+            combinedParticipation.explanationVideoUploadDate = participations[0].explanationVideoUploadDate;
             this.mergeResultsAndSubmissions(combinedParticipation, participations);
         }
         return combinedParticipation;

@@ -312,8 +312,8 @@ spring: #disabled by default, you must enable it
             enabled: always
     servlet:
         multipart:
-            max-file-size: 20MB # this should match the value in /webapp/app/foundation/constants/input.constants.ts MAX_FILE_SIZE
-            max-request-size: 20MB
+            max-file-size: 110MB # must be >= MAX_EXPLANATION_VIDEO_FILE_SIZE (Constants.java / input.constants.ts MAX_FILE_SIZE)
+            max-request-size: 110MB
     lifecycle:
         timeout-per-shutdown-phase: 10
     websocket:

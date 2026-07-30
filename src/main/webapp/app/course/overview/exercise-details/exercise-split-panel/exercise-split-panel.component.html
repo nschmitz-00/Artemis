@@ -13,6 +13,9 @@
             @if (exercise().type === ExerciseType.PROGRAMMING && exercise().studentParticipations && exercise().studentParticipations!.length) {
                 <jhi-reset-repo-button [exercise]="exercise()" [participations]="exercise().studentParticipations!" [smallButtons]="false" />
             }
+            @if (programmingExerciseRequiresExplanationVideo() && programmingStudentParticipation()) {
+                <jhi-programming-exercise-explanation-video class="d-block mt-3" [participation]="programmingStudentParticipation()!" />
+            }
             @if (exampleSolutionInfo()?.exampleSolutionPublished) {
                 <p-panel [header]="'artemisApp.exercise.exampleSolution' | artemisTranslate" [toggleable]="true" [collapsed]="true">
                     <dl class="row-md jh-entity-details markdown-preview">

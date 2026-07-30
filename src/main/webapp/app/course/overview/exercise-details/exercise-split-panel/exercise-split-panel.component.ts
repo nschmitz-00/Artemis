@@ -3,6 +3,7 @@ import { ActivatedRoute, ChildrenOutletContexts, Router, RouterLink, RouterOutle
 import { Exercise, ExerciseType, getIcon } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
 import { StudentParticipation } from 'app/exercise/shared/entities/participation/student-participation.model';
+import { ProgrammingExerciseStudentParticipation } from 'app/exercise/shared/entities/participation/programming-exercise-student-participation.model';
 import { faAlignLeft, faComment, faGear, faGraduationCap } from '@fortawesome/free-solid-svg-icons';
 import { ProblemStatementComponent } from 'app/course/overview/exercise-details/problem-statement/problem-statement.component';
 import { TextEditorComponent } from 'app/text/overview/text-editor/text-editor.component';
@@ -26,6 +27,7 @@ import { ModelingEditorComponent } from 'app/modeling/shared/modeling-editor/mod
 import { ProgrammingExerciseExampleSolutionRepoDownloadComponent } from 'app/programming/shared/actions/example-solution-repo-download/programming-exercise-example-solution-repo-download.component';
 import { CompetencyContributionComponent } from 'app/atlas/shared/competency-contribution/competency-contribution.component';
 import { LtiInitializerComponent } from 'app/course/overview/exercise-details/lti-initializer/lti-initializer.component';
+import { ProgrammingExerciseExplanationVideoComponent } from 'app/programming/shared/explanation-video/programming-exercise-explanation-video.component';
 import { PanelModule } from 'primeng/panel';
 import { NgbTooltip } from '@ng-bootstrap/ng-bootstrap';
 import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pipe';
@@ -61,6 +63,7 @@ import { LLMSelectionDecision } from 'app/account/user/shared/dto/updateLLMSelec
         ArtemisTranslatePipe,
         DiscussionSectionComponent,
         PanelModule,
+        ProgrammingExerciseExplanationVideoComponent,
     ],
 })
 export class ExerciseSplitPanelComponent {
@@ -156,6 +159,21 @@ export class ExerciseSplitPanelComponent {
     readonly showCodeEditor = computed(() => {
         const exercise = this.exercise();
         return exercise.type === ExerciseType.PROGRAMMING && (exercise as ProgrammingExercise).allowOnlineEditor;
+    });
+
+    // The explanation video widget must be reachable independent of allowOnlineEditor: many programming exercises
+    // are worked on with an offline IDE only, in which case showEditorPanel() (and therefore the online code editor
+    // route where the widget also lives) is never shown at all.
+    readonly programmingExerciseRequiresExplanationVideo = computed(() => {
+        const exercise = this.exercise();
+        return exercise.type === ExerciseType.PROGRAMMING && !!(exercise as ProgrammingExercise).requiresExplanationVideo;
+    });
+
+    readonly programmingStudentParticipation = computed((): ProgrammingExerciseStudentParticipation | undefined => {
+        if (this.exercise().type !== ExerciseType.PROGRAMMING) {
+            return undefined;
+        }
+        return this.studentParticipation();
     });
 
     readonly showEditorPanel = computed(() => {

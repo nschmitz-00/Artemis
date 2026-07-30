@@ -207,6 +207,23 @@
                 "alertNoTheia": "Es muss mindestens eine Option (Offline-IDE oder Online-Editor) ausgewählt sein"
             },
             "onlineIde": "Online IDE",
+            "requiresExplanationVideo": {
+                "title": "Erklärvideo erforderlich",
+                "description": "Studierende müssen zusätzlich zu ihrer Code-Abgabe ein kurzes Video hochladen, das den geschriebenen Code erklärt. Das automatische Ergebnis zählt erst zur Bewertung, sobald das Video hochgeladen wurde."
+            },
+            "explanationVideo": {
+                "title": "Erklärvideo",
+                "description": "Lade ein kurzes Video hoch, das den von dir geschriebenen Code erklärt. Dein automatisches Ergebnis zählt erst zu deiner Bewertung, sobald das Video hochgeladen wurde.",
+                "upload": "Hochladen",
+                "delete": "Löschen",
+                "uploaded": "Hochgeladen: {{ fileName }}",
+                "uploadedOn": "hochgeladen am",
+                "uploadSuccessful": "Dein Erklärvideo wurde erfolgreich hochgeladen.",
+                "deleteQuestion": "Bist du sicher, dass du dein Erklärvideo löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden.",
+                "deleteSuccessful": "Dein Erklärvideo wurde gelöscht.",
+                "fileExtensionError": "Nur mp4-, webm- oder mov-Videodateien sind erlaubt.",
+                "fileTooBigError": "Die Datei {{ fileName }} ist zu groß. Die maximale Videogröße beträgt 100 MB."
+            },
             "allowBranching": {
                 "title": "Eigene Branches erlauben",
                 "description": "Erlaubt Studierenden, andere Branches als den default Branch zu pushen. Achtung! Diese Branches werden nicht in der Benutzeroberfläche angezeigt, und diese stellt auch keinen Merge-Support bereit. Studierende müssen ihre Branches lokal verwalten. Nur aktivieren, falls zusätzliche Branches wirklich benötigt werden."

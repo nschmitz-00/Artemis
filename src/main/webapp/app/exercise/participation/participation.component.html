@@ -118,6 +118,24 @@
     }
 </ng-template>
 
+<ng-template #explanationVideoCellTemplate let-cell>
+    @if (cell.data.explanationVideoPath) {
+        <a
+            pButton
+            [text]="true"
+            size="small"
+            [href]="explanationVideoUrl(cell.data.participationId)"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="{{ 'artemisApp.participation.watchExplanationVideo' | artemisTranslate }}"
+        >
+            <fa-icon [icon]="faVideo" />
+        </a>
+    } @else {
+        <span class="text-muted-color" jhiTranslate="artemisApp.participation.noExplanationVideo"></span>
+    }
+</ng-template>
+
 <ng-template #initStateCellTemplate let-cell>
     {{ 'artemisApp.InitializationState.' + cell.data.initializationState | artemisTranslate }}
 </ng-template>

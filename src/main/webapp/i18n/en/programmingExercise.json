@@ -217,6 +217,23 @@
                 "alertNoTheia": "At least one option (Offline IDE or Online Editor) must be selected"
             },
             "onlineIde": "Online IDE",
+            "requiresExplanationVideo": {
+                "title": "Require Explanation Video",
+                "description": "Students must upload a short video explaining the code they wrote, in addition to their code submission. The automatic result is not counted towards the score until the video has been uploaded."
+            },
+            "explanationVideo": {
+                "title": "Explanation Video",
+                "description": "Upload a short video explaining the code you wrote. Your automatic result will not count towards your score until the video has been uploaded.",
+                "upload": "Upload",
+                "delete": "Delete",
+                "uploaded": "Uploaded: {{ fileName }}",
+                "uploadedOn": "uploaded on",
+                "uploadSuccessful": "Your explanation video was uploaded successfully.",
+                "deleteQuestion": "Are you sure you want to delete your explanation video? This action cannot be undone.",
+                "deleteSuccessful": "Your explanation video was deleted.",
+                "fileExtensionError": "Only mp4, webm, or mov video files are allowed.",
+                "fileTooBigError": "The file {{ fileName }} is too big. The maximum allowed video size is 100 MB."
+            },
             "allowBranching": {
                 "title": "Allow Custom Branches",
                 "description": "Enables students to push other branches than the default branch. Warning! Custom branches are not shown in the user interface, and there is no merge support in the UI. Students have to manage these branches locally. Only enable this option when it is absolutely required."

@@ -45,6 +45,9 @@ public enum FilePathType {
     /** <strong> Exercise file paths </strong> **/
     FILE_UPLOAD_SUBMISSION,
 
+    /** <strong> Code explanation video file paths </strong> **/
+    PROGRAMMING_EXPLANATION_VIDEO,
+
     /** <strong> Other file paths </strong> **/
     TEMPORARY
 }

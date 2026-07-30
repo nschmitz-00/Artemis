@@ -1,3 +1,4 @@
+import dayjs from 'dayjs/esm';
 import { StudentParticipation } from 'app/exercise/shared/entities/participation/student-participation.model';
 import { ParticipationType } from 'app/exercise/shared/entities/participation/participation.model';
 
@@ -5,6 +6,8 @@ export class ProgrammingExerciseStudentParticipation extends StudentParticipatio
     public repositoryUri?: string;
     public buildPlanId?: string;
     public branch?: string;
+    public explanationVideoPath?: string;
+    public explanationVideoUploadDate?: dayjs.Dayjs;
 
     // helper attribute
     public buildPlanUrl?: string;

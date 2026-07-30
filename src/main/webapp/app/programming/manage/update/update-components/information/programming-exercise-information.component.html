@@ -192,6 +192,13 @@
     @if (isSimpleMode()) {
         <jhi-programming-exercise-difficulty [programmingExercise]="programmingExercise()" />
     }
+    <div class="d-flex gap-2 align-items-center mt-2">
+        <p-checkbox inputId="field_requiresExplanationVideo" [binary]="true" [(ngModel)]="programmingExercise().requiresExplanationVideo" name="requiresExplanationVideo" />
+        <div class="d-flex gap-1">
+            <label for="field_requiresExplanationVideo" jhiTranslate="artemisApp.programmingExercise.requiresExplanationVideo.title"></label>
+            <jhi-help-icon text="artemisApp.programmingExercise.requiresExplanationVideo.description" />
+        </div>
+    </div>
 </section>
 
 <!-- Auxiliary repository cell templates -->

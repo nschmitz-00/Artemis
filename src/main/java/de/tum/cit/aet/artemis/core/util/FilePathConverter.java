@@ -122,6 +122,14 @@ public final class FilePathConverter {
     }
 
     /**
+     * @return the path to the programming exercise explanation videos directory
+     */
+    @NonNull
+    public static Path getProgrammingExerciseExplanationVideosFilePath() {
+        return fileUploadPath.resolve("programming-exercises").resolve("explanation-videos");
+    }
+
+    /**
      * @return the path to the markdown files directory
      */
     @NonNull
@@ -174,6 +182,7 @@ public final class FilePathConverter {
             case STUDENT_VERSION_SLIDES -> getStudentVersionSlidesFileSystemPath(path, filename);
             case ATTACHMENT_UNIT -> getAttachmentVideoUnitFileSystemPath(path, filename);
             case FILE_UPLOAD_SUBMISSION -> fileSystemPathForFileUploadSubmissionExternalUri(externalUri, filename);
+            case PROGRAMMING_EXPLANATION_VIDEO -> fileSystemPathForProgrammingExplanationVideoExternalUri(externalUri, filename);
         };
     }
 
@@ -295,6 +304,28 @@ public final class FilePathConverter {
     }
 
     /**
+     * Generates the file system path for a programming exercise explanation video based on the provided external URI and filename.
+     *
+     * @param externalUri the external URI of the programming exercise explanation video
+     * @param filename    the name of the file
+     * @return the file system path to the programming exercise explanation video
+     */
+    @NonNull
+    private static Path fileSystemPathForProgrammingExplanationVideoExternalUri(@NonNull URI externalUri, @NonNull String filename) {
+        Path path = Path.of(externalUri.getPath());
+        try {
+            String expectedExerciseId = path.getName(1).toString();
+            String expectedParticipationId = path.getName(3).toString();
+            long exerciseId = Long.parseLong(expectedExerciseId);
+            long participationId = Long.parseLong(expectedParticipationId);
+            return buildProgrammingExplanationVideoPath(exerciseId, participationId).resolve(filename);
+        }
+        catch (IllegalArgumentException e) {
+            throw new FilePathParsingException("External URI does not contain correct exerciseId or participationId: " + externalUri, e);
+        }
+    }
+
+    /**
      * Generates the external URI for a file at the given local file system path.
      *
      * <p>
@@ -331,6 +362,7 @@ public final class FilePathConverter {
             case FILE_UPLOAD_SUBMISSION -> externalUriForFileUploadExercisesFileSystemPath(path, filename, id);
             case STUDENT_VERSION_SLIDES -> URI.create("attachments/attachment-unit/" + id + "/student/" + filename);
             case ATTACHMENT_UNIT -> URI.create("attachments/attachment-unit/" + id + "/" + filename);
+            case PROGRAMMING_EXPLANATION_VIDEO -> externalUriForProgrammingExplanationVideoFileSystemPath(path, filename, id);
         };
     }
 
@@ -401,5 +433,45 @@ public final class FilePathConverter {
     @NonNull
     public static Path buildFileUploadSubmissionPath(long exerciseId, long submissionId) {
         return getFileUploadExercisesFilePath().resolve(String.valueOf(exerciseId)).resolve(String.valueOf(submissionId));
+    }
+
+    /**
+     * Generates the external URI for a programming exercise explanation video based on the provided path, filename, and ID.
+     * <p>
+     * Example:
+     *
+     * <pre>
+     *     Path fileSystemPath = Path.of("uploads").resolve("programming-exercises").resolve("explanation-videos").resolve("1").resolve("2").resolve("explanation.mp4");
+     *     URI externalUri = FilePathConverter.externalUriForFileSystemPath(fileSystemPath, FilePathType.PROGRAMMING_EXPLANATION_VIDEO, 2L);
+     *     externalUri: programming-exercises/1/participations/2/explanation.mp4
+     * </pre>
+     *
+     * @param path     the path to the programming explanation video in the local filesystem
+     * @param filename the name of the file
+     * @param id       the ID of the participation the video belongs to
+     * @return the external URI for the programming exercise explanation video
+     */
+    @NonNull
+    private static URI externalUriForProgrammingExplanationVideoFileSystemPath(@NonNull Path path, @NonNull String filename, @NonNull String id) {
+        try {
+            final var expectedExerciseId = path.getName(path.getNameCount() - 3).toString();
+            final long exerciseId = Long.parseLong(expectedExerciseId);
+            return URI.create("programming-exercises/" + exerciseId + "/participations/" + id + "/" + filename);
+        }
+        catch (IllegalArgumentException e) {
+            throw new FilePathParsingException("Unexpected String in upload file path. Exercise ID should be present here: " + path, e);
+        }
+    }
+
+    /**
+     * Builds file path for a programming exercise explanation video.
+     *
+     * @param exerciseId      the id of the exercise
+     * @param participationId the id of the participation the video belongs to
+     * @return path where the explanation video for the programming exercise participation is stored
+     */
+    @NonNull
+    public static Path buildProgrammingExplanationVideoPath(long exerciseId, long participationId) {
+        return getProgrammingExerciseExplanationVideosFilePath().resolve(String.valueOf(exerciseId)).resolve(String.valueOf(participationId));
     }
 }

@@ -20,7 +20,7 @@ import { Result } from 'app/exercise/shared/entities/result/result.model';
 import { Submission } from 'app/exercise/shared/entities/submission/submission.model';
 import { AssessmentType } from 'app/assessment/shared/entities/assessment-type.model';
 import { AlertService } from 'app/foundation/service/alert.service';
-import { faCheck, faCircleNotch, faEraser, faFilePowerpoint, faPencil, faTable, faTimes, faTrash } from '@fortawesome/free-solid-svg-icons';
+import { faCheck, faCircleNotch, faEraser, faFilePowerpoint, faPencil, faTable, faTimes, faTrash, faVideo } from '@fortawesome/free-solid-svg-icons';
 import { GradingService } from 'app/assessment/manage/grading/grading-service';
 import { GradeStepsDTO } from 'app/assessment/shared/entities/grade-step.model';
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
@@ -45,6 +45,9 @@ import { FilterDropdownComponent } from 'app/exercise/shared/filter-dropdown/fil
 import { TeamStudentsListComponent } from 'app/exercise/team/team-participate/team-students-list.component';
 import { CourseTitleBarTitleDirective } from 'app/course/shared/directives/course-title-bar-title.directive';
 import { CourseTitleBarActionsDirective } from 'app/course/shared/directives/course-title-bar-actions.directive';
+import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
+import { ProgrammingExerciseExplanationVideoService } from 'app/programming/shared/explanation-video/programming-exercise-explanation-video.service';
+import { ButtonDirective } from 'primeng/button';
 
 export enum FilterProp {
     ALL = 'All',
@@ -74,6 +77,7 @@ export enum FilterProp {
         TeamStudentsListComponent,
         CourseTitleBarTitleDirective,
         CourseTitleBarActionsDirective,
+        ButtonDirective,
     ],
 })
 export class ParticipationComponent implements OnInit, OnDestroy {
@@ -86,6 +90,7 @@ export class ParticipationComponent implements OnInit, OnDestroy {
     private readonly profileService = inject(ProfileService);
     private readonly gradingService = inject(GradingService);
     private readonly websocketService = inject(WebsocketService);
+    private readonly explanationVideoService = inject(ProgrammingExerciseExplanationVideoService);
 
     protected readonly faTable = faTable;
     protected readonly faTimes = faTimes;
@@ -95,6 +100,7 @@ export class ParticipationComponent implements OnInit, OnDestroy {
     protected readonly faFilePowerpoint = faFilePowerpoint;
     protected readonly faPencil = faPencil;
     protected readonly faCheck = faCheck;
+    protected readonly faVideo = faVideo;
 
     protected FilterProp = FilterProp;
 
@@ -181,6 +187,7 @@ export class ParticipationComponent implements OnInit, OnDestroy {
 
     // Template refs
     readonly repositoryCellTemplate = viewChild<CellTemplateRef<ParticipationManagementDTO>>('repositoryCellTemplate');
+    readonly explanationVideoCellTemplate = viewChild<CellTemplateRef<ParticipationManagementDTO>>('explanationVideoCellTemplate');
     readonly initStateCellTemplate = viewChild<CellTemplateRef<ParticipationManagementDTO>>('initStateCellTemplate');
     readonly initDateCellTemplate = viewChild<CellTemplateRef<ParticipationManagementDTO>>('initDateCellTemplate');
     readonly submissionCountCellTemplate = viewChild<CellTemplateRef<ParticipationManagementDTO>>('submissionCountCellTemplate');
@@ -229,6 +236,15 @@ export class ParticipationComponent implements OnInit, OnDestroy {
                 width: '80px',
                 sort: false,
                 templateRef: this.repositoryCellTemplate(),
+            });
+        }
+
+        if (ex.type === ExerciseType.PROGRAMMING && (ex as ProgrammingExercise).requiresExplanationVideo) {
+            cols.push({
+                headerKey: 'artemisApp.participation.explanationVideo',
+                width: '80px',
+                sort: false,
+                templateRef: this.explanationVideoCellTemplate(),
             });
         }
 
@@ -404,6 +420,10 @@ export class ParticipationComponent implements OnInit, OnDestroy {
 
     getParticipationLink(participationId: number): string[] {
         return this.isExamExercise() ? [participationId.toString()] : [participationId.toString(), 'submissions'];
+    }
+
+    explanationVideoUrl(participationId: number): string {
+        return this.explanationVideoService.videoUrl(participationId);
     }
 
     toProgrammingParticipation(dto: ParticipationManagementDTO): ProgrammingExerciseStudentParticipation {

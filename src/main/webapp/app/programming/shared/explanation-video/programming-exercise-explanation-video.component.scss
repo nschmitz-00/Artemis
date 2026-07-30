@@ -1,0 +1,26 @@
+// PrimeNG's Aura theme buttons default to a 6px border radius (`--p-form-field-border-radius`), while every
+// Bootstrap button in the app (still the majority during the PrimeNG/tum-ui migration) uses Artemis' own
+// $border-radius (0.15rem, see _artemis-variables.scss), exposed as the Bootstrap CSS variable --bs-border-radius.
+// Match that here so these buttons don't stand out as noticeably more rounded than the rest of the app.
+:host ::ng-deep .p-button {
+    border-radius: var(--bs-border-radius);
+}
+
+// Match these two buttons to specific existing Bootstrap buttons elsewhere in the app, rather than PrimeNG's
+// own Aura severity colors (which don't line up 1:1 with Bootstrap's palette). Referencing Bootstrap's own
+// theme CSS variables (rather than hardcoding hex values) keeps these in sync if the Bootstrap theme changes.
+:host ::ng-deep {
+    // Light blue, like the "New message" button (btn-primary / $blue).
+    .explanation-video-upload-btn.p-button {
+        background-color: var(--bs-primary);
+        border-color: var(--bs-primary);
+        color: var(--bs-white);
+    }
+
+    // Red, like the "Reset Repository" button (btn-danger / $red).
+    .explanation-video-delete-btn.p-button {
+        background-color: var(--bs-danger);
+        border-color: var(--bs-danger);
+        color: var(--bs-white);
+    }
+}

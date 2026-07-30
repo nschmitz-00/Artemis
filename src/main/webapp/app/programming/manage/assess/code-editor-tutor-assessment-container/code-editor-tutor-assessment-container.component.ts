@@ -48,6 +48,7 @@ import { AssessmentLayoutComponent } from 'app/assessment/manage/assessment-layo
 import { ProgrammingAssessmentRepoExportButtonComponent } from '../repo-export/export-button/programming-assessment-repo-export-button.component';
 import { AssessmentInstructionsComponent } from 'app/assessment/manage/assessment-instructions/assessment-instructions/assessment-instructions.component';
 import { FeedbackSuggestionsBannerComponent } from 'app/assessment/manage/feedback-suggestions-banner/feedback-suggestions-banner.component';
+import { ProgrammingExerciseExplanationVideoComponent } from 'app/programming/shared/explanation-video/programming-exercise-explanation-video.component';
 
 @Component({
     selector: 'jhi-code-editor-tutor-assessment',
@@ -65,6 +66,7 @@ import { FeedbackSuggestionsBannerComponent } from 'app/assessment/manage/feedba
         AssessmentInstructionsComponent,
         UnreferencedFeedbackComponent,
         FeedbackSuggestionsBannerComponent,
+        ProgrammingExerciseExplanationVideoComponent,
     ],
 })
 export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDestroy {

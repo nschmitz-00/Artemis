@@ -1,8 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { ActivatedRoute, ChildrenOutletContexts, Router } from '@angular/router';
+import { ActivatedRoute, ChildrenOutletContexts, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TranslateService } from '@ngx-translate/core';
+import { MockComponent, MockDirective } from 'ng-mocks';
 import { AccountService } from 'app/core/auth/account.service';
 import { LLMSelectionDecision } from 'app/account/user/shared/dto/updateLLMSelectionDecision.dto';
 import { User } from 'app/account/user/user.model';
@@ -13,6 +14,19 @@ import { ExerciseSplitPanelComponent } from 'app/course/overview/exercise-detail
 import { MockAccountService } from 'test/helpers/mocks/service/mock-account.service';
 import { MockTranslateService } from 'test/helpers/mocks/service/mock-translate.service';
 import { PanelDirective, ResizablePanelsComponent } from 'app/shared-ui/components/resizable-panels/resizable-panels.component';
+import { TranslateDirective } from 'app/foundation/language/translate.directive';
+import { ProblemStatementComponent } from 'app/course/overview/exercise-details/problem-statement/problem-statement.component';
+import { IrisBaseChatbotComponent } from 'app/iris/overview/base-chatbot/iris-base-chatbot.component';
+import { IrisLogoComponent } from 'app/iris/overview/iris-logo/iris-logo.component';
+import { ResetRepoButtonComponent } from 'app/course/overview/exercise-details/reset-repo-button/reset-repo-button.component';
+import { ComplaintsStudentViewComponent } from 'app/assessment/overview/complaints-for-students/complaints-student-view.component';
+import { RatingComponent } from 'app/exercise/rating/rating.component';
+import { ModelingEditorComponent } from 'app/modeling/shared/modeling-editor/modeling-editor.component';
+import { ProgrammingExerciseExampleSolutionRepoDownloadComponent } from 'app/programming/shared/actions/example-solution-repo-download/programming-exercise-example-solution-repo-download.component';
+import { CompetencyContributionComponent } from 'app/atlas/shared/competency-contribution/competency-contribution.component';
+import { LtiInitializerComponent } from 'app/course/overview/exercise-details/lti-initializer/lti-initializer.component';
+import { DiscussionSectionComponent } from 'app/communication/shared/discussion-section/discussion-section.component';
+import { ProgrammingExerciseExplanationVideoComponent } from 'app/programming/shared/explanation-video/programming-exercise-explanation-video.component';
 
 class ResizeObserverMock {
     observe = vi.fn();
@@ -124,5 +138,108 @@ describe('ExerciseSplitPanelComponent', () => {
         expect(resizablePanels.activeRightIndex()).toBe(0);
         expect(fixture.nativeElement.querySelector('.collapsed-right-panel')).toBeNull();
         expect(fixture.nativeElement.textContent).toContain('Problem Statement');
+    });
+});
+
+describe('ExerciseSplitPanelComponent explanation video widget rendering', () => {
+    // Unlike the suite above (which substitutes a trivial stub template), this suite renders the component's real
+    // templateUrl so it proves where `<jhi-programming-exercise-explanation-video>` actually ends up in the DOM -
+    // specifically that it's reachable in the always-shown "Problem Statement" panel, not only behind the online
+    // code editor (which is hidden entirely whenever `allowOnlineEditor` is false, i.e. offline-IDE-only exercises).
+    let fixture: ComponentFixture<ExerciseSplitPanelComponent>;
+
+    const baseProgrammingExercise = { id: 1, type: ExerciseType.PROGRAMMING, requiresExplanationVideo: true } as unknown as Exercise;
+    const participation = { id: 5 } as StudentParticipation;
+
+    beforeEach(async () => {
+        vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+        await TestBed.configureTestingModule({
+            imports: [ExerciseSplitPanelComponent],
+            providers: [
+                { provide: AccountService, useClass: MockAccountService },
+                { provide: IrisChatService, useValue: { openChat: vi.fn() } },
+                { provide: Router, useValue: { navigate: vi.fn() } },
+                { provide: ActivatedRoute, useValue: { parent: {}, firstChild: undefined } },
+                { provide: TranslateService, useClass: MockTranslateService },
+                ChildrenOutletContexts,
+            ],
+        })
+            .overrideComponent(ExerciseSplitPanelComponent, {
+                set: {
+                    imports: [
+                        RouterOutlet,
+                        RouterLink,
+                        ResizablePanelsComponent,
+                        PanelDirective,
+                        MockComponent(ProblemStatementComponent),
+                        MockComponent(IrisBaseChatbotComponent),
+                        MockComponent(IrisLogoComponent),
+                        MockDirective(TranslateDirective),
+                        MockComponent(ResetRepoButtonComponent),
+                        MockComponent(ComplaintsStudentViewComponent),
+                        MockComponent(RatingComponent),
+                        MockComponent(ModelingEditorComponent),
+                        MockComponent(ProgrammingExerciseExampleSolutionRepoDownloadComponent),
+                        MockComponent(CompetencyContributionComponent),
+                        MockComponent(LtiInitializerComponent),
+                        MockComponent(DiscussionSectionComponent),
+                        ProgrammingExerciseExplanationVideoComponent,
+                    ],
+                },
+            })
+            .compileComponents();
+
+        fixture = TestBed.createComponent(ExerciseSplitPanelComponent);
+        fixture.componentRef.setInput('exercise', baseProgrammingExercise);
+        fixture.componentRef.setInput('courseId', 1);
+        fixture.componentRef.setInput('irisEnabled', false);
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it('renders the explanation video widget in the problem statement panel even when the online editor is disabled (offline IDE only)', () => {
+        fixture.componentRef.setInput('exercise', { ...baseProgrammingExercise, allowOnlineEditor: false } as unknown as Exercise);
+        fixture.componentRef.setInput('studentParticipation', participation);
+        fixture.detectChanges();
+
+        const widget = fixture.debugElement.query(By.directive(ProgrammingExerciseExplanationVideoComponent));
+        expect(widget).not.toBeNull();
+    });
+
+    it('renders the explanation video widget when the online editor is enabled too', () => {
+        fixture.componentRef.setInput('exercise', { ...baseProgrammingExercise, allowOnlineEditor: true } as unknown as Exercise);
+        fixture.componentRef.setInput('studentParticipation', participation);
+        fixture.detectChanges();
+
+        const widget = fixture.debugElement.query(By.directive(ProgrammingExerciseExplanationVideoComponent));
+        expect(widget).not.toBeNull();
+    });
+
+    it('does not render the explanation video widget when the exercise does not require one', () => {
+        fixture.componentRef.setInput('exercise', { ...baseProgrammingExercise, requiresExplanationVideo: false, allowOnlineEditor: false } as unknown as Exercise);
+        fixture.componentRef.setInput('studentParticipation', participation);
+        fixture.detectChanges();
+
+        const widget = fixture.debugElement.query(By.directive(ProgrammingExerciseExplanationVideoComponent));
+        expect(widget).toBeNull();
+    });
+
+    it('does not render the explanation video widget before the student has a participation', () => {
+        fixture.componentRef.setInput('exercise', { ...baseProgrammingExercise, allowOnlineEditor: false } as unknown as Exercise);
+        fixture.detectChanges();
+
+        const widget = fixture.debugElement.query(By.directive(ProgrammingExerciseExplanationVideoComponent));
+        expect(widget).toBeNull();
+    });
+
+    it('does not render the explanation video widget for non-programming exercises', () => {
+        fixture.componentRef.setInput('exercise', { id: 2, type: ExerciseType.TEXT, requiresExplanationVideo: true } as unknown as Exercise);
+        fixture.componentRef.setInput('studentParticipation', participation);
+        fixture.detectChanges();
+
+        const widget = fixture.debugElement.query(By.directive(ProgrammingExerciseExplanationVideoComponent));
+        expect(widget).toBeNull();
     });
 });

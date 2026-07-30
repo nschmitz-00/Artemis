@@ -38,6 +38,9 @@
                 "preconditionsNotMet": "Die Voraussetzungen für die Anforderung von KI-Feedback sind nicht erfüllt."
             },
             "repository": "Repository",
+            "explanationVideo": "Erklärvideo",
+            "watchExplanationVideo": "Erklärvideo ansehen",
+            "noExplanationVideo": "Noch kein Video hochgeladen",
             "buildPlanId": "Build-Plan-Link",
             "initializationState": "Status",
             "initializationDate": "Teilnahme Start",

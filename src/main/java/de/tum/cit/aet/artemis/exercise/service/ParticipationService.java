@@ -874,9 +874,11 @@ public class ParticipationService {
 
         String buildPlanId = null;
         String repositoryUri = null;
+        String explanationVideoPath = null;
         if (participation instanceof ProgrammingExerciseStudentParticipation progParticipation) {
             buildPlanId = progParticipation.getBuildPlanId();
             repositoryUri = progParticipation.getRepositoryUri();
+            explanationVideoPath = progParticipation.getExplanationVideoPath();
         }
 
         int submissionCount = submissionCountMap.getOrDefault(participation.getId(), 0);
@@ -884,7 +886,7 @@ public class ParticipationService {
 
         return new ParticipationManagementDTO(participation.getId(), participation.getInitializationState(), participation.getInitializationDate(), submissionCount,
                 participantName, participantIdentifier, studentId, studentLogin, teamId, teamStudents, testRun, participation.getPresentationScore(),
-                participation.getIndividualDueDate(), buildPlanId, repositoryUri, buildFailed, lastResultIsManual);
+                participation.getIndividualDueDate(), buildPlanId, repositoryUri, buildFailed, lastResultIsManual, explanationVideoPath);
     }
 
     /**

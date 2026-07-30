@@ -23,4 +23,5 @@ export interface ParticipationManagementDTO {
     repositoryUri?: string;
     buildFailed?: boolean;
     lastResultIsManual?: boolean;
+    explanationVideoPath?: string;
 }
