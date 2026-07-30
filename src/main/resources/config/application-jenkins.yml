@@ -23,4 +23,4 @@ jenkins:
     # will still be constructed from the ones defined in application-artemis.yml.
     internal-urls:
         # Override the ci url used as the webhook url.
-        ci-url: # http://jenkins:8081
+        ci-url: # http://jenkins:8080

@@ -7,7 +7,7 @@ Artemis ↔ Pyris wire contract (pipeline run, async status callbacks, health) e
 without ever contacting a real model.
 
 ```text
- Artemis (host :8081) ──POST /api/v1/pipelines/chat/run──▶ Pyris (container :8000)
+ Artemis (host :8080) ──POST /api/v1/pipelines/chat/run──▶ Pyris (container :8000)
         ▲                                                      │  uses mock LLM
         │  POST /api/iris/internal/pipelines/chat/runs/        │  (openai_chat base_url
         │       {token}/status   (Bearer {token})              ▼   = http://mock-llm:8081/v1)
@@ -141,7 +141,7 @@ What `RUN_IRIS=true` does (see `run-e2e-tests-local-fast.sh`):
      is no Spring `iris` profile; enabling is purely this property.)
    - `ARTEMIS_IRIS_URL=http://localhost:8000` — Artemis → Pyris.
    - `ARTEMIS_IRIS_SECRETTOKEN=iris-e2e-secret-token` — must match `api_keys[0].token`.
-3. Overrides `server.url` to `http://host.docker.internal:8081` so that the
+3. Overrides `server.url` to `http://host.docker.internal:8080` so that the
    `artemisBaseUrl` Artemis hands to Pyris is reachable from inside the container (Pyris
    posts status callbacks there). The Playwright browser uses `BASE_URL`
    (`http://localhost:9000`) independently, and the Iris suite only touches lecture/course
@@ -155,7 +155,7 @@ spec additionally PUTs `api/iris/courses/9022/iris-settings {enabled:true}` defe
 ## Networking summary
 
 - **Artemis → Pyris**: `http://localhost:8000` (Pyris host-published port).
-- **Pyris → Artemis** (callback): `http://host.docker.internal:8081` (the host; resolves
+- **Pyris → Artemis** (callback): `http://host.docker.internal:8080` (the host; resolves
   inside the container via the `host-gateway` extra_host).
 - **Pyris → LLM**: `http://mock-llm:8081/v1` (docker network).
 - **Pyris → Weaviate**: `weaviate:8001` (REST) + `weaviate:50051` (gRPC) (docker network).

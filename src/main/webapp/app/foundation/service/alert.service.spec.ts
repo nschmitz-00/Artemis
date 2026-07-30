@@ -204,7 +204,7 @@ describe('Alert Service Test', () => {
     it('should display an alert on status 400 for generic error and use the error title', () => {
         // GIVEN
         const response = new HttpErrorResponse({
-            url: 'http://localhost:8081/api/foos',
+            url: 'http://localhost:8080/api/foos',
             headers: new HttpHeaders(),
             status: 400,
             statusText: 'Bad Request',
@@ -225,7 +225,7 @@ describe('Alert Service Test', () => {
     it('should not display an alert on status 400 for errors without message', () => {
         // GIVEN
         const response = new HttpErrorResponse({
-            url: 'http://localhost:8081/api/foos',
+            url: 'http://localhost:8080/api/foos',
             headers: new HttpHeaders(),
             status: 400,
             statusText: 'Bad request',
@@ -238,7 +238,7 @@ describe('Alert Service Test', () => {
     it('should display an alert on status 400 for invalid parameters', () => {
         // GIVEN
         const response = new HttpErrorResponse({
-            url: 'http://localhost:8081/api/foos',
+            url: 'http://localhost:8080/api/foos',
             headers: new HttpHeaders(),
             status: 400,
             statusText: 'Bad Request',
@@ -260,7 +260,7 @@ describe('Alert Service Test', () => {
     it('should display an alert on status 400 for error headers', () => {
         // GIVEN
         const response = new HttpErrorResponse({
-            url: 'http://localhost:8081/api/foos',
+            url: 'http://localhost:8080/api/foos',
             headers: new HttpHeaders().append('app-error', 'Error Message').append('app-params', 'foo'),
             status: 400,
             statusText: 'Bad Request',
@@ -313,7 +313,7 @@ describe('Alert Service Test', () => {
     it.each([400, 403, 405, 412])('should not show alerts with skipAlert=true', (statusCode) => {
         // GIVEN
         const response = new HttpErrorResponse({
-            url: 'http://localhost:8081/api/foos',
+            url: 'http://localhost:8080/api/foos',
             headers: new HttpHeaders().append('app-error', 'Error Message').append('app-params', 'foo'),
             status: statusCode,
             statusText: 'Some Error',

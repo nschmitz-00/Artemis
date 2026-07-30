@@ -39,7 +39,7 @@ class WeaviateClientIntegrationTest {
     @Test
     void testClientConnectsAndIsReady() throws Exception {
         String host = weaviate.getHost();
-        int httpPort = weaviate.getMappedPort(8081);
+        int httpPort = weaviate.getMappedPort(8080);
         int grpcPort = weaviate.getMappedPort(50051);
 
         var properties = new WeaviateConfigurationProperties(true, host, httpPort, grpcPort, "http", TEST_COLLECTION_PREFIX,
@@ -55,7 +55,7 @@ class WeaviateClientIntegrationTest {
     @Test
     void testDirectLocalConnection() throws Exception {
         String host = weaviate.getHost();
-        int httpPort = weaviate.getMappedPort(8081);
+        int httpPort = weaviate.getMappedPort(8080);
         int grpcPort = weaviate.getMappedPort(50051);
 
         try (WeaviateClient client = WeaviateClient.connectToLocal(config -> config.host(host).port(httpPort).grpcPort(grpcPort))) {
@@ -67,7 +67,7 @@ class WeaviateClientIntegrationTest {
     @Test
     void testBasicCollectionOperations() throws Exception {
         String host = weaviate.getHost();
-        int httpPort = weaviate.getMappedPort(8081);
+        int httpPort = weaviate.getMappedPort(8080);
         int grpcPort = weaviate.getMappedPort(50051);
 
         try (WeaviateClient client = WeaviateClient.connectToLocal(config -> config.host(host).port(httpPort).grpcPort(grpcPort))) {

@@ -74,8 +74,8 @@ describe('MetricsService', () => {
 
     it('should return available nodes', () => {
         const nodes: NodeInfo[] = [
-            { nodeId: 'node-1', label: '192.168.1.1:8081' },
-            { nodeId: 'node-2', label: '192.168.1.2:8081' },
+            { nodeId: 'node-1', label: '192.168.1.1:8080' },
+            { nodeId: 'node-2', label: '192.168.1.2:8080' },
         ];
 
         let result: NodeInfo[] | undefined;

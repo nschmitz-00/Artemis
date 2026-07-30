@@ -30,11 +30,11 @@
         "saml.allow.ecp.flow": "false"
       },
       "redirectUris": [
-        "http://localhost:8081/login/saml2/sso/keycloak",
+        "http://localhost:8080/login/saml2/sso/keycloak",
         "http://localhost:9000/login/saml2/sso/keycloak"
       ],
-      "adminUrl": "http://localhost:8081",
-      "baseUrl": "http://localhost:8081",
+      "adminUrl": "http://localhost:8080",
+      "baseUrl": "http://localhost:8080",
       "protocolMappers": [
         {
           "name": "uid",

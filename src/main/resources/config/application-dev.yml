@@ -59,7 +59,7 @@ spring:
         localInstances: true
 
 server:
-    port: 8081
+    port: 8080
     url: http://localhost
 # ===================================================================
 # JHipster specific properties
@@ -86,7 +86,7 @@ jhipster:
                 token-validity-in-seconds-for-remember-me: 2592000
     mail: # specific JHipster mail property, for standard properties see MailProperties
         from: artemis@localhost
-        base-url: http://127.0.0.1:8081
+        base-url: http://127.0.0.1:8080
     logging:
         use-json-format: false # By default, logs are not in Json format
         logstash: # Forward logs to logstash over a socket, used by LoggingConfiguration

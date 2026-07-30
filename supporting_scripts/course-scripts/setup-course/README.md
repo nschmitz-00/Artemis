@@ -97,7 +97,7 @@ pnpm run setupCourse -- --server-url=https://artemis.example.com
 
 # Full example
 pnpm run setupCourse -- \
-  --server-url=http://localhost:8081 \
+  --server-url=http://localhost:8080 \
   --admin-user=artemis_admin \
   --admin-password=artemis_admin \
   --student-count=10
@@ -107,7 +107,7 @@ pnpm run setupCourse -- \
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--server-url=<url>` | Artemis server URL | `http://localhost:8081` |
+| `--server-url=<url>` | Artemis server URL | `http://localhost:8080` |
 | `--admin-user=<user>` | Admin username | `artemis_admin` |
 | `--admin-password=<pass>` | Admin password | `artemis_admin` |
 | `--student-password=<pass>` | Password for created students/tutors | `Password123!` |
@@ -121,7 +121,7 @@ pnpm run setupCourse -- \
 You can also configure the script using environment variables:
 
 ```bash
-export ARTEMIS_SERVER_URL=http://localhost:8081
+export ARTEMIS_SERVER_URL=http://localhost:8080
 export ARTEMIS_ADMIN_USER=artemis_admin
 export ARTEMIS_ADMIN_PASSWORD=artemis_admin
 export ARTEMIS_STUDENT_PASSWORD=Password123!
@@ -136,7 +136,7 @@ The script provides progress output as it creates content:
 ============================================================
 Artemis Course Setup Script
 ============================================================
-Server URL: http://localhost:8081
+Server URL: http://localhost:8080
 Admin User: artemis_admin
 Student Count: 5
 Skip Participations: false
@@ -220,7 +220,7 @@ Course setup completed successfully!
 
 ### HTTP 404: Authentication endpoint not found
 - The server may still be starting up - wait and try again
-- Verify the server URL is correct (default: `http://localhost:8081`)
+- Verify the server URL is correct (default: `http://localhost:8080`)
 - Check that the server is running with the full profile (not just a subset)
 
 ### Authentication Failed

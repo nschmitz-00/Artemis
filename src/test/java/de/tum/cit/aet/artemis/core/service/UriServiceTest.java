@@ -107,7 +107,7 @@ class UriServiceTest extends AbstractSpringIntegrationIndependentTest {
         assertThat(new ProgrammingExerciseStudentParticipation().getUserIndependentRepositoryUri()).isNull();
 
         var studentParticipation3 = new ProgrammingExerciseStudentParticipation();
-        studentParticipation3.setRepositoryUri("http://localhost:8081/Assignment/rest/words/{name}/protection");
+        studentParticipation3.setRepositoryUri("http://localhost:8080/Assignment/rest/words/{name}/protection");
         assertThat(studentParticipation3.getUserIndependentRepositoryUri()).isNull();
     }
 

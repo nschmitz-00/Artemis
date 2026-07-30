@@ -122,7 +122,7 @@ public class UriService {
      * <p>
      * Examples:
      * https://ga42xab@https://artemistest.ase.in.tum.de/TESTADAPTER/testadapter-exercise.git --> TESTADAPTER
-     * http://localhost:8081/git/TESTCOURSE1TESTEX1/testcourse1testex1-student1.git --> TESTCOURSE1TESTEX1
+     * http://localhost:8080/git/TESTCOURSE1TESTEX1/testcourse1testex1-student1.git --> TESTCOURSE1TESTEX1
      *
      * @param uri The complete repository uri (including protocol, host and the complete path)
      * @return The project key

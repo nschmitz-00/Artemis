@@ -14,7 +14,7 @@ class WeaviateConnectionExceptionTest {
         String message = "Connection failed";
         Throwable cause = new RuntimeException("Network error");
         String httpHost = "localhost";
-        int httpPort = 8081;
+        int httpPort = 8080;
         int grpcPort = 50051;
         boolean secure = false;
 
@@ -51,7 +51,7 @@ class WeaviateConnectionExceptionTest {
     void testExceptionWithNullCause() {
         String message = "Connection timeout";
         String httpHost = "unreachable-host";
-        int httpPort = 8081;
+        int httpPort = 8080;
         int grpcPort = 50051;
         boolean secure = false;
 

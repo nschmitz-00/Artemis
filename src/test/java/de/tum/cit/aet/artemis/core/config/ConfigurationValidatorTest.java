@@ -129,7 +129,7 @@ class ConfigurationValidatorTest {
             }
 
             @ParameterizedTest
-            @ValueSource(ints = { 1, 80, 443, 8081, 65535 })
+            @ValueSource(ints = { 1, 80, 443, 8080, 65535 })
             void testValidPortShouldPassValidation(int port) {
                 ConfigurationValidator validator = createValidator(true, VALID_HOST, port, VALID_GRPC_PORT, VALID_SCHEME);
 

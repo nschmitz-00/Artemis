@@ -22,7 +22,7 @@ describe('BuildAgentsService', () => {
         httpMock = TestBed.inject(HttpTestingController);
         element = new BuildAgentInformation();
         element.id = 1;
-        element.buildAgent = { name: 'buildAgent1', memberAddress: 'localhost:8081', displayName: 'Build Agent 1' };
+        element.buildAgent = { name: 'buildAgent1', memberAddress: 'localhost:8080', displayName: 'Build Agent 1' };
         element.maxNumberOfConcurrentBuildJobs = 3;
         element.numberOfCurrentBuildJobs = 1;
     });

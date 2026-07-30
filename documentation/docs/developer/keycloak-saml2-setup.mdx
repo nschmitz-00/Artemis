@@ -97,7 +97,7 @@ artemis:
 
 Add the following to `src/main/resources/config/application-local.yml`.
 
-**When accessing Artemis at `http://localhost:8081`** (direct Spring Boot, or `./gradlew bootRun`):
+**When accessing Artemis at `http://localhost:8080`** (direct Spring Boot, or `./gradlew bootRun`):
 
 ```yaml
 spring:
@@ -146,7 +146,7 @@ The Keycloak realm also needs `http://localhost:9000/login/saml2/sso/keycloak` a
 
 <Callout variant={CalloutVariant.info}>
     The SAML2 configuration in `application-local.yml` is the same regardless of whether you access
-    Artemis via port 8081 or port 9000. The Spring Boot server always runs on port 8081 — the Angular
+    Artemis via port 8080 or port 9000. The Spring Boot server always runs on port 8080 — the Angular
     dev server on port 9000 simply proxies requests to it.
 </Callout>
 
@@ -207,7 +207,7 @@ The preconfigured `artemis` realm includes:
 | SAML Client       | Client ID: `artemis`                                       |
 | Test Users        | `saml2user1` / `password`, `saml2user2` / `password`       |
 | Attribute Mappers | `first_name`, `last_name`, `email`, `uid`                  |
-| Allowed Redirects | `http://localhost:8081/...` and `http://localhost:9000/...` |
+| Allowed Redirects | `http://localhost:8080/...` and `http://localhost:9000/...` |
 
 ---
 
@@ -223,7 +223,7 @@ This usually means the SAML entity ID sent by Artemis does not match the client 
 
 Keycloak is rejecting the Assertion Consumer Service (ACS) URL because it is not in the allowed redirect URIs list.
 
-**Fix:** The preconfigured realm allows both `localhost:8081` and `localhost:9000`. If you changed the port, update the redirect URIs in the Keycloak admin console: **Realm: artemis → Clients → artemis → Valid Redirect URIs**.
+**Fix:** The preconfigured realm allows both `localhost:8080` and `localhost:9000`. If you changed the port, update the redirect URIs in the Keycloak admin console: **Realm: artemis → Clients → artemis → Valid Redirect URIs**.
 
 <Callout variant={CalloutVariant.info}>
     The Keycloak realm is imported from `docker/saml-test/artemis-realm.json` only when the container is **first created**.

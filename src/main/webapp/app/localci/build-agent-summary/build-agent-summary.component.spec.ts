@@ -70,7 +70,7 @@ describe('BuildAgentSummaryComponent', () => {
         {
             id: '2',
             name: 'Build Job 2',
-            buildAgent: { name: 'agent2', memberAddress: 'localhost:8081', displayName: 'Agent 2' },
+            buildAgent: { name: 'agent2', memberAddress: 'localhost:8080', displayName: 'Agent 2' },
             participationId: 102,
             courseId: 10,
             exerciseId: 100,
@@ -83,7 +83,7 @@ describe('BuildAgentSummaryComponent', () => {
         {
             id: '4',
             name: 'Build Job 4',
-            buildAgent: { name: 'agent4', memberAddress: 'localhost:8081', displayName: 'Agent 4' },
+            buildAgent: { name: 'agent4', memberAddress: 'localhost:8080', displayName: 'Agent 4' },
             participationId: 104,
             courseId: 10,
             exerciseId: 100,

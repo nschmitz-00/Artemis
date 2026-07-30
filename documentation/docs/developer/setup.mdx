@@ -314,7 +314,7 @@ The recommended way is to run the server and the client separately. This provide
 <summary>Deprecated Options</summary>
 
 - **Artemis (Server):** The server will be started separated from the client. The startup time decreases significantly.
-- **Artemis (Server & Client):** Will start the server and the client. The client will be available at [http://localhost:8081/](http://localhost:8081/) with hot module replacement disabled.
+- **Artemis (Server & Client):** Will start the server and the client. The client will be available at [http://localhost:8080/](http://localhost:8080/) with hot module replacement disabled.
 
 </details>
 
@@ -400,7 +400,7 @@ docker run \
   -e SPRING_PROFILES_ACTIVE=dev,artemis,localci,localvc,scheduling,buildagent,core,local \
   -e ARTEMIS_USER_MANAGEMENT_LDAP_ENABLED=true \
   -e ARTEMIS_APOLLON_ENABLED=true \
-  -p 8081:8081 \
+  -p 8080:8080 \
   ghcr.io/ls1intum/artemis:<TAG/VERSION>
 ```
 
@@ -411,7 +411,7 @@ docker run \
   -e ARTEMIS_ATLAS_ENABLED=true \
   -e SPRING_DATASOURCE_URL="jdbc:mysql://<db-host>:3306/Artemis?..." \
   ...
-  -p 8081:8081 \
+  -p 8080:8080 \
   ghcr.io/ls1intum/artemis:<TAG/VERSION>
 ```
 

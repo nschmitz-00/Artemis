@@ -32,7 +32,7 @@ class JenkinsInternalUriServiceTest extends AbstractProgrammingIntegrationJenkin
     @BeforeEach
     void initTestCase() throws Exception {
         vcsRepositoryUri = new VcsRepositoryUri("http://localhost:80/some-repo.git");
-        ciUrl = "http://localhost:8081/some-ci-path";
+        ciUrl = "http://localhost:8080/some-ci-path";
         internalVcsUrl = new URI("http://1.2.3.4:123").toURL();
         internalCiUrl = new URI("http://5.6.7.8:123").toURL();
         ReflectionTestUtils.setField(jenkinsInternalUrlService, "internalVcsUrl", Optional.empty());

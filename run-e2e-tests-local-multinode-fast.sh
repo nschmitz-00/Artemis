@@ -14,7 +14,7 @@ set -e
 # (Docker image, container isolation, etc.).
 #
 # Stack layout (host network):
-#   - node-1 (core, scheduling)              http :8081  hazelcast :5701  ssh :7921
+#   - node-1 (core, scheduling)              http :8080  hazelcast :5701  ssh :7921
 #   - node-2 (core, buildagent)              http :8081  hazelcast :5702  ssh :7922
 #   - node-3 (buildagent only, hz client)    http :8082
 #   - postgres   container                  127.0.0.1:5432
@@ -76,7 +76,7 @@ LOCAL_DIR=".e2e-local-multinode-fast"
 COMPOSE_FILE="docker/playwright-E2E-tests-multi-node-fast.yml"
 
 # Per-node port allocation. Indexes match node1/node2/node3 below.
-HTTP_PORTS=(8081 8081 8082)
+HTTP_PORTS=(8080 8081 8082)
 # HZ_PORTS/SSH_PORTS document the per-node port scheme for reference; not referenced directly (SC2034).
 # shellcheck disable=SC2034
 HZ_PORTS=(5701 5702)            # node-3 has no Hazelcast bind port (client)
@@ -84,7 +84,7 @@ HZ_PORTS=(5701 5702)            # node-3 has no Hazelcast bind port (client)
 SSH_PORTS=(7921 7922)            # node-3 has no Git SSH
 
 # All host ports the script claims; freed during preflight + --stop.
-ALL_PORTS=(8081 8081 8082 5701 5702 7921 7922)
+ALL_PORTS=(8080 8081 8082 5701 5702 7921 7922)
 
 # Kill a process and all its children (portable, works on macOS and Linux)
 kill_tree() {
@@ -474,13 +474,13 @@ COOKIE=$(mktemp)
 trap 'rm -f "$COOKIE"' EXIT
 
 # Login via node-1 directly (HTTP, no nginx required for this preflight check).
-curl -s -c "$COOKIE" -X POST 'http://localhost:8081/api/core/public/authenticate' \
+curl -s -c "$COOKIE" -X POST 'http://localhost:8080/api/core/public/authenticate' \
     -H 'Content-Type: application/json' \
     -d '{"username":"artemis_admin","password":"artemis_admin","rememberMe":true}' \
     -o /dev/null
 
 while true; do
-    SIZE=$(curl -s -b "$COOKIE" 'http://localhost:8081/api/core/admin/websocket/nodes' \
+    SIZE=$(curl -s -b "$COOKIE" 'http://localhost:8080/api/core/admin/websocket/nodes' \
             | python3 -c 'import sys,json;
 try:
     d=json.load(sys.stdin); print(len(d))

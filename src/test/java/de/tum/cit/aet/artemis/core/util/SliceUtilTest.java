@@ -24,7 +24,7 @@ class SliceUtilTest {
 
     @BeforeEach
     void initMocks() {
-        uriBuilder = UriComponentsBuilder.fromUriString("http://localhost:8081/api/items");
+        uriBuilder = UriComponentsBuilder.fromUriString("http://localhost:8080/api/items");
     }
 
     @Test
@@ -95,7 +95,7 @@ class SliceUtilTest {
 
     @Test
     void generateSliceHttpHeaders_uriBuilderWithExistingParams_shouldPreserveExistingParams() {
-        uriBuilder = UriComponentsBuilder.fromUriString("http://localhost:8081/api/items?sort=name,asc");
+        uriBuilder = UriComponentsBuilder.fromUriString("http://localhost:8080/api/items?sort=name,asc");
         when(slice.hasNext()).thenReturn(true);
         when(slice.getNumber()).thenReturn(0);
         when(slice.getSize()).thenReturn(10);
@@ -108,7 +108,7 @@ class SliceUtilTest {
 
     @Test
     void generateSliceHttpHeaders_specialCharactersInUri_shouldEncodeSpecialCharacters() {
-        uriBuilder = UriComponentsBuilder.fromUriString("http://localhost:8081/api/items?filter=name,test;value");
+        uriBuilder = UriComponentsBuilder.fromUriString("http://localhost:8080/api/items?filter=name,test;value");
         when(slice.hasNext()).thenReturn(true);
         when(slice.getNumber()).thenReturn(0);
         when(slice.getSize()).thenReturn(10);

@@ -127,7 +127,7 @@ used for every other Playwright suite, with `RUN_IRIS=true` adding:
    `mock-llm`), waiting for Pyris's `/api/v1/health/` to report healthy.
 2. Server properties that turn Iris on: `ARTEMIS_IRIS_ENABLED=true`, `ARTEMIS_IRIS_URL` (→
    Pyris), `ARTEMIS_IRIS_SECRETTOKEN` (the shared bearer token both sides must agree on).
-3. `server.url` overridden to `http://host.docker.internal:8081` so Pyris's container can
+3. `server.url` overridden to `http://host.docker.internal:8080` so Pyris's container can
    reach Artemis on the host for status callbacks.
 
 You need the `pyris-e2e:local` image before the first run. The fastest way is to pull the

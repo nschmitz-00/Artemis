@@ -58,7 +58,7 @@ public class ProgrammingLanguageConfiguration {
      * Returns a list of CLI parameters that should be passed to a {@code docker run} command.
      * <p>
      * Options and their value are two individual CLI parameters in this representation.
-     * E.g., {@code --cpus 2 -p 8081:80} is represented as {@code [--cpus, "2", -p, "8081:80"]}.
+     * E.g., {@code --cpus 2 -p 8080:80} is represented as {@code [--cpus, "2", -p, "8080:80"]}.
      * All option values are quoted to prevent accidental splitting.
      *
      * @return The list of CLI parameters.
