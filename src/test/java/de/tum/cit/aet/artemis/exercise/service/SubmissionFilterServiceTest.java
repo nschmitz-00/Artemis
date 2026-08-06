@@ -80,7 +80,7 @@ class SubmissionFilterServiceTest extends AbstractSpringIntegrationIndependentBa
     }
 
     @ParameterizedTest
-    @EnumSource(ExerciseType.class)
+    @EnumSource(value = ExerciseType.class, names = { "MILESTONE", "USER_STORY" }, mode = EnumSource.Mode.EXCLUDE)
     void shouldNotFindSubmissionsWithoutResult(ExerciseType exerciseType) {
         var exercise = exerciseByType.get(exerciseType);
         var participation = new StudentParticipation().exercise(exercise);
@@ -97,7 +97,7 @@ class SubmissionFilterServiceTest extends AbstractSpringIntegrationIndependentBa
     }
 
     @ParameterizedTest
-    @EnumSource(ExerciseType.class)
+    @EnumSource(value = ExerciseType.class, names = { "MILESTONE", "USER_STORY" }, mode = EnumSource.Mode.EXCLUDE)
     void shouldNotFindSubmissionsWithUnratedResult(ExerciseType exerciseType) {
         var exercise = exerciseByType.get(exerciseType);
         var participation = new StudentParticipation().exercise(exercise);
@@ -112,7 +112,7 @@ class SubmissionFilterServiceTest extends AbstractSpringIntegrationIndependentBa
     }
 
     @ParameterizedTest
-    @EnumSource(ExerciseType.class)
+    @EnumSource(value = ExerciseType.class, names = { "MILESTONE", "USER_STORY" }, mode = EnumSource.Mode.EXCLUDE)
     void shouldNotFindSubmissionWhenAssessmentDueDateIsNotOver(ExerciseType exerciseType) {
         var exercise = exerciseByType.get(exerciseType);
         exercise.setAssessmentDueDate(ZonedDateTime.now().plusDays(1));
@@ -131,7 +131,7 @@ class SubmissionFilterServiceTest extends AbstractSpringIntegrationIndependentBa
     }
 
     @ParameterizedTest
-    @EnumSource(ExerciseType.class)
+    @EnumSource(value = ExerciseType.class, names = { "MILESTONE", "USER_STORY" }, mode = EnumSource.Mode.EXCLUDE)
     void shouldFindSubmission(ExerciseType exerciseType) {
         var exercise = exerciseByType.get(exerciseType);
         exercise.setDueDate(ZonedDateTime.now().minusDays(1));
@@ -147,7 +147,7 @@ class SubmissionFilterServiceTest extends AbstractSpringIntegrationIndependentBa
     }
 
     @ParameterizedTest
-    @EnumSource(ExerciseType.class)
+    @EnumSource(value = ExerciseType.class, names = { "MILESTONE", "USER_STORY" }, mode = EnumSource.Mode.EXCLUDE)
     void shouldFindSubmissionWhenAssessmentDueDateIsIgnored(ExerciseType exerciseType) {
         var exercise = exerciseByType.get(exerciseType);
         exercise.setAssessmentDueDate(ZonedDateTime.now().plusDays(1));
@@ -166,7 +166,7 @@ class SubmissionFilterServiceTest extends AbstractSpringIntegrationIndependentBa
     }
 
     @ParameterizedTest
-    @EnumSource(ExerciseType.class)
+    @EnumSource(value = ExerciseType.class, names = { "MILESTONE", "USER_STORY" }, mode = EnumSource.Mode.EXCLUDE)
     void shouldGetTheLatestSubmission(ExerciseType exerciseType) {
         var exercise = exerciseByType.get(exerciseType);
         exercise.setDueDate(ZonedDateTime.now());
@@ -360,6 +360,8 @@ class SubmissionFilterServiceTest extends AbstractSpringIntegrationIndependentBa
             case QUIZ -> new QuizSubmission();
             case FILE_UPLOAD -> new FileUploadSubmission();
             case PROGRAMMING -> new ProgrammingSubmission();
+            case MILESTONE, USER_STORY ->
+                throw new UnsupportedOperationException("No test fixture yet for " + exerciseType + "; excluded from the @EnumSource(ExerciseType.class) tests above");
         };
     }
 }

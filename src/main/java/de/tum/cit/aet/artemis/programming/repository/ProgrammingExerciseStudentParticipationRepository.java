@@ -32,6 +32,29 @@ import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParti
 public interface ProgrammingExerciseStudentParticipationRepository extends ArtemisJpaRepository<ProgrammingExerciseStudentParticipation, Long> {
 
     /**
+     * Finds the sibling {@link ProgrammingExerciseStudentParticipation}s of a given student for every {@code UserStoryExercise}
+     * belonging to the given MilestoneExercise (excluding the Milestone's own participation). Used to fan out a single push
+     * (and its single CI build) on the shared repository into one submission/result per UserStory. Scoped by repository uri
+     * as well as milestone id so it stays cheap (small, indexed lookup) and returns nothing at all for ordinary, non-Milestone
+     * programming exercises.
+     *
+     * @param milestoneExerciseId the id of the MilestoneExercise whose UserStory siblings should be found
+     * @param repositoryUri       the shared repository uri copied onto every sibling participation at start time
+     * @param studentId           the id of the student who pushed
+     * @return the sibling participations, one per UserStoryExercise the student has started
+     */
+    @Query("""
+            SELECT p
+            FROM ProgrammingExerciseStudentParticipation p
+                JOIN UserStoryExercise us ON us.id = p.exercise.id
+            WHERE us.milestoneExercise.id = :milestoneExerciseId
+                AND p.repositoryUri = :repositoryUri
+                AND p.student.id = :studentId
+            """)
+    List<ProgrammingExerciseStudentParticipation> findAllUserStorySiblingsByMilestoneIdAndRepositoryUriAndStudentId(@Param("milestoneExerciseId") long milestoneExerciseId,
+            @Param("repositoryUri") String repositoryUri, @Param("studentId") long studentId);
+
+    /**
      * Loads a {@link ProgrammingExerciseStudentParticipation} by id with all related submissions and results in one query (avoiding N+1 issues via {@code LEFT JOIN FETCH}).
      *
      * <p>

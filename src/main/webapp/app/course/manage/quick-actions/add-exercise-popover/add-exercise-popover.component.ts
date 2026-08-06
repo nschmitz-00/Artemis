@@ -56,6 +56,11 @@ export class AddExercisePopoverComponent {
             type: ExerciseType.FILE_UPLOAD,
             translationKey: 'global.menu.entities.exerciseTypes.fileUpload',
         },
+        {
+            type: ExerciseType.MILESTONE,
+            translationKey: 'global.menu.entities.exerciseTypes.milestone',
+            featureToggle: FeatureToggle.ProgrammingExercises,
+        },
     ];
 
     protected readonly exerciseTypes = computed(() => {

@@ -131,7 +131,7 @@ class ExerciseVersionServiceTest extends AbstractProgrammingIntegrationLocalCILo
     }
 
     @ParameterizedTest
-    @EnumSource(ExerciseType.class)
+    @EnumSource(value = ExerciseType.class, names = { "MILESTONE", "USER_STORY" }, mode = EnumSource.Mode.EXCLUDE)
     @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
     void testCreateExerciseVersionOnCreate(ExerciseType exerciseType) {
         Exercise exercise = createExerciseByType(exerciseType);
@@ -140,7 +140,7 @@ class ExerciseVersionServiceTest extends AbstractProgrammingIntegrationLocalCILo
     }
 
     @ParameterizedTest
-    @EnumSource(ExerciseType.class)
+    @EnumSource(value = ExerciseType.class, names = { "MILESTONE", "USER_STORY" }, mode = EnumSource.Mode.EXCLUDE)
     @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
     void testCreateExerciseVersionOnUpdate(ExerciseType exerciseType) throws Exception {
         Exercise exercise = createExerciseByType(exerciseType);
@@ -169,7 +169,7 @@ class ExerciseVersionServiceTest extends AbstractProgrammingIntegrationLocalCILo
     }
 
     @ParameterizedTest
-    @EnumSource(value = ExerciseType.class, names = "QUIZ", mode = EnumSource.Mode.EXCLUDE)
+    @EnumSource(value = ExerciseType.class, names = { "QUIZ", "MILESTONE", "USER_STORY" }, mode = EnumSource.Mode.EXCLUDE)
     @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
     void testCreateExerciseVersionOnInvalidUpdate(ExerciseType exerciseType) throws Exception {
         Exercise exercise = createExerciseByType(exerciseType);
@@ -268,6 +268,8 @@ class ExerciseVersionServiceTest extends AbstractProgrammingIntegrationLocalCILo
             case QUIZ -> createQuizExercise();
             case MODELING -> createModelingExercise();
             case FILE_UPLOAD -> createFileUploadExercise();
+            case MILESTONE, USER_STORY ->
+                throw new UnsupportedOperationException("No test fixture yet for " + exerciseType + "; excluded from the @EnumSource(ExerciseType.class) tests above");
         };
     }
 

@@ -20,9 +20,11 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
+import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseTask;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseTestCase;
+import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseTaskRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseTestCaseRepository;
 
@@ -150,6 +152,34 @@ public class ProgrammingExerciseTaskService {
     }
 
     /**
+     * Extracts all tasks from the problem statement of a {@link UserStoryExercise} and saves them to the database.
+     * <p>
+     * Unlike {@link #updateTasksFromProblemStatement(ProgrammingExercise)}, the test cases eligible for linking come from the
+     * exercise's parent {@link MilestoneExercise} (the owner of the shared test repository), not from the UserStoryExercise
+     * itself. The resulting tasks are persisted against the Milestone (matching where their linked test cases live) but tagged
+     * via {@link ProgrammingExerciseTask#setReferencingUserStoryExercise} so grading can later scope to just this UserStory's subset.
+     * <p>
+     * Unlike the ProgrammingExercise variant, this always replaces the previous task set wholesale rather than diffing and
+     * preserving renamed tasks - a reasonable simplification given a UserStory's problem statement typically references only a
+     * handful of tasks.
+     *
+     * @param userStoryExercise The UserStoryExercise to extract the tasks from
+     */
+    public void updateTasksFromProblemStatement(UserStoryExercise userStoryExercise) {
+        MilestoneExercise milestoneExercise = userStoryExercise.getMilestoneExercise();
+        var previousTasks = programmingExerciseTaskRepository.findByReferencingUserStoryExerciseIdWithTestCases(userStoryExercise.getId());
+        if (!previousTasks.isEmpty()) {
+            programmingExerciseTaskRepository.deleteAll(previousTasks);
+        }
+        var extractedTasks = extractTasksForUserStory(userStoryExercise, milestoneExercise);
+        for (ProgrammingExerciseTask task : extractedTasks) {
+            task.setExercise(milestoneExercise);
+            task.setReferencingUserStoryExercise(userStoryExercise);
+        }
+        programmingExerciseTaskRepository.saveAll(extractedTasks);
+    }
+
+    /**
      * Gets all tasks of an exercise excluding inactive test cases
      *
      * @param exerciseId of the programming exercise
@@ -209,6 +239,34 @@ public class ProgrammingExerciseTaskService {
             var task = new ProgrammingExerciseTask();
             task.setTaskName(taskName);
             task.setExercise(exercise);
+
+            var testCaseNames = extractTestCaseNames(capturedTestCaseNames);
+            testCaseNames.stream().map(name -> findTestCaseFromProblemStatement(name, testCases)).flatMap(Optional::stream).forEach(task.getTestCases()::add);
+
+            tasks.add(task);
+        }
+        return tasks;
+    }
+
+    /**
+     * Same parsing logic as {@link #extractTasks(ProgrammingExercise)}, but reads the problem statement from the UserStoryExercise
+     * while resolving linkable test cases from its parent Milestone (the owner of the shared test repository).
+     */
+    private List<ProgrammingExerciseTask> extractTasksForUserStory(UserStoryExercise userStoryExercise, MilestoneExercise milestoneExercise) {
+        var tasks = new ArrayList<ProgrammingExerciseTask>();
+        var problemStatement = userStoryExercise.getProblemStatement();
+        if (problemStatement == null || problemStatement.isEmpty()) {
+            return tasks;
+        }
+        var matcher = TASK_PATTERN.matcher(problemStatement);
+        var testCases = programmingExerciseTestCaseRepository.findByExerciseId(milestoneExercise.getId());
+        while (matcher.find()) {
+            var taskName = matcher.group("name");
+            var capturedTestCaseNames = matcher.group("tests");
+
+            var task = new ProgrammingExerciseTask();
+            task.setTaskName(taskName);
+            task.setExercise(milestoneExercise);
 
             var testCaseNames = extractTestCaseNames(capturedTestCaseNames);
             testCaseNames.stream().map(name -> findTestCaseFromProblemStatement(name, testCases)).flatMap(Optional::stream).forEach(task.getTestCases()::add);

@@ -4,13 +4,15 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 import de.tum.cit.aet.artemis.fileupload.domain.FileUploadExercise;
 import de.tum.cit.aet.artemis.modeling.domain.ModelingExercise;
+import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
+import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 import de.tum.cit.aet.artemis.quiz.domain.QuizExercise;
 import de.tum.cit.aet.artemis.text.domain.TextExercise;
 
 public enum ExerciseType {
 
-    TEXT("text"), PROGRAMMING("programming"), MODELING("modeling"), FILE_UPLOAD("file-upload"), QUIZ("quiz");
+    TEXT("text"), PROGRAMMING("programming"), MODELING("modeling"), FILE_UPLOAD("file-upload"), QUIZ("quiz"), MILESTONE("milestone"), USER_STORY("user-story");
 
     private final String value;
 
@@ -50,6 +52,8 @@ public enum ExerciseType {
             case MODELING -> ModelingExercise.class;
             case FILE_UPLOAD -> FileUploadExercise.class;
             case QUIZ -> QuizExercise.class;
+            case MILESTONE -> MilestoneExercise.class;
+            case USER_STORY -> UserStoryExercise.class;
         };
     }
 
@@ -66,6 +70,8 @@ public enum ExerciseType {
             case "ModelingExercise" -> MODELING;
             case "FileUploadExercise" -> FILE_UPLOAD;
             case "QuizExercise" -> QUIZ;
+            case "MilestoneExercise" -> MILESTONE;
+            case "UserStoryExercise" -> USER_STORY;
             default -> throw new IllegalArgumentException("Received unexecpted exercise class name %s".formatted(exerciseClass.getSimpleName()));
         };
     }

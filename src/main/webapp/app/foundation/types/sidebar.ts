@@ -92,6 +92,11 @@ export interface SidebarCardElement {
      */
     type?: string;
     /**
+     * Set for Exercises: how deeply this card should be visually indented under its parent (e.g. a UserStoryExercise
+     * card nested under its MilestoneExercise). 0/undefined means no indentation.
+     */
+    indentLevel?: number;
+    /**
      * Sets the size of SidebarCards
      */
     size: SidebarCardSize;

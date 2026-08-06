@@ -65,4 +65,36 @@ public interface ProgrammingExerciseTaskRepository extends ArtemisJpaRepository<
             WHERE t.exercise.id = :exerciseId
             """)
     Set<ProgrammingExerciseTask> findByExerciseIdWithTestCases(@Param("exerciseId") Long exerciseId);
+
+    /**
+     * Gets all tasks (with their test cases) that were parsed from the problem statement of a specific {@code UserStoryExercise}.
+     * The tasks themselves are persisted against the owning MilestoneExercise (see {@link ProgrammingExerciseTask#getExercise()}),
+     * but are tagged with the UserStoryExercise that referenced them so grading can scope to just that subset.
+     *
+     * @param userStoryExerciseId of the UserStoryExercise
+     * @return all tasks (with test cases) referenced by that UserStoryExercise's problem statement
+     */
+    @Query("""
+            SELECT t
+            FROM ProgrammingExerciseTask t
+                LEFT JOIN FETCH t.testCases tc
+            WHERE t.referencingUserStoryExercise.id = :userStoryExerciseId
+            """)
+    Set<ProgrammingExerciseTask> findByReferencingUserStoryExerciseIdWithTestCases(@Param("userStoryExerciseId") long userStoryExerciseId);
+
+    /**
+     * Gets the ids of all test cases referenced by any task belonging to a specific {@code UserStoryExercise}'s problem statement.
+     * Used to scope grading of a UserStory's participation to only the test cases relevant to it, out of the full set of test cases
+     * belonging to the shared Milestone test repository.
+     *
+     * @param userStoryExerciseId of the UserStoryExercise
+     * @return the ids of the test cases relevant to that UserStoryExercise
+     */
+    @Query("""
+            SELECT tc.id
+            FROM ProgrammingExerciseTask t
+                JOIN t.testCases tc
+            WHERE t.referencingUserStoryExercise.id = :userStoryExerciseId
+            """)
+    Set<Long> findTestCaseIdsByReferencingUserStoryExerciseId(@Param("userStoryExerciseId") long userStoryExerciseId);
 }

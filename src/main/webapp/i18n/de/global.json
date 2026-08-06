@@ -159,7 +159,9 @@
                     "modeling": "Modellierung",
                     "text": "Text",
                     "fileUpload": "Datei-Upload",
-                    "quiz": "Quiz"
+                    "quiz": "Quiz",
+                    "milestone": "Meilenstein",
+                    "userStory": "User Story"
                 },
                 "metis": {
                     "post": "Beitrag",

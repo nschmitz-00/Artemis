@@ -41,14 +41,17 @@ import de.tum.cit.aet.artemis.exercise.repository.ParticipationRepository;
 import de.tum.cit.aet.artemis.localci.domain.BuildJob;
 import de.tum.cit.aet.artemis.localci.repository.BuildJobRepository;
 import de.tum.cit.aet.artemis.localci.service.distributed.api.queue.listener.QueueItemListener;
+import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseBuildStatistics;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseParticipation;
+import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParticipation;
 import de.tum.cit.aet.artemis.programming.domain.RepositoryType;
 import de.tum.cit.aet.artemis.programming.domain.build.BuildStatus;
 import de.tum.cit.aet.artemis.programming.exception.BuildTriggerWebsocketError;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseBuildStatisticsRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseRepository;
+import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseStudentParticipationRepository;
 import de.tum.cit.aet.artemis.programming.service.BuildLogEntryService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseGradingService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingMessagingService;
@@ -86,6 +89,8 @@ public class LocalCIResultProcessingService {
 
     private final Optional<LocalCIQueueWebsocketService> localCIQueueWebsocketService;
 
+    private final ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository;
+
     private UUID listenerId;
 
     private final AtomicLong processedResults = new AtomicLong();
@@ -101,7 +106,8 @@ public class LocalCIResultProcessingService {
             BuildJobRepository buildJobRepository, ProgrammingExerciseRepository programmingExerciseRepository, ParticipationRepository participationRepository,
             ProgrammingTriggerService programmingTriggerService, BuildLogEntryService buildLogEntryService,
             ProgrammingExerciseBuildStatisticsRepository programmingExerciseBuildStatisticsRepository, DistributedDataAccessService distributedDataAccessService,
-            ProgrammingSubmissionMessagingService programmingSubmissionMessagingService, Optional<LocalCIQueueWebsocketService> localCIQueueWebsocketService) {
+            ProgrammingSubmissionMessagingService programmingSubmissionMessagingService, Optional<LocalCIQueueWebsocketService> localCIQueueWebsocketService,
+            ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository) {
         this.programmingExerciseRepository = programmingExerciseRepository;
         this.participationRepository = participationRepository;
         this.programmingExerciseGradingService = programmingExerciseGradingService;
@@ -113,6 +119,7 @@ public class LocalCIResultProcessingService {
         this.distributedDataAccessService = distributedDataAccessService;
         this.programmingSubmissionMessagingService = programmingSubmissionMessagingService;
         this.localCIQueueWebsocketService = localCIQueueWebsocketService;
+        this.programmingExerciseStudentParticipationRepository = programmingExerciseStudentParticipationRepository;
     }
 
     /**
@@ -244,6 +251,21 @@ public class LocalCIResultProcessingService {
                 boolean testsExpected = buildJob.buildConfig().areTestsExpected();
                 result = programmingExerciseGradingService.processNewProgrammingExerciseResult(participation, buildResult, testsExpected);
 
+                // A single push to a Milestone's shared repository triggers exactly one CI build (queued against the Milestone's
+                // own participation); fan that single result out into one additional Result per UserStoryExercise sibling
+                // participation, reusing the grading pipeline unmodified for each (it self-scopes to each UserStory's own test
+                // cases, see ProgrammingExerciseGradingService#findActiveTestCasesScopedToExercise).
+                if (participation.getProgrammingExercise() instanceof MilestoneExercise milestoneExercise
+                        && participation instanceof ProgrammingExerciseStudentParticipation milestoneParticipation) {
+                    milestoneParticipation.getStudent().ifPresent(student -> {
+                        List<ProgrammingExerciseStudentParticipation> userStorySiblings = programmingExerciseStudentParticipationRepository
+                                .findAllUserStorySiblingsByMilestoneIdAndRepositoryUriAndStudentId(milestoneExercise.getId(), milestoneParticipation.getRepositoryUri(),
+                                        student.getId());
+                        for (ProgrammingExerciseStudentParticipation userStoryParticipation : userStorySiblings) {
+                            programmingExerciseGradingService.processNewProgrammingExerciseResult(userStoryParticipation, buildResult, testsExpected);
+                        }
+                    });
+                }
             }
             else {
                 log.warn("Participation with id {} has been deleted. Cancelling the processing of the build result.", buildJob.participationId());

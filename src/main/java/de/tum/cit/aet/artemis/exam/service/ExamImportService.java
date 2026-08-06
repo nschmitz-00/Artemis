@@ -471,6 +471,9 @@ public class ExamImportService {
                         // We don't allow a modification of the exercise at this point, so we can just pass an empty list of files.
                         yield Optional.of(quizExerciseImportService.importQuizExercise(quizSkeleton, originalQuizExercise, null));
                     }
+
+                    // Milestone/UserStory exercises are course exercises only and are not supported in exams.
+                    case MILESTONE, USER_STORY -> Optional.empty();
                 };
                 // Attach the newly created Exercise to the new Exercise Group only if the importing was successful.
                 // An empty result means the exercise could not be imported (e.g. the responsible import module is

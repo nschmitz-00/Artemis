@@ -265,6 +265,8 @@ public class CourseMaterialImportService {
             case MODELING -> importModelingExercise((ModelingExercise) exercise, targetCourse);
             case TEXT -> importTextExercise((TextExercise) exercise, targetCourse);
             case FILE_UPLOAD -> importFileUploadExercise((FileUploadExercise) exercise, targetCourse);
+            // Course-material import for MilestoneExercise/UserStoryExercise is not yet supported.
+            case MILESTONE, USER_STORY -> Optional.empty();
         };
     }
 

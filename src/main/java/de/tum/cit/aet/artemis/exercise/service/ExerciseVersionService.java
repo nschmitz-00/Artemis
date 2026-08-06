@@ -235,6 +235,8 @@ public class ExerciseVersionService {
             case TEXT -> textRepositoryApi.flatMap(api -> api.findForVersioningById(exercise.getId())).orElse(null);
             case MODELING -> modelingRepositoryApi.flatMap(api -> api.findForVersioningById(exercise.getId())).orElse(null);
             case FILE_UPLOAD -> fileUploadApi.flatMap(api -> api.findForVersioningById(exercise.getId())).orElse(null);
+            // MilestoneExercise/UserStoryExercise are both ProgrammingExercise subtypes (see MilestoneExercise/UserStoryExercise), so the same repository lookup applies.
+            case MILESTONE, USER_STORY -> programmingExerciseRepository.findForVersioningById(exercise.getId()).orElse(null);
         };
         if (fetched != null) {
             Channel channel = channelRepository.findChannelByExerciseId(fetched.getId());

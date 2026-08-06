@@ -501,6 +501,8 @@ export class CourseOverviewService {
                 ? this.participationService.getSpecificStudentParticipation(exercise.studentParticipations, false)
                 : undefined,
             size: 'M',
+            // UserStoryExercises are listed as indented children below their MilestoneExercise.
+            indentLevel: exercise.type === ExerciseType.USER_STORY ? 1 : 0,
         };
     }
 

@@ -54,11 +54,14 @@ import de.tum.cit.aet.artemis.localvc.service.LocalVCRepositoryUri;
 import de.tum.cit.aet.artemis.localvc.service.ParticipationVcsAccessTokenService;
 import de.tum.cit.aet.artemis.localvc.service.vcs.VersionControlService;
 import de.tum.cit.aet.artemis.modeling.domain.ModelingExercise;
+import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParticipation;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingSubmission;
+import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 import de.tum.cit.aet.artemis.programming.domain.build.BuildPlanType;
 import de.tum.cit.aet.artemis.programming.exception.ContinuousIntegrationException;
+import de.tum.cit.aet.artemis.programming.repository.MilestoneExerciseRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseStudentParticipationRepository;
 import de.tum.cit.aet.artemis.programming.service.UriService;
@@ -98,11 +101,13 @@ public class ParticipationService {
 
     private final ResultRepository resultRepository;
 
+    private final MilestoneExerciseRepository milestoneExerciseRepository;
+
     public ParticipationService(Optional<ContinuousIntegrationService> continuousIntegrationService, Optional<VersionControlService> versionControlService,
             ParticipationRepository participationRepository, StudentParticipationRepository studentParticipationRepository,
             ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository, ProgrammingExerciseRepository programmingExerciseRepository,
             SubmissionRepository submissionRepository, TeamRepository teamRepository, UriService uriService, ParticipationVcsAccessTokenService participationVCSAccessTokenService,
-            ResultRepository resultRepository) {
+            ResultRepository resultRepository, MilestoneExerciseRepository milestoneExerciseRepository) {
         this.continuousIntegrationService = continuousIntegrationService;
         this.versionControlService = versionControlService;
         this.participationRepository = participationRepository;
@@ -113,6 +118,7 @@ public class ParticipationService {
         this.teamRepository = teamRepository;
         this.uriService = uriService;
         this.participationVCSAccessTokenService = participationVCSAccessTokenService;
+        this.milestoneExerciseRepository = milestoneExerciseRepository;
         this.resultRepository = resultRepository;
     }
 
@@ -135,6 +141,13 @@ public class ParticipationService {
      * @return the `StudentParticipation` connecting the given exercise and participant
      */
     public StudentParticipation startExercise(Exercise exercise, Participant participant, boolean createInitialSubmission) {
+
+        // Starting only ever happens at the Milestone level (the client only offers a "Start" action there); a UserStoryExercise
+        // has no repository/build plan of its own to start, so delegate to the parent Milestone, whose cascade below creates a
+        // sibling participation for every UserStoryExercise child, including this one.
+        if (exercise instanceof UserStoryExercise userStoryExercise) {
+            return startExercise(userStoryExercise.getMilestoneExercise(), participant, createInitialSubmission);
+        }
 
         StudentParticipation participation;
         Optional<StudentParticipation> optionalStudentParticipation = Optional.empty();
@@ -197,7 +210,41 @@ public class ParticipationService {
         if (Optional.ofNullable(participation.getInitializationDate()).isEmpty()) {
             participation.setInitializationDate(ZonedDateTime.now());
         }
-        return studentParticipationRepository.saveAndFlush(participation);
+        participation = studentParticipationRepository.saveAndFlush(participation);
+
+        if (exercise instanceof MilestoneExercise milestoneExercise && participation instanceof ProgrammingExerciseStudentParticipation milestoneParticipation) {
+            cascadeStartToUserStoryExercises(milestoneExercise, milestoneParticipation, participant);
+        }
+
+        return participation;
+    }
+
+    /**
+     * Once a MilestoneExercise's own participation (with a real git repository and build plan) has been started, this creates a
+     * sibling {@link ProgrammingExerciseStudentParticipation} for every {@link UserStoryExercise} child, pointing at the exact
+     * same repository/build plan/branch. This is what allows "start the Milestone" to also start every UserStoryExercise
+     * belonging to it, per the requirement that students only ever start participation at the Milestone level.
+     *
+     * @param milestoneExercise      the Milestone that was just started
+     * @param milestoneParticipation the freshly created (or already existing) participation for the Milestone itself
+     * @param participant            the participant (student) starting the exercise
+     */
+    private void cascadeStartToUserStoryExercises(MilestoneExercise milestoneExercise, ProgrammingExerciseStudentParticipation milestoneParticipation, Participant participant) {
+        MilestoneExercise milestoneWithChildren = milestoneExerciseRepository.findWithUserStoryExercisesByIdElseThrow(milestoneExercise.getId());
+        for (UserStoryExercise userStoryExercise : milestoneWithChildren.getUserStoryExercises()) {
+            if (findOneGradedByExerciseAndParticipant(userStoryExercise, participant).isPresent()) {
+                // Already started (e.g. a UserStoryExercise was added to the Milestone after the student first started it).
+                continue;
+            }
+            ProgrammingExerciseStudentParticipation siblingParticipation = new ProgrammingExerciseStudentParticipation(milestoneParticipation.getBranch());
+            siblingParticipation.setExercise(userStoryExercise);
+            siblingParticipation.setParticipant(participant);
+            siblingParticipation.setRepositoryUri(milestoneParticipation.getRepositoryUri());
+            siblingParticipation.setBuildPlanId(milestoneParticipation.getBuildPlanId());
+            siblingParticipation.setInitializationState(milestoneParticipation.getInitializationState());
+            siblingParticipation.setInitializationDate(ZonedDateTime.now());
+            studentParticipationRepository.saveAndFlush(siblingParticipation);
+        }
     }
 
     /**

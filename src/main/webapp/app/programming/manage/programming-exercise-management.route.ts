@@ -12,6 +12,44 @@ import {
 
 export const routes: Routes = [
     {
+        path: 'milestone-exercises/new',
+        loadComponent: () => import('app/programming/manage/milestone-update/milestone-exercise-update.component').then((m) => m.MilestoneExerciseUpdateComponent),
+        data: {
+            authorities: IS_AT_LEAST_EDITOR,
+            pageTitle: 'artemisApp.milestoneExercise.home.title',
+        },
+        canActivate: [UserRouteAccessService],
+    },
+    {
+        path: 'milestone-exercises/:exerciseId/edit',
+        loadComponent: () => import('app/programming/manage/milestone-update/milestone-exercise-update.component').then((m) => m.MilestoneExerciseUpdateComponent),
+        data: {
+            authorities: IS_AT_LEAST_EDITOR,
+            pageTitle: 'artemisApp.milestoneExercise.home.title',
+        },
+        canActivate: [UserRouteAccessService],
+    },
+    {
+        path: 'milestone-exercises/:milestoneExerciseId/user-story-exercises/new',
+        loadComponent: () =>
+            import('app/programming/manage/milestone-update/user-story-update/user-story-exercise-update.component').then((m) => m.UserStoryExerciseUpdateComponent),
+        data: {
+            authorities: IS_AT_LEAST_EDITOR,
+            pageTitle: 'artemisApp.userStoryExercise.home.title',
+        },
+        canActivate: [UserRouteAccessService],
+    },
+    {
+        path: 'milestone-exercises/:milestoneExerciseId/user-story-exercises/:userStoryExerciseId/edit',
+        loadComponent: () =>
+            import('app/programming/manage/milestone-update/user-story-update/user-story-exercise-update.component').then((m) => m.UserStoryExerciseUpdateComponent),
+        data: {
+            authorities: IS_AT_LEAST_EDITOR,
+            pageTitle: 'artemisApp.userStoryExercise.home.title',
+        },
+        canActivate: [UserRouteAccessService],
+    },
+    {
         path: 'programming-exercises/new',
         loadComponent: () => import('app/programming/manage/update/programming-exercise-update.component').then((m) => m.ProgrammingExerciseUpdateComponent),
         resolve: {

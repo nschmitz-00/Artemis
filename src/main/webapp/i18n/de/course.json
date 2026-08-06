@@ -276,6 +276,7 @@
             "upload": "Hochladen",
             "uploading": "Lade hoch...",
             "fileUploadExercises": "Dateiupload-Aufgabe",
+            "milestoneExercises": "Meilenstein-Aufgaben",
             "exercise": {
                 "search": {
                     "searchButton": "Suchen",

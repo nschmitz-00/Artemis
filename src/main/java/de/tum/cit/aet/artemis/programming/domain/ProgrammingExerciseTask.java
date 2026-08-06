@@ -38,6 +38,16 @@ public class ProgrammingExerciseTask extends DomainObject {
     @JsonIgnore
     private ProgrammingExercise exercise;
 
+    /**
+     * Set only for tasks parsed from a {@link UserStoryExercise}'s problem statement: the task row itself stays
+     * owned by the Milestone (the exercise whose test repository the referenced test cases belong to), but this
+     * tags which UserStory's problem statement created the link so grading can scope each UserStory to its own subset.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "referencing_user_story_exercise_id")
+    @JsonIgnore
+    private UserStoryExercise referencingUserStoryExercise;
+
     public String getTaskName() {
         return this.taskName;
     }
@@ -60,6 +70,14 @@ public class ProgrammingExerciseTask extends DomainObject {
 
     public void setExercise(ProgrammingExercise exercise) {
         this.exercise = exercise;
+    }
+
+    public UserStoryExercise getReferencingUserStoryExercise() {
+        return referencingUserStoryExercise;
+    }
+
+    public void setReferencingUserStoryExercise(UserStoryExercise referencingUserStoryExercise) {
+        this.referencingUserStoryExercise = referencingUserStoryExercise;
     }
 
     @Override

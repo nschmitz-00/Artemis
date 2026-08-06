@@ -57,6 +57,7 @@ import de.tum.cit.aet.artemis.programming.domain.ProgrammingSubmission;
 import de.tum.cit.aet.artemis.programming.domain.SolutionProgrammingExerciseParticipation;
 import de.tum.cit.aet.artemis.programming.domain.StaticCodeAnalysisCategory;
 import de.tum.cit.aet.artemis.programming.domain.TemplateProgrammingExerciseParticipation;
+import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 import de.tum.cit.aet.artemis.programming.domain.build.BuildLogEntry;
 import de.tum.cit.aet.artemis.programming.domain.submissionpolicy.LockRepositoryPolicy;
 import de.tum.cit.aet.artemis.programming.domain.submissionpolicy.SubmissionPenaltyPolicy;
@@ -65,6 +66,7 @@ import de.tum.cit.aet.artemis.programming.dto.BuildResultNotification;
 import de.tum.cit.aet.artemis.programming.dto.ProgrammingExerciseGradingStatisticsDTO;
 import de.tum.cit.aet.artemis.programming.exception.ContinuousIntegrationException;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseRepository;
+import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseTaskRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseTestCaseRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingSubmissionRepository;
 import de.tum.cit.aet.artemis.programming.repository.SolutionProgrammingExerciseParticipationRepository;
@@ -81,6 +83,8 @@ public class ProgrammingExerciseGradingService {
     private final Optional<ContinuousIntegrationResultService> continuousIntegrationResultService;
 
     private final ProgrammingExerciseTestCaseRepository testCaseRepository;
+
+    private final ProgrammingExerciseTaskRepository programmingExerciseTaskRepository;
 
     private final ResultRepository resultRepository;
 
@@ -116,6 +120,7 @@ public class ProgrammingExerciseGradingService {
 
     public ProgrammingExerciseGradingService(StudentParticipationRepository studentParticipationRepository, ResultRepository resultRepository,
             Optional<ContinuousIntegrationResultService> continuousIntegrationResultService, ProgrammingExerciseTestCaseRepository testCaseRepository,
+            ProgrammingExerciseTaskRepository programmingExerciseTaskRepository,
             TemplateProgrammingExerciseParticipationRepository templateProgrammingExerciseParticipationRepository, FeedbackService feedbackService,
             SolutionProgrammingExerciseParticipationRepository solutionProgrammingExerciseParticipationRepository, ProgrammingSubmissionRepository programmingSubmissionRepository,
             AuditEventRepository auditEventRepository, GroupNotificationService groupNotificationService, ResultService resultService, ExerciseDateService exerciseDateService,
@@ -126,6 +131,7 @@ public class ProgrammingExerciseGradingService {
         this.continuousIntegrationResultService = continuousIntegrationResultService;
         this.resultRepository = resultRepository;
         this.testCaseRepository = testCaseRepository;
+        this.programmingExerciseTaskRepository = programmingExerciseTaskRepository;
         this.templateProgrammingExerciseParticipationRepository = templateProgrammingExerciseParticipationRepository;
         this.solutionProgrammingExerciseParticipationRepository = solutionProgrammingExerciseParticipationRepository;
         this.programmingSubmissionRepository = programmingSubmissionRepository;
@@ -397,6 +403,26 @@ public class ProgrammingExerciseGradingService {
     }
 
     /**
+     * Resolves the active test cases that should be used for grading the given exercise.
+     * <p>
+     * For a {@link UserStoryExercise}, test cases physically belong to the parent MilestoneExercise (the owner of the shared
+     * test repository), so this fetches from the Milestone and then narrows the result down to only the test cases that the
+     * UserStory's problem statement actually references (via its tagged {@link de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseTask}s).
+     * For every other exercise type this is equivalent to the previous direct {@code testCaseRepository.findByExerciseIdAndActive} call.
+     *
+     * @param exercise the exercise (possibly a UserStoryExercise) to resolve test cases for
+     * @return the active test cases relevant for grading this exercise
+     */
+    private Set<ProgrammingExerciseTestCase> findActiveTestCasesScopedToExercise(ProgrammingExercise exercise) {
+        if (exercise instanceof UserStoryExercise userStoryExercise) {
+            Set<ProgrammingExerciseTestCase> milestoneTestCases = testCaseRepository.findByExerciseIdAndActive(userStoryExercise.getMilestoneExercise().getId(), true);
+            Set<Long> ownTestCaseIds = programmingExerciseTaskRepository.findTestCaseIdsByReferencingUserStoryExerciseId(userStoryExercise.getId());
+            return milestoneTestCases.stream().filter(testCase -> ownTestCaseIds.contains(testCase.getId())).collect(Collectors.toSet());
+        }
+        return testCaseRepository.findByExerciseIdAndActive(exercise.getId(), true);
+    }
+
+    /**
      * Updates an incoming result with the information of the exercises test cases. This update includes:
      * - Checking which test cases were not executed (not all test cases are executed in an exercise with sequential test runs)
      * - Checking the due date and the visibility.
@@ -410,7 +436,7 @@ public class ProgrammingExerciseGradingService {
      * @return Result with updated feedbacks and score
      */
     public Result calculateScoreForResult(Result result, ProgrammingExercise exercise, boolean isStudentParticipation) {
-        Set<ProgrammingExerciseTestCase> testCases = testCaseRepository.findByExerciseIdAndActive(exercise.getId(), true);
+        Set<ProgrammingExerciseTestCase> testCases = findActiveTestCasesScopedToExercise(exercise);
         var relevantTestCases = testCases;
 
         // We don't filter the test cases for the solution/template participation's results as they are used as indicators for the instructor!
@@ -444,7 +470,7 @@ public class ProgrammingExerciseGradingService {
      * @return the results of the exercise that have been updated.
      */
     public List<Result> updateAllResults(final ProgrammingExercise exercise) {
-        final Set<ProgrammingExerciseTestCase> testCases = testCaseRepository.findByExerciseIdAndActive(exercise.getId(), true);
+        final Set<ProgrammingExerciseTestCase> testCases = findActiveTestCasesScopedToExercise(exercise);
 
         final Stream<Result> updatedTemplateAndSolutionResult = updateTemplateAndSolutionResults(exercise, testCases);
 
@@ -468,7 +494,7 @@ public class ProgrammingExerciseGradingService {
      * @return the results of the exercise that have been updated.
      */
     public List<Result> updateResultsOnlyRegularDueDateParticipations(final ProgrammingExercise exercise) {
-        final Set<ProgrammingExerciseTestCase> testCases = testCaseRepository.findByExerciseIdAndActive(exercise.getId(), true);
+        final Set<ProgrammingExerciseTestCase> testCases = findActiveTestCasesScopedToExercise(exercise);
 
         final Stream<Result> updatedTemplateAndSolutionResult = updateTemplateAndSolutionResults(exercise, testCases);
 
@@ -493,7 +519,7 @@ public class ProgrammingExerciseGradingService {
      */
     public List<Result> updateParticipationResults(final ProgrammingExerciseStudentParticipation participation) {
         final ProgrammingExercise exercise = participation.getProgrammingExercise();
-        final Set<ProgrammingExerciseTestCase> testCases = testCaseRepository.findByExerciseIdAndActive(exercise.getId(), true);
+        final Set<ProgrammingExerciseTestCase> testCases = findActiveTestCasesScopedToExercise(exercise);
         final Set<ProgrammingExerciseTestCase> testCasesBeforeDueDate = filterTestCasesForStudents(testCases, true);
         final Set<ProgrammingExerciseTestCase> testCasesAfterDueDate = filterTestCasesForStudents(testCases, false);
 

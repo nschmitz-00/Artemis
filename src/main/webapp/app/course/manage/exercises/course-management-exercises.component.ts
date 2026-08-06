@@ -14,6 +14,7 @@ import { ExerciseCreateButtonsComponent } from 'app/exercise/exercise-create-but
 import { ModelingExerciseComponent } from 'app/modeling/manage/modeling-exercise/modeling-exercise.component';
 import { TextExerciseComponent } from 'app/text/manage/text-exercise/exercise/text-exercise.component';
 import { FileUploadExerciseComponent } from 'app/fileupload/manage/file-upload-exercise/file-upload-exercise.component';
+import { MilestoneExerciseComponent } from 'app/programming/manage/exercise/milestone-exercise.component';
 import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pipe';
 import { ProfileService } from 'app/core/layouts/profiles/shared/profile.service';
 import { MODULE_FEATURE_FILEUPLOAD, MODULE_FEATURE_MODELING, MODULE_FEATURE_TEXT } from 'app/app.constants';
@@ -36,6 +37,7 @@ import { CourseTitleBarActionsDirective } from 'app/course/shared/directives/cou
         ModelingExerciseComponent,
         TextExerciseComponent,
         FileUploadExerciseComponent,
+        MilestoneExerciseComponent,
         ArtemisTranslatePipe,
         CourseTitleBarTitleDirective,
         CourseTitleBarActionsDirective,
@@ -61,6 +63,8 @@ export class CourseManagementExercisesComponent implements OnInit {
     readonly filteredProgrammingExercisesCount = signal(0);
     readonly filteredModelingExercisesCount = signal(0);
     readonly filteredFileUploadExercisesCount = signal(0);
+    readonly milestoneExercisesCount = signal(0);
+    readonly filteredMilestoneExercisesCount = signal(0);
     readonly exerciseFilter = signal<ExerciseFilter>(new ExerciseFilter(''));
 
     readonly textExerciseEnabled = signal(false);
@@ -71,7 +75,13 @@ export class CourseManagementExercisesComponent implements OnInit {
     private readonly profileService = inject(ProfileService);
 
     readonly exerciseCount = computed(
-        () => this.quizExercisesCount() + this.programmingExercisesCount() + this.modelingExercisesCount() + this.fileUploadExercisesCount() + this.textExercisesCount(),
+        () =>
+            this.quizExercisesCount() +
+            this.programmingExercisesCount() +
+            this.modelingExercisesCount() +
+            this.fileUploadExercisesCount() +
+            this.textExercisesCount() +
+            this.milestoneExercisesCount(),
     );
 
     readonly filteredExerciseCount = computed(
@@ -80,7 +90,8 @@ export class CourseManagementExercisesComponent implements OnInit {
             this.filteredQuizExercisesCount() +
             this.filteredModelingExercisesCount() +
             this.filteredTextExercisesCount() +
-            this.filteredFileUploadExercisesCount(),
+            this.filteredFileUploadExercisesCount() +
+            this.filteredMilestoneExercisesCount(),
     );
 
     readonly iconMap = {
@@ -89,6 +100,7 @@ export class CourseManagementExercisesComponent implements OnInit {
         [ExerciseType.QUIZ]: getIcon(ExerciseType.QUIZ),
         [ExerciseType.TEXT]: getIcon(ExerciseType.TEXT),
         [ExerciseType.FILE_UPLOAD]: getIcon(ExerciseType.FILE_UPLOAD),
+        [ExerciseType.MILESTONE]: getIcon(ExerciseType.MILESTONE),
     };
 
     /**

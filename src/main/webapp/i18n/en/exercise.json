@@ -13,6 +13,7 @@
                 "solution": "Solution"
             },
             "details": "Exercise details",
+            "noExercises": "No exercises have been added yet.",
             "addCriterion": "Add a Grading Criterion",
             "resultsPerPage": "{{number}} results per page",
             "showAllResults": "Show all results",
@@ -261,6 +262,8 @@
             "isQuiz": "This is a quiz exercise",
             "isText": "This is a text exercise",
             "isFileUpload": "This is a file upload exercise",
+            "isMilestone": "This is a milestone exercise",
+            "isUserStory": "This is a user story exercise",
             "notificationText": "What did you change?",
             "submissionSuccessful": "The submission was successful",
             "submissionUnsuccessful": "The submission was unsuccessful",
