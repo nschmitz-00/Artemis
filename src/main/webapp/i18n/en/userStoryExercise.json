@@ -1,0 +1,12 @@
+{
+    "artemisApp": {
+        "userStoryExercise": {
+            "home": {
+                "title": "User Story Exercises",
+                "createLabel": "Create a new User Story",
+                "editLabel": "Edit a User Story"
+            },
+            "problemStatementHint": "All dates and repositories are inherited from the milestone. You can reference test cases from the milestone's test repository, e.g. [task][Implement BubbleSort](testBubbleSort,testBubbleSortHidden)."
+        }
+    }
+}

@@ -1,0 +1,102 @@
+@if (milestoneExercise()) {
+    <div class="programming-exercise-form-container">
+        <h2>
+            @if (isCreate()) {
+                <span jhiTranslate="artemisApp.milestoneExercise.home.createLabel"></span>
+            } @else {
+                <span jhiTranslate="artemisApp.milestoneExercise.home.editLabel"></span>
+            }
+        </h2>
+
+        <hr />
+        <section>
+            <h3 jhiTranslate="artemisApp.exercise.sections.general"></h3>
+            <jhi-exercise-title-channel-name-primeng
+                [exercise]="milestoneExercise()"
+                [course]="milestoneExercise().course"
+                [isEditFieldDisplayedRecord]="isEditFieldDisplayedRecord"
+                [titlePattern]="titlePattern"
+            />
+            <div class="mt-3 col-md-6">
+                <label for="shortName" jhiTranslate="artemisApp.exercise.shortName"></label>
+                <input
+                    pInputText
+                    type="text"
+                    id="shortName"
+                    class="w-100"
+                    name="shortName"
+                    required
+                    [pattern]="shortNamePattern"
+                    [disabled]="!isCreate()"
+                    [(ngModel)]="milestoneExercise().shortName"
+                />
+            </div>
+            <div class="mt-3">
+                <label jhiTranslate="artemisApp.exercise.categories"></label>
+                <jhi-category-selector-primeng
+                    [categories]="milestoneExercise().categories"
+                    [existingCategories]="existingCategories()"
+                    (selectedCategories)="updateCategories($event)"
+                />
+            </div>
+        </section>
+
+        <hr />
+        <section>
+            <h3 jhiTranslate="artemisApp.exercise.dates"></h3>
+            <jhi-milestone-exercise-timeline [exercise]="milestoneExercise()" />
+        </section>
+
+        <hr />
+        <section>
+            <h3 jhiTranslate="artemisApp.milestoneExercise.language.title"></h3>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="programmingLanguage" jhiTranslate="artemisApp.milestoneExercise.language.programmingLanguage"></label>
+                    <p-select inputId="programmingLanguage" [options]="programmingLanguages" [(ngModel)]="milestoneExercise().programmingLanguage" styleClass="w-100" />
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="projectType" jhiTranslate="artemisApp.milestoneExercise.language.projectType"></label>
+                    <p-select inputId="projectType" [options]="projectTypes" [(ngModel)]="milestoneExercise().projectType" styleClass="w-100" [showClear]="true" />
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="packageName" jhiTranslate="artemisApp.milestoneExercise.language.packageName"></label>
+                    <input pInputText type="text" id="packageName" class="w-100" name="packageName" [(ngModel)]="milestoneExercise().packageName" />
+                </div>
+            </div>
+            <div class="d-flex flex-column gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <p-checkbox inputId="staticCodeAnalysisEnabled" [binary]="true" [(ngModel)]="milestoneExercise().staticCodeAnalysisEnabled" />
+                    <label for="staticCodeAnalysisEnabled" jhiTranslate="artemisApp.milestoneExercise.language.staticCodeAnalysisEnabled"></label>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <p-checkbox inputId="sequentialTestRuns" [binary]="true" [(ngModel)]="milestoneExercise().buildConfig!.sequentialTestRuns" />
+                    <label for="sequentialTestRuns" jhiTranslate="artemisApp.milestoneExercise.language.sequentialTestRuns"></label>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <p-checkbox inputId="customizeBuildPlan" [binary]="true" [(ngModel)]="milestoneExercise().customizeBuildPlan" />
+                    <label for="customizeBuildPlan" jhiTranslate="artemisApp.milestoneExercise.language.customizeBuildPlan"></label>
+                </div>
+            </div>
+        </section>
+
+        <hr />
+        <section>
+            <h3 jhiTranslate="artemisApp.milestoneExercise.grading.title"></h3>
+            <p>
+                <span jhiTranslate="artemisApp.exercise.points"></span>: <strong>{{ milestoneExercise().maxPoints ?? 0 }}</strong>
+                <span class="text-muted ms-1"
+                    >({{ 'artemisApp.milestoneExercise.grading.totalPoints' | artemisTranslate: { count: milestoneExercise().userStoryExercises?.length ?? 0 } }})</span
+                >
+            </p>
+        </section>
+
+        <hr />
+        <section>
+            <jhi-milestone-user-stories [milestoneExercise]="milestoneExercise()" />
+        </section>
+
+        <hr />
+        <jhi-form-footer [isSaving]="isSaving()" [isCreation]="isCreate()" (save)="save()" (onCancel)="previousState()" />
+    </div>
+}

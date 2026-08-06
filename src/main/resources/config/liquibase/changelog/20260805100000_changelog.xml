@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- Adds MilestoneExercise ("MS") and UserStoryExercise ("US") to the existing single-table Exercise hierarchy.
+         A UserStoryExercise points back at its owning MilestoneExercise (both rows live in the "exercise" table). -->
+    <changeSet id="20260805100000-01-add-milestone-exercise-id-column" author="niklas.oelde">
+        <addColumn tableName="exercise">
+            <column name="milestone_exercise_id" type="bigint"/>
+        </addColumn>
+        <addForeignKeyConstraint baseColumnNames="milestone_exercise_id" baseTableName="exercise" constraintName="fk_exercise_milestone_exercise_id" referencedColumnNames="id"
+            referencedTableName="exercise" onDelete="CASCADE" onUpdate="RESTRICT"/>
+    </changeSet>
+
+    <!-- Tags a parsed [task][...](...) link with the UserStoryExercise whose problem statement produced it, so the
+         push re-evaluation fan-out can scope each UserStory's grading to only the test cases it references, even
+         though the underlying ProgrammingExerciseTask rows themselves stay owned by the Milestone (the test repo owner). -->
+    <changeSet id="20260805100000-02-add-referencing-user-story-exercise-id-column" author="niklas.oelde">
+        <addColumn tableName="programming_exercise_task">
+            <column name="referencing_user_story_exercise_id" type="bigint"/>
+        </addColumn>
+        <addForeignKeyConstraint baseColumnNames="referencing_user_story_exercise_id" baseTableName="programming_exercise_task"
+            constraintName="fk_programming_exercise_task_referencing_user_story_exercise_id" referencedColumnNames="id" referencedTableName="exercise" onDelete="CASCADE"
+            onUpdate="RESTRICT"/>
+    </changeSet>
+</databaseChangeLog>

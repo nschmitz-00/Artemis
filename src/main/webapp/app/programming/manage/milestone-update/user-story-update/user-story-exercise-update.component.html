@@ -1,0 +1,56 @@
+@if (userStoryExercise() && milestoneExercise()) {
+    <div class="programming-exercise-form-container">
+        <h2>
+            @if (isCreate()) {
+                <span jhiTranslate="artemisApp.userStoryExercise.home.createLabel"></span>
+            } @else {
+                <span jhiTranslate="artemisApp.userStoryExercise.home.editLabel"></span>
+            }
+            <span class="text-muted ms-2">({{ milestoneExercise().title }})</span>
+        </h2>
+
+        <hr />
+        <section>
+            <h3 jhiTranslate="artemisApp.exercise.sections.general"></h3>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="title" jhiTranslate="artemisApp.exercise.title"></label>
+                    <input pInputText type="text" id="title" class="w-100" name="title" required [pattern]="titlePattern" [(ngModel)]="userStoryExercise().title" />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="shortName" jhiTranslate="artemisApp.exercise.shortName"></label>
+                    <input
+                        pInputText
+                        type="text"
+                        id="shortName"
+                        class="w-100"
+                        name="shortName"
+                        required
+                        [pattern]="shortNamePattern"
+                        [disabled]="!isCreate()"
+                        [(ngModel)]="userStoryExercise().shortName"
+                    />
+                </div>
+            </div>
+        </section>
+
+        <hr />
+        <section>
+            <h3 jhiTranslate="artemisApp.exercise.sections.grading"></h3>
+            <div class="col-md-4 mb-3">
+                <label for="maxPoints" jhiTranslate="artemisApp.exercise.points"></label>
+                <p-inputnumber inputId="maxPoints" name="maxPoints" [min]="0" [(ngModel)]="userStoryExercise().maxPoints" styleClass="w-100" />
+            </div>
+        </section>
+
+        <hr />
+        <section>
+            <h3 jhiTranslate="artemisApp.exercise.sections.problem"></h3>
+            <p class="text-muted small" jhiTranslate="artemisApp.userStoryExercise.problemStatementHint"></p>
+            <jhi-markdown-editor-monaco [markdown]="userStoryExercise().problemStatement" (markdownChange)="userStoryExercise().problemStatement = $event" />
+        </section>
+
+        <hr />
+        <jhi-form-footer [isSaving]="isSaving()" [isCreation]="isCreate()" (save)="save()" (onCancel)="previousState()" />
+    </div>
+}

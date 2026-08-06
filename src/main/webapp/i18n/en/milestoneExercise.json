@@ -1,0 +1,31 @@
+{
+    "artemisApp": {
+        "milestoneExercise": {
+            "home": {
+                "title": "Milestone Exercises",
+                "createLabel": "Create a new Milestone Exercise",
+                "editLabel": "Edit a Milestone Exercise"
+            },
+            "language": {
+                "title": "Language & Build Configuration",
+                "programmingLanguage": "Programming Language",
+                "projectType": "Project Type",
+                "packageName": "Package Name",
+                "staticCodeAnalysisEnabled": "Enable Static Code Analysis",
+                "sequentialTestRuns": "Sequential Test Runs",
+                "customizeBuildPlan": "Customize Build Configuration"
+            },
+            "grading": {
+                "title": "Grading",
+                "totalPoints": "Total points (sum of the {{ count }} user stories below)"
+            },
+            "userStories": {
+                "title": "User Stories",
+                "add": "Add User Story",
+                "noUserStories": "No user stories have been added yet.",
+                "saveMilestoneFirst": "Save the milestone first to add user stories.",
+                "deleteQuestion": "Are you sure you want to permanently delete the user story <strong>{{ title }}</strong>? This action cannot be undone!"
+            }
+        }
+    }
+}

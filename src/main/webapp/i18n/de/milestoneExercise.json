@@ -1,0 +1,31 @@
+{
+    "artemisApp": {
+        "milestoneExercise": {
+            "home": {
+                "title": "Meilenstein-Aufgaben",
+                "createLabel": "Neue Meilenstein-Aufgabe erstellen",
+                "editLabel": "Meilenstein-Aufgabe bearbeiten"
+            },
+            "language": {
+                "title": "Sprache & Build-Konfiguration",
+                "programmingLanguage": "Programmiersprache",
+                "projectType": "Projekttyp",
+                "packageName": "Package-Name",
+                "staticCodeAnalysisEnabled": "Statische Code-Analyse aktivieren",
+                "sequentialTestRuns": "Sequentielle Testläufe",
+                "customizeBuildPlan": "Build-Konfiguration anpassen"
+            },
+            "grading": {
+                "title": "Bewertung",
+                "totalPoints": "Gesamtpunkte (Summe der {{ count }} User Stories unten)"
+            },
+            "userStories": {
+                "title": "User Stories",
+                "add": "User Story hinzufügen",
+                "noUserStories": "Es wurden noch keine User Stories hinzugefügt.",
+                "saveMilestoneFirst": "Speichern Sie zunächst den Meilenstein, um User Stories hinzuzufügen.",
+                "deleteQuestion": "Sind Sie sicher, dass Sie die User Story <strong>{{ title }}</strong> endgültig löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden!"
+            }
+        }
+    }
+}

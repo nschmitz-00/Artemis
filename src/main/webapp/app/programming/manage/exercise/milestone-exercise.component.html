@@ -1,0 +1,57 @@
+@if (filteredMilestoneExercises().length > 0) {
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th><span jhiTranslate="artemisApp.exercise.title"></span></th>
+                    <th><span jhiTranslate="artemisApp.exercise.points"></span></th>
+                    <th><span jhiTranslate="artemisApp.exercise.categories"></span></th>
+                    <th style="width: 1%"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (milestoneExercise of filteredMilestoneExercises(); track milestoneExercise.id) {
+                    <tr id="{{ 'exercise-card-' + milestoneExercise.id }}">
+                        <td id="milestone-exercise-{{ milestoneExercise.id }}-title">
+                            <a [routerLink]="['/course-management', milestoneExercise.course?.id, 'milestone-exercises', milestoneExercise.id, 'edit']">
+                                {{ milestoneExercise.title }}
+                            </a>
+                        </td>
+                        <td id="milestone-exercise-{{ milestoneExercise.id }}-maxPoints">
+                            {{ milestoneExercise.maxPoints }}
+                        </td>
+                        <td>
+                            <jhi-exercise-categories [exercise]="milestoneExercise" />
+                        </td>
+                        <td>
+                            <a
+                                [routerLink]="['/course-management', milestoneExercise.course?.id, 'milestone-exercises', milestoneExercise.id, 'edit']"
+                                class="btn btn-primary btn-sm me-1"
+                            >
+                                <fa-icon [icon]="faPencilAlt" />
+                                <span jhiTranslate="entity.action.edit"></span>
+                            </a>
+                            <button
+                                jhiDeleteButton
+                                [entityTitle]="milestoneExercise.title ?? ''"
+                                deleteQuestion="artemisApp.exercise.delete.question"
+                                [translateValues]="{
+                                    courseTitle: milestoneExercise.course?.title,
+                                    courseType: milestoneExercise.course?.testCourse
+                                        ? ('artemisApp.exercise.delete.testCourse' | artemisTranslate)
+                                        : ('artemisApp.exercise.delete.realCourse' | artemisTranslate),
+                                }"
+                                [dialogError]="dialogError$"
+                                (delete)="deleteMilestoneExercise(milestoneExercise)"
+                            >
+                                <fa-icon [icon]="faTrash" />
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+} @else {
+    <p class="text-muted" jhiTranslate="artemisApp.exercise.noExercises"></p>
+}

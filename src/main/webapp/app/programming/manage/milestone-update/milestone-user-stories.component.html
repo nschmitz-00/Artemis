@@ -1,0 +1,64 @@
+<div class="mb-3">
+    <h4 jhiTranslate="artemisApp.milestoneExercise.userStories.title"></h4>
+
+    @if (!milestoneExercise().id) {
+        <p class="text-muted" jhiTranslate="artemisApp.milestoneExercise.userStories.saveMilestoneFirst"></p>
+    } @else {
+        @if (milestoneExercise().userStoryExercises?.length) {
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th><span jhiTranslate="artemisApp.exercise.title"></span></th>
+                            <th><span jhiTranslate="artemisApp.exercise.points"></span></th>
+                            <th style="width: 1%"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (userStoryExercise of milestoneExercise().userStoryExercises; track userStoryExercise.id) {
+                            <tr>
+                                <td>{{ userStoryExercise.title }}</td>
+                                <td>{{ userStoryExercise.maxPoints }}</td>
+                                <td>
+                                    <a
+                                        [routerLink]="[
+                                            '/course-management',
+                                            milestoneExercise().course?.id,
+                                            'milestone-exercises',
+                                            milestoneExercise().id,
+                                            'user-story-exercises',
+                                            userStoryExercise.id,
+                                            'edit',
+                                        ]"
+                                        class="btn btn-primary btn-sm me-1"
+                                    >
+                                        <fa-icon [icon]="faPencilAlt" />
+                                        <span jhiTranslate="entity.action.edit"></span>
+                                    </a>
+                                    <button
+                                        jhiDeleteButton
+                                        [entityTitle]="userStoryExercise.title ?? ''"
+                                        deleteQuestion="artemisApp.milestoneExercise.userStories.deleteQuestion"
+                                        [dialogError]="dialogError$"
+                                        (delete)="deleteUserStoryExercise(userStoryExercise)"
+                                    >
+                                        <fa-icon [icon]="faTrash" />
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        } @else {
+            <p class="text-muted" jhiTranslate="artemisApp.milestoneExercise.userStories.noUserStories"></p>
+        }
+        <a
+            [routerLink]="['/course-management', milestoneExercise().course?.id, 'milestone-exercises', milestoneExercise().id, 'user-story-exercises', 'new']"
+            class="btn btn-primary btn-sm"
+        >
+            <fa-icon [icon]="faPlus" />
+            <span jhiTranslate="artemisApp.milestoneExercise.userStories.add"></span>
+        </a>
+    }
+</div>
