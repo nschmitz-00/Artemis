@@ -4,8 +4,12 @@
             <thead>
                 <tr>
                     <th><span jhiTranslate="artemisApp.exercise.title"></span></th>
+                    <th><span jhiTranslate="artemisApp.exercise.dates"></span></th>
                     <th><span jhiTranslate="artemisApp.exercise.points"></span></th>
-                    <th><span jhiTranslate="artemisApp.exercise.categories"></span></th>
+                    <th class="d-md-table-cell">
+                        <span jhiTranslate="artemisApp.exercise.mode"></span>
+                    </th>
+                    <th class="d-md-table-cell"><span jhiTranslate="artemisApp.exercise.categories"></span></th>
                     <th style="width: 1%"></th>
                 </tr>
             </thead>
@@ -17,35 +21,99 @@
                                 {{ milestoneExercise.title }}
                             </a>
                         </td>
+                        <td style="white-space: nowrap">
+                            <div class="d-flex flex-column small">
+                                @if (milestoneExercise.releaseDate) {
+                                    <div>
+                                        <span class="text-secondary" jhiTranslate="artemisApp.exercise.release"></span>:
+                                        {{ milestoneExercise.releaseDate | artemisDate }}
+                                    </div>
+                                }
+                                @if (milestoneExercise.dueDate) {
+                                    <div>
+                                        <span class="text-secondary" jhiTranslate="artemisApp.exercise.due"></span>:
+                                        {{ milestoneExercise.dueDate | artemisDate }}
+                                    </div>
+                                }
+                            </div>
+                        </td>
                         <td id="milestone-exercise-{{ milestoneExercise.id }}-maxPoints">
                             {{ milestoneExercise.maxPoints }}
                         </td>
-                        <td>
+                        <td class="d-md-table-cell">
+                            <div class="d-flex justify-content-between">
+                                <span class="colon-suffix" [jhiTranslate]="'artemisApp.programmingExercise.offlineIde'"></span>
+                                @if (milestoneExercise.allowOfflineIde) {
+                                    <fa-icon [icon]="faCheck" class="text-success" [title]="'artemisApp.exercise.yes' | artemisTranslate" />
+                                } @else {
+                                    <fa-icon [icon]="faTimes" class="text-danger" [title]="'artemisApp.exercise.no' | artemisTranslate" />
+                                }
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span class="colon-suffix" [jhiTranslate]="'artemisApp.programmingExercise.onlineEditor'"></span>
+                                @if (milestoneExercise.allowOnlineEditor) {
+                                    <fa-icon [icon]="faCheck" class="text-success" [title]="'artemisApp.exercise.yes' | artemisTranslate" />
+                                } @else {
+                                    <fa-icon [icon]="faTimes" class="text-danger" [title]="'artemisApp.exercise.no' | artemisTranslate" />
+                                }
+                            </div>
+                            @if (onlineIdeEnabled()) {
+                                <div class="d-flex justify-content-between">
+                                    <span class="colon-suffix" [jhiTranslate]="'artemisApp.programmingExercise.onlineIde'"></span>
+                                    @if (milestoneExercise.allowOnlineIde) {
+                                        <fa-icon [icon]="faCheck" class="text-success" [title]="'artemisApp.exercise.yes' | artemisTranslate" />
+                                    } @else {
+                                        <fa-icon [icon]="faTimes" class="text-danger" [title]="'artemisApp.exercise.no' | artemisTranslate" />
+                                    }
+                                </div>
+                            }
+                        </td>
+                        <td class="d-md-table-cell">
                             <jhi-exercise-categories [exercise]="milestoneExercise" />
                         </td>
-                        <td>
-                            <a
-                                [routerLink]="['/course-management', milestoneExercise.course?.id, 'milestone-exercises', milestoneExercise.id, 'edit']"
-                                class="btn btn-primary btn-sm me-1"
-                            >
-                                <fa-icon [icon]="faPencilAlt" />
-                                <span jhiTranslate="entity.action.edit"></span>
-                            </a>
-                            <button
-                                jhiDeleteButton
-                                [entityTitle]="milestoneExercise.title ?? ''"
-                                deleteQuestion="artemisApp.exercise.delete.question"
-                                [translateValues]="{
-                                    courseTitle: milestoneExercise.course?.title,
-                                    courseType: milestoneExercise.course?.testCourse
-                                        ? ('artemisApp.exercise.delete.testCourse' | artemisTranslate)
-                                        : ('artemisApp.exercise.delete.realCourse' | artemisTranslate),
-                                }"
-                                [dialogError]="dialogError$"
-                                (delete)="deleteMilestoneExercise(milestoneExercise)"
-                            >
-                                <fa-icon [icon]="faTrash" />
-                            </button>
+                        <td class="text-end" style="white-space: nowrap">
+                            <div class="btn-group flex-btn-group-container">
+                                @if (milestoneExercise.templateParticipation) {
+                                    <a
+                                        [routerLink]="[
+                                            '/course-management',
+                                            courseId(),
+                                            'programming-exercises',
+                                            milestoneExercise.id,
+                                            'code-editor',
+                                            RepositoryType.TEMPLATE,
+                                            milestoneExercise.templateParticipation.id,
+                                        ]"
+                                        class="btn btn-warning btn-sm me-1"
+                                    >
+                                        <fa-icon [icon]="faPencilAlt" />
+                                        <span class="d-none d-md-inline" jhiTranslate="entity.action.editInEditor"></span>
+                                    </a>
+                                }
+                                <a [routerLink]="['/course-management', courseId(), 'milestone-exercises', milestoneExercise.id, 'edit']" class="btn btn-warning btn-sm me-1">
+                                    <fa-icon [icon]="faWrench" />
+                                    <span jhiTranslate="entity.action.edit"></span>
+                                </a>
+                                <button
+                                    id="delete-exercise"
+                                    jhiDeleteButton
+                                    [entityTitle]="milestoneExercise.title ?? ''"
+                                    deleteQuestion="artemisApp.exercise.delete.question"
+                                    deleteConfirmationText="artemisApp.exercise.delete.typeNameToConfirm"
+                                    entitySummaryTitle="artemisApp.exercise.delete.summary.title"
+                                    [fetchEntitySummary]="fetchExerciseDeletionSummary(milestoneExercise)"
+                                    [translateValues]="{
+                                        courseTitle: courseContext()?.title,
+                                        courseType: courseContext()?.testCourse
+                                            ? ('artemisApp.exercise.delete.testCourse' | artemisTranslate)
+                                            : ('artemisApp.exercise.delete.realCourse' | artemisTranslate),
+                                    }"
+                                    [dialogError]="dialogError$"
+                                    (delete)="deleteMilestoneExercise(milestoneExercise)"
+                                >
+                                    <fa-icon [icon]="faTrash" />
+                                </button>
+                            </div>
                         </td>
                     </tr>
                 }

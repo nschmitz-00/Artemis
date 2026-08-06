@@ -158,8 +158,14 @@ public interface ProgrammingExerciseRepository extends DynamicSpecificationRepos
 
     List<ProgrammingExercise> findAllByProjectKey(String projectKey);
 
-    @EntityGraph(type = LOAD, attributePaths = { "categories" })
-    List<ProgrammingExercise> findAllWithCategoriesByCourseId(Long courseId);
+    @Query("""
+            SELECT e
+            FROM ProgrammingExercise e
+                LEFT JOIN FETCH e.categories
+            WHERE e.course.id = :courseId
+                AND TYPE(e) = ProgrammingExercise
+            """)
+    List<ProgrammingExercise> findAllWithCategoriesByCourseId(@Param("courseId") Long courseId);
 
     @EntityGraph(type = LOAD, attributePaths = { "templateParticipation", "solutionParticipation", "auxiliaryRepositories" })
     List<ProgrammingExercise> findAllWithTemplateAndSolutionParticipationAndAuxiliaryRepositoriesByCourseId(long courseId);
