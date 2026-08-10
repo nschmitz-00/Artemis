@@ -15,6 +15,7 @@
                 "sequentialTestRuns": "Sequential Test Runs",
                 "customizeBuildPlan": "Customize Build Configuration"
             },
+            "problemStatementHint": "This description is shown to students when they open the milestone. It is rendered as Markdown.",
             "grading": {
                 "title": "Grading",
                 "totalPoints": "Total points (sum of the {{ count }} user stories below)"

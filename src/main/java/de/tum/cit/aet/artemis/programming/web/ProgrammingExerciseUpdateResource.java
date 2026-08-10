@@ -6,7 +6,6 @@ import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -27,7 +26,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.fasterxml.jackson.core.JsonProcessingException;
 
 import de.tum.cit.aet.artemis.account.repository.UserRepository;
-import de.tum.cit.aet.artemis.assessment.domain.GradingCriterion;
 import de.tum.cit.aet.artemis.athena.api.AthenaApi;
 import de.tum.cit.aet.artemis.core.exception.BadRequestAlertException;
 import de.tum.cit.aet.artemis.core.exception.ConflictException;
@@ -40,7 +38,6 @@ import de.tum.cit.aet.artemis.core.service.feature.FeatureToggle;
 import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.course.service.CourseService;
 import de.tum.cit.aet.artemis.exercise.repository.ParticipationRepository;
-import de.tum.cit.aet.artemis.exercise.service.CompetencyExerciseLinkService;
 import de.tum.cit.aet.artemis.exercise.service.ExerciseService;
 import de.tum.cit.aet.artemis.exercise.service.ExerciseVersionService;
 import de.tum.cit.aet.artemis.lecture.api.SlideApi;
@@ -48,14 +45,12 @@ import de.tum.cit.aet.artemis.localci.service.AutomaticAfterDueDateService;
 import de.tum.cit.aet.artemis.plagiarism.domain.PlagiarismDetectionConfigHelper;
 import de.tum.cit.aet.artemis.programming.domain.AuxiliaryRepository;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
-import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseBuildConfig;
-import de.tum.cit.aet.artemis.programming.dto.AuxiliaryRepositoryDTO;
-import de.tum.cit.aet.artemis.programming.dto.UpdateProgrammingExerciseBuildConfigDTO;
 import de.tum.cit.aet.artemis.programming.dto.UpdateProgrammingExerciseDTO;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseRepository;
 import de.tum.cit.aet.artemis.programming.service.AuxiliaryRepositoryService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseCreationUpdateService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseRepositoryService;
+import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseUpdateDtoService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseValidationService;
 
 /**
@@ -101,14 +96,14 @@ public class ProgrammingExerciseUpdateResource {
 
     private final ParticipationRepository participationRepository;
 
-    private final CompetencyExerciseLinkService competencyExerciseLinkService;
+    private final ProgrammingExerciseUpdateDtoService programmingExerciseUpdateDtoService;
 
     public ProgrammingExerciseUpdateResource(ProgrammingExerciseRepository programmingExerciseRepository, UserRepository userRepository, AuthorizationCheckService authCheckService,
             CourseService courseService, ExerciseService exerciseService, ProgrammingExerciseValidationService programmingExerciseValidationService,
             ProgrammingExerciseCreationUpdateService programmingExerciseCreationUpdateService, ProgrammingExerciseRepositoryService programmingExerciseRepositoryService,
             AuxiliaryRepositoryService auxiliaryRepositoryService, Optional<AthenaApi> athenaApi, ModuleFeatureService moduleFeatureService, Optional<SlideApi> slideApi,
             Optional<AutomaticAfterDueDateService> automaticAfterDueDateService, ExerciseVersionService exerciseVersionService, ParticipationRepository participationRepository,
-            CompetencyExerciseLinkService competencyExerciseLinkService) {
+            ProgrammingExerciseUpdateDtoService programmingExerciseUpdateDtoService) {
         this.programmingExerciseValidationService = programmingExerciseValidationService;
         this.programmingExerciseCreationUpdateService = programmingExerciseCreationUpdateService;
         this.programmingExerciseRepository = programmingExerciseRepository;
@@ -124,7 +119,7 @@ public class ProgrammingExerciseUpdateResource {
         this.automaticAfterDueDateService = automaticAfterDueDateService;
         this.exerciseVersionService = exerciseVersionService;
         this.participationRepository = participationRepository;
-        this.competencyExerciseLinkService = competencyExerciseLinkService;
+        this.programmingExerciseUpdateDtoService = programmingExerciseUpdateDtoService;
     }
 
     /**
@@ -319,167 +314,13 @@ public class ProgrammingExerciseUpdateResource {
 
     /**
      * Updates the existing ProgrammingExercise entity with values from the DTO.
-     * This includes updating competency links using the proper mechanism.
      *
      * @param dto      the DTO containing updated values
      * @param exercise the existing exercise entity to update
      * @return the updated exercise entity
      */
     private ProgrammingExercise update(UpdateProgrammingExerciseDTO dto, ProgrammingExercise exercise) {
-        if (dto == null) {
-            throw new BadRequestAlertException("No programming exercise was provided.", ENTITY_NAME, "isNull");
-        }
-
-        // Update base exercise fields
-        exercise.setTitle(dto.title());
-        exercise.validateTitle();
-        exercise.setShortName(dto.shortName());
-
-        // The problem statement is owned by the collaborative (Yjs) editor and its dedicated PATCH endpoint, not by this metadata
-        // update. A blank or absent value here means the editor has not finished its initial sync yet (e.g. the user saved a
-        // category change on a slow connection before the statement loaded), so we keep the persisted statement instead of wiping
-        // it. See issue #13046.
-        if (dto.problemStatement() != null && !dto.problemStatement().isBlank()) {
-            exercise.setProblemStatement(dto.problemStatement());
-        }
-
-        exercise.setChannelName(dto.channelName());
-        exercise.setCategories(dto.categories());
-        exercise.setDifficulty(dto.difficulty());
-
-        exercise.setMaxPoints(dto.maxPoints());
-        exercise.setBonusPoints(dto.bonusPoints());
-        exercise.setIncludedInOverallScore(dto.includedInOverallScore());
-
-        exercise.setReleaseDate(dto.releaseDate());
-        exercise.setStartDate(dto.startDate());
-        exercise.setDueDate(dto.dueDate());
-        exercise.setAssessmentDueDate(dto.assessmentDueDate());
-        exercise.setAssessmentType(dto.assessmentType());
-        exercise.setExampleSolutionPublicationDate(dto.exampleSolutionPublicationDate());
-
-        // Only set boolean values if they are explicitly provided (not null)
-        if (dto.allowComplaintsForAutomaticAssessments() != null) {
-            exercise.setAllowComplaintsForAutomaticAssessments(dto.allowComplaintsForAutomaticAssessments());
-        }
-        if (dto.allowFeedbackRequests() != null) {
-            exercise.setAllowFeedbackRequests(dto.allowFeedbackRequests());
-        }
-        if (dto.presentationScoreEnabled() != null) {
-            exercise.setPresentationScoreEnabled(dto.presentationScoreEnabled());
-        }
-        if (dto.secondCorrectionEnabled() != null) {
-            exercise.setSecondCorrectionEnabled(dto.secondCorrectionEnabled());
-        }
-
-        exercise.setFeedbackSuggestionModule(dto.feedbackSuggestionModule());
-        exercise.setGradingInstructions(dto.gradingInstructions());
-
-        // Update programming exercise specific fields
-        if (dto.allowOnlineEditor() != null) {
-            exercise.setAllowOnlineEditor(dto.allowOnlineEditor());
-        }
-        if (dto.allowOfflineIde() != null) {
-            exercise.setAllowOfflineIde(dto.allowOfflineIde());
-        }
-        exercise.setAllowOnlineIde(dto.allowOnlineIde());
-
-        if (dto.maxStaticCodeAnalysisPenalty() != null) {
-            exercise.setMaxStaticCodeAnalysisPenalty(dto.maxStaticCodeAnalysisPenalty());
-        }
-
-        exercise.setShowTestNamesToStudents(dto.showTestNamesToStudents());
-        exercise.setBuildAndTestStudentSubmissionsAfterDueDate(dto.buildAndTestStudentSubmissionsAfterDueDate());
-
-        if (dto.testCasesChanged() != null) {
-            exercise.setTestCasesChanged(dto.testCasesChanged());
-        }
-
-        exercise.setSubmissionPolicy(dto.submissionPolicy());
-        exercise.setProjectType(dto.projectType());
-        exercise.setReleaseTestsWithExampleSolution(dto.releaseTestsWithExampleSolution());
-
-        // Update auxiliary repositories
-        if (dto.auxiliaryRepositories() != null) {
-            List<AuxiliaryRepository> auxRepos = dto.auxiliaryRepositories().stream().map(AuxiliaryRepositoryDTO::toEntity).toList();
-            exercise.setAuxiliaryRepositories(new ArrayList<>(auxRepos));
-        }
-
-        // Update build config
-        updateBuildConfig(dto.buildConfig(), exercise.getBuildConfig());
-
-        // Update grading criteria
-        updateGradingCriteria(dto, exercise);
-
-        // Update competency links using the proper mechanism
-        competencyExerciseLinkService.updateCompetencyLinks(dto, exercise);
-
-        return exercise;
-    }
-
-    /**
-     * Updates the build config entity with values from the DTO.
-     *
-     * @param dto         the DTO containing updated build config values
-     * @param buildConfig the existing build config entity to update
-     */
-    private void updateBuildConfig(UpdateProgrammingExerciseBuildConfigDTO dto, ProgrammingExerciseBuildConfig buildConfig) {
-        if (dto == null || buildConfig == null) {
-            return;
-        }
-
-        if (dto.sequentialTestRuns() != null) {
-            buildConfig.setSequentialTestRuns(dto.sequentialTestRuns());
-        }
-        // Note: branch is preserved from original (immutable during update)
-        if (dto.buildPlanConfiguration() != null) {
-            buildConfig.setBuildPlanConfiguration(dto.buildPlanConfiguration());
-        }
-        buildConfig.setBuildScript(null);
-        buildConfig.setCheckoutSolutionRepository(dto.checkoutSolutionRepository());
-        buildConfig.setTestCheckoutPath(dto.testCheckoutPath());
-        buildConfig.setAssignmentCheckoutPath(dto.assignmentCheckoutPath());
-        buildConfig.setSolutionCheckoutPath(dto.solutionCheckoutPath());
-        buildConfig.setTimeoutSeconds(dto.timeoutSeconds());
-        buildConfig.setDockerFlags(dto.dockerFlags());
-        buildConfig.setTheiaImage(dto.theiaImage());
-        buildConfig.setAllowBranching(dto.allowBranching());
-        buildConfig.setBranchRegex(dto.branchRegex());
-    }
-
-    /**
-     * Updates grading criteria from the DTO.
-     *
-     * @param dto      the DTO containing grading criteria
-     * @param exercise the exercise to update
-     */
-    private void updateGradingCriteria(UpdateProgrammingExerciseDTO dto, ProgrammingExercise exercise) {
-        if (dto.gradingCriteria() == null || dto.gradingCriteria().isEmpty()) {
-            Set<GradingCriterion> criteria = exercise.ensureGradingCriteriaSet();
-            criteria.clear();
-            return;
-        }
-
-        Set<GradingCriterion> managedCriteria = exercise.ensureGradingCriteriaSet();
-
-        // Preserve existing criteria by matching on ID to avoid dangling Feedback.gradingInstruction references
-        Map<Long, GradingCriterion> existingById = managedCriteria.stream().filter(gc -> gc.getId() != null)
-                .collect(Collectors.toMap(GradingCriterion::getId, gc -> gc, (a, b) -> a));
-
-        Set<GradingCriterion> updated = dto.gradingCriteria().stream().map(gcDto -> {
-            GradingCriterion criterion = (gcDto.id() != null) ? existingById.get(gcDto.id()) : null;
-            if (criterion == null) {
-                criterion = gcDto.toEntity();
-                criterion.setExercise(exercise);
-            }
-            else {
-                gcDto.applyTo(criterion);
-            }
-            return criterion;
-        }).collect(Collectors.toSet());
-
-        managedCriteria.clear();
-        managedCriteria.addAll(updated);
+        return programmingExerciseUpdateDtoService.applyTo(dto, exercise);
     }
 
     /**

@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -40,9 +41,12 @@ import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.course.repository.CourseRepository;
 import de.tum.cit.aet.artemis.course.service.CourseService;
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
+import de.tum.cit.aet.artemis.programming.dto.MilestoneExerciseUserStoryCountDTO;
+import de.tum.cit.aet.artemis.programming.dto.UpdateProgrammingExerciseDTO;
 import de.tum.cit.aet.artemis.programming.exception.ContinuousIntegrationException;
 import de.tum.cit.aet.artemis.programming.repository.MilestoneExerciseRepository;
 import de.tum.cit.aet.artemis.programming.service.MilestoneExerciseService;
+import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseUpdateDtoService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseValidationService;
 
 /**
@@ -80,9 +84,12 @@ public class MilestoneExerciseResource {
 
     private final UserRepository userRepository;
 
+    private final ProgrammingExerciseUpdateDtoService programmingExerciseUpdateDtoService;
+
     public MilestoneExerciseResource(CourseService courseService, AuthorizationCheckService authCheckService,
             ProgrammingExerciseValidationService programmingExerciseValidationService, MilestoneExerciseService milestoneExerciseService,
-            MilestoneExerciseRepository milestoneExerciseRepository, CourseRepository courseRepository, UserRepository userRepository) {
+            MilestoneExerciseRepository milestoneExerciseRepository, CourseRepository courseRepository, UserRepository userRepository,
+            ProgrammingExerciseUpdateDtoService programmingExerciseUpdateDtoService) {
         this.courseService = courseService;
         this.authCheckService = authCheckService;
         this.programmingExerciseValidationService = programmingExerciseValidationService;
@@ -90,6 +97,7 @@ public class MilestoneExerciseResource {
         this.milestoneExerciseRepository = milestoneExerciseRepository;
         this.courseRepository = courseRepository;
         this.userRepository = userRepository;
+        this.programmingExerciseUpdateDtoService = programmingExerciseUpdateDtoService;
     }
 
     /**
@@ -121,31 +129,43 @@ public class MilestoneExerciseResource {
 
     /**
      * PUT /milestone-exercises/{exerciseId} : Updates an existing MilestoneExercise's non-derived fields (dates, channel,
-     * categories, build configuration, ...). maxPoints is always derived from the UserStoryExercise children and cannot be
-     * set through this endpoint.
+     * categories, problem statement, build configuration, ...). maxPoints is always derived from the UserStoryExercise
+     * children and cannot be set through this endpoint.
+     * <p>
+     * The body is a DTO rather than a MilestoneExercise on purpose. ProgrammingExercise and its superclass declare 16
+     * associations with {@code orphanRemoval = true} - student participations, teams, attachments, test cases, tasks,
+     * grading criteria, the UserStoryExercise children, ... - so persisting a client-deserialized entity would delete
+     * every collection the payload happens to omit. (A student participation with a VCS access token even turned that
+     * into a 500 rather than silent data loss, because the token's foreign key is ON DELETE RESTRICT.) Applying the DTO
+     * onto the loaded entity leaves all of them untouched, which is exactly what the ProgrammingExercise update endpoint
+     * does.
      *
-     * @param exerciseId        the id of the MilestoneExercise to update
-     * @param milestoneExercise the MilestoneExercise carrying the updated fields
+     * @param exerciseId the id of the MilestoneExercise to update
+     * @param updateDTO  the DTO carrying the updated fields
      * @return the ResponseEntity with status 200 (OK) and the updated MilestoneExercise
      * @throws JsonProcessingException if the build plan configuration could not be serialized
      */
     @PutMapping("milestone-exercises/{exerciseId}")
     @EnforceAtLeastEditor
     @FeatureToggle(Feature.ProgrammingExercises)
-    public ResponseEntity<MilestoneExercise> updateMilestoneExercise(@PathVariable long exerciseId, @RequestBody MilestoneExercise milestoneExercise)
+    public ResponseEntity<MilestoneExercise> updateMilestoneExercise(@PathVariable long exerciseId, @RequestBody UpdateProgrammingExerciseDTO updateDTO)
             throws JsonProcessingException {
         log.debug("REST request to update MilestoneExercise : {}", exerciseId);
-        MilestoneExercise existingMilestoneExercise = milestoneExerciseRepository.findWithUserStoryExercisesByIdElseThrow(exerciseId);
-        User user = userRepository.getUserWithGroupsAndAuthorities();
-        authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.EDITOR, existingMilestoneExercise, user);
-        if (milestoneExercise.getId() != null && !milestoneExercise.getId().equals(exerciseId)) {
+        if (updateDTO.id() != null && !updateDTO.id().equals(exerciseId)) {
             throw new BadRequestAlertException("The exercise id in the path does not match the exercise id in the body", ENTITY_NAME, "idMismatch");
         }
 
-        milestoneExercise.setId(exerciseId);
-        // maxPoints is derived from the UserStoryExercise children and must never be overwritten by the client.
-        milestoneExercise.setMaxPoints(existingMilestoneExercise.getMaxPoints());
-        Set<Long> originalCompetencyIds = existingMilestoneExercise.getCompetencyLinks().stream().map(link -> link.getCompetency().getId()).collect(Collectors.toSet());
+        MilestoneExercise milestoneExercise = milestoneExerciseRepository.findForUpdateByIdElseThrow(exerciseId);
+        User user = userRepository.getUserWithGroupsAndAuthorities();
+        authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.EDITOR, milestoneExercise, user);
+
+        // Read before applying the DTO, which overwrites both on the same (L1-cached) entity
+        Set<Long> originalCompetencyIds = milestoneExercise.getCompetencyLinks().stream().map(link -> link.getCompetency().getId()).collect(Collectors.toSet());
+        Double derivedMaxPoints = milestoneExercise.getMaxPoints();
+
+        programmingExerciseUpdateDtoService.applyTo(updateDTO, milestoneExercise);
+        // maxPoints is derived from the UserStoryExercise children and must never be taken from the client.
+        milestoneExercise.setMaxPoints(derivedMaxPoints);
 
         MilestoneExercise updatedMilestoneExercise = milestoneExerciseService.updateMilestoneExercise(milestoneExercise, null, originalCompetencyIds);
         return ResponseEntity.ok(updatedMilestoneExercise);
@@ -181,6 +201,15 @@ public class MilestoneExerciseResource {
         log.debug("REST request to get all MilestoneExercises for course : {}", courseId);
         Course course = courseRepository.findByIdElseThrow(courseId);
         authCheckService.checkHasAtLeastRoleInCourseElseThrow(Role.EDITOR, course, null);
-        return ResponseEntity.ok(milestoneExerciseRepository.findAllByCourseId(courseId));
+
+        List<MilestoneExercise> milestoneExercises = milestoneExerciseRepository.findAllByCourseId(courseId);
+        // Counted separately instead of fetching the children, which would serialize every UserStoryExercise in full just so
+        // the exercise list can show how many there are.
+        Map<Long, Long> userStoryExerciseCounts = milestoneExerciseRepository.countUserStoryExercisesByCourseId(courseId).stream()
+                .collect(Collectors.toMap(MilestoneExerciseUserStoryCountDTO::milestoneExerciseId, MilestoneExerciseUserStoryCountDTO::count));
+        milestoneExercises
+                .forEach(milestoneExercise -> milestoneExercise.setNumberOfUserStoryExercises(userStoryExerciseCounts.getOrDefault(milestoneExercise.getId(), 0L).intValue()));
+
+        return ResponseEntity.ok(milestoneExercises);
     }
 }

@@ -15,6 +15,8 @@ import { Exercise, ExerciseType } from 'app/exercise/shared/entities/exercise/ex
 import { MockTranslateService } from 'test/helpers/mocks/service/mock-translate.service';
 import { TranslateService } from '@ngx-translate/core';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { By } from '@angular/platform-browser';
+import { MarkdownDirective } from 'app/foundation/directives/markdown.directive';
 import { AccountService } from 'app/core/auth/account.service';
 import { MockAccountService } from 'test/helpers/mocks/service/mock-account.service';
 import { ThemeService } from 'app/core/theme/shared/theme.service';
@@ -121,6 +123,27 @@ describe('ProblemStatementComponent', () => {
             fixture.componentRef.setInput('exerciseInput', undefined);
             expect(component.programmingExercise()).toBeUndefined();
         });
+    });
+
+    it('should render the problem statement of a milestone exercise as markdown for students', () => {
+        const milestoneExercise = { id: 1, type: ExerciseType.MILESTONE, problemStatement: '# Build the parser' } as Exercise;
+        fixture.componentRef.setInput('exerciseInput', milestoneExercise);
+        fixture.detectChanges();
+
+        const compiled = fixture.debugElement.nativeElement;
+        // A MilestoneExercise is not of type PROGRAMMING, so it takes the plain markdown branch rather than the
+        // programming instructions renderer, and the description reaches the markdown directive from there
+        expect(component.programmingExercise()).toBeUndefined();
+        expect(compiled.querySelector('jhi-programming-exercise-instructions')).toBeFalsy();
+        expect(compiled.querySelector('#problem-statement')).toBeTruthy();
+        expect(fixture.debugElement.query(By.directive(MarkdownDirective)).injector.get(MarkdownDirective).jhiMarkdown()).toBe('# Build the parser');
+    });
+
+    it('should not render a problem statement section for a milestone exercise without a description', () => {
+        fixture.componentRef.setInput('exerciseInput', { id: 1, type: ExerciseType.MILESTONE } as Exercise);
+        fixture.detectChanges();
+
+        expect(fixture.debugElement.nativeElement.querySelector('#problem-statement')).toBeFalsy();
     });
 
     it('should render programming exercise instructions when exercise is a programming exercise and participation and exercise are available', () => {

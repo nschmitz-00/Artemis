@@ -89,7 +89,8 @@
 
     @if (showDiscussion()) {
         <ng-template jhiPanel [label]="'artemisApp.metis.communication.label'" [icon]="faComment">
-            <jhi-discussion-section [exercise]="exercise()" [embedded]="true" />
+            <!-- For a UserStoryExercise this is the parent Milestone: only the Milestone owns a channel -->
+            <jhi-discussion-section [exercise]="discussionExercise()" [embedded]="true" />
         </ng-template>
     }
 </jhi-resizable-panels>

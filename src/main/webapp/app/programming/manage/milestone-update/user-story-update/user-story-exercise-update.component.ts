@@ -1,5 +1,5 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 
@@ -28,6 +28,7 @@ export class UserStoryExerciseUpdateComponent implements OnInit {
     private readonly userStoryExerciseService = inject(UserStoryExerciseService);
     private readonly alertService = inject(AlertService);
     private readonly activatedRoute = inject(ActivatedRoute);
+    private readonly router = inject(Router);
     private readonly navigationUtilService = inject(ArtemisNavigationUtilService);
 
     protected readonly titlePattern = EXERCISE_TITLE_NAME_PATTERN;
@@ -75,7 +76,7 @@ export class UserStoryExerciseUpdateComponent implements OnInit {
         saveObservable.subscribe({
             next: () => {
                 this.isSaving.set(false);
-                this.navigateBackToMilestone();
+                this.navigateToMilestone();
             },
             error: (error: HttpErrorResponse) => {
                 this.isSaving.set(false);
@@ -85,10 +86,21 @@ export class UserStoryExerciseUpdateComponent implements OnInit {
     }
 
     previousState() {
-        this.navigateBackToMilestone();
+        // Cancelling should return the user wherever they came from, so going back is correct here.
+        this.navigationUtilService.navigateBack(this.milestoneRoute());
     }
 
-    private navigateBackToMilestone() {
-        this.navigationUtilService.navigateBack(['/course-management', this.milestoneExercise().course!.id!, 'milestone-exercises', this.milestoneExercise().id!, 'edit']);
+    /**
+     * Navigates to the parent Milestone after a successful save. This must be a forward navigation and must not go
+     * back: the Milestone edit page is the only page that lists UserStoryExercises, so going back would drop the user
+     * on whatever page they opened this form from (e.g. the course exercise list, which only lists Milestones) where
+     * the story they just created is nowhere to be seen - making a successful save look like it did nothing.
+     */
+    private navigateToMilestone() {
+        void this.router.navigate(this.milestoneRoute());
+    }
+
+    private milestoneRoute(): (string | number)[] {
+        return ['/course-management', this.milestoneExercise().course!.id!, 'milestone-exercises', this.milestoneExercise().id!, 'edit'];
     }
 }

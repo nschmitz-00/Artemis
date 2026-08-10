@@ -16,6 +16,13 @@ export class MilestoneExercise extends ProgrammingExercise {
      */
     public userStoryExercises?: UserStoryExercise[];
 
+    /**
+     * How many UserStoryExercises belong to this Milestone. Server-computed and only sent by the course exercise list
+     * endpoint, which counts the children instead of shipping them (see MilestoneExercise.java, server). Undefined on
+     * the endpoints that return `userStoryExercises` in full - use that array's length there.
+     */
+    public numberOfUserStoryExercises?: number;
+
     constructor(course: Course | undefined, exerciseGroup: ExerciseGroup | undefined) {
         super(course, exerciseGroup);
         this.type = ExerciseType.MILESTONE;

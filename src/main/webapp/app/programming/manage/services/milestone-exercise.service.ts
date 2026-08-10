@@ -6,6 +6,7 @@ import { map } from 'rxjs/operators';
 import { ExerciseService } from 'app/exercise/services/exercise.service';
 import { MilestoneExercise } from 'app/programming/shared/entities/milestone-exercise.model';
 import { ProgrammingExerciseService } from 'app/programming/manage/services/programming-exercise.service';
+import { toUpdateProgrammingExerciseDTO } from 'app/programming/manage/services/update-programming-exercise-dto.model';
 
 export type EntityResponseType = HttpResponse<MilestoneExercise>;
 export type EntityArrayResponseType = HttpResponse<MilestoneExercise[]>;
@@ -36,12 +37,16 @@ export class MilestoneExerciseService {
     /**
      * Updates an existing MilestoneExercise's non-derived fields. maxPoints is always derived from the
      * UserStoryExercise children and is ignored even if set on the passed exercise.
+     *
+     * Sends the same update DTO as ProgrammingExerciseService rather than the entity: the server must not persist a
+     * client-deserialized exercise, because every association mapped with orphanRemoval (student participations, the
+     * UserStoryExercise children, test cases, ...) would be deleted whenever the payload omits it.
      * @param milestoneExercise which should be updated
      */
     update(milestoneExercise: MilestoneExercise): Observable<EntityResponseType> {
-        const copy = this.convertDataFromClient(milestoneExercise);
+        const dto = toUpdateProgrammingExerciseDTO(milestoneExercise);
         return this.http
-            .put<MilestoneExercise>(`${this.resourceUrl}/${milestoneExercise.id}`, copy, { observe: 'response' })
+            .put<MilestoneExercise>(`${this.resourceUrl}/${milestoneExercise.id}`, dto, { observe: 'response' })
             .pipe(map((res: EntityResponseType) => this.processEntityResponse(res)));
     }
 
@@ -79,7 +84,11 @@ export class MilestoneExerciseService {
     }
 
     private convertDataFromClient(milestoneExercise: MilestoneExercise): MilestoneExercise {
-        return this.programmingExerciseService.convertDataFromClient(milestoneExercise);
+        const copy = this.programmingExerciseService.convertDataFromClient(milestoneExercise);
+        // Exercise#categories is a Set<String> on the server, so the ExerciseCategory objects have to be serialized
+        // first. convertDataFromClient does not do this itself - ProgrammingExerciseService does it at its call sites.
+        ExerciseService.stringifyExerciseCategories(copy);
+        return copy;
     }
 
     private processEntityResponse(exerciseRes: EntityResponseType): EntityResponseType {

@@ -15,6 +15,7 @@
                 "sequentialTestRuns": "Sequentielle Testläufe",
                 "customizeBuildPlan": "Build-Konfiguration anpassen"
             },
+            "problemStatementHint": "Diese Beschreibung wird Studierenden angezeigt, wenn sie den Meilenstein öffnen. Sie wird als Markdown gerendert.",
             "grading": {
                 "title": "Bewertung",
                 "totalPoints": "Gesamtpunkte (Summe der {{ count }} User Stories unten)"

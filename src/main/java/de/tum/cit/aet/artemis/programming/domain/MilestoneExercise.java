@@ -9,9 +9,11 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
+import jakarta.persistence.Transient;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import de.tum.cit.aet.artemis.exercise.domain.ExerciseType;
 
@@ -29,14 +31,38 @@ public class MilestoneExercise extends ProgrammingExercise {
     // Both "milestoneExercise" (the direct back-reference) and "course"/"exerciseGroup" (which would otherwise
     // re-embed this same MilestoneExercise via Course#exercises / ExerciseGroup#exercises) must be cut here, or
     // Jackson recurses forever: userStoryExercises -> course -> exercises -> (this UserStoryExercise) -> course -> ...
+    //
+    // READ_ONLY: the children are owned exclusively by UserStoryExerciseResource, never by the Milestone endpoints. The
+    // mapping below is orphanRemoval, so accepting this collection from a request body would let any MilestoneExercise
+    // payload silently delete every UserStoryExercise just by omitting them. Deserializing it as empty and merging is
+    // exactly as destructive, hence read-only rather than merely "trusted"; MilestoneExerciseResource#updateMilestoneExercise
+    // restores the persisted children before saving.
     @OneToMany(mappedBy = "milestoneExercise", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("id")
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     @JsonIgnoreProperties(value = { "milestoneExercise", "course", "exerciseGroup" }, allowSetters = true)
     private List<UserStoryExercise> userStoryExercises = new ArrayList<>();
+
+    /**
+     * How many UserStoryExercises belong to this Milestone. Derived and never persisted; it exists so the course exercise
+     * list can show the number without fetching every child (see MilestoneExerciseResource#getMilestoneExercisesForCourse).
+     * Only populated by that list endpoint - endpoints that fetch the children themselves leave it null, since
+     * {@link #getUserStoryExercises()} already carries the answer there.
+     */
+    @Transient
+    private Integer numberOfUserStoryExercisesTransient;
 
     @Override
     public String getType() {
         return "milestone";
+    }
+
+    public Integer getNumberOfUserStoryExercises() {
+        return numberOfUserStoryExercisesTransient;
+    }
+
+    public void setNumberOfUserStoryExercises(Integer numberOfUserStoryExercises) {
+        this.numberOfUserStoryExercisesTransient = numberOfUserStoryExercises;
     }
 
     @Override

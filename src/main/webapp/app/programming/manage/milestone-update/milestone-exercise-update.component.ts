@@ -21,6 +21,8 @@ import { ExerciseTitleChannelNamePrimengComponent } from 'app/exercise/exercise-
 import { CategorySelectorPrimengComponent } from 'app/exercise/category-selector-primeng/category-selector-primeng.component';
 import { MilestoneExerciseTimelineComponent } from 'app/programming/manage/milestone-update/milestone-exercise-timeline.component';
 import { MilestoneUserStoriesComponent } from 'app/programming/manage/milestone-update/milestone-user-stories.component';
+import { ProgrammingExerciseEditableInstructionComponent } from 'app/programming/manage/instructions-editor/programming-exercise-editable-instruction.component';
+import { MarkdownEditorHeight } from 'app/editor/markdown-editor/monaco/markdown-editor-monaco.component';
 import { FormFooterComponent } from 'app/shared-ui/form/form-footer/form-footer.component';
 import { Select } from 'primeng/select';
 import { Checkbox } from 'primeng/checkbox';
@@ -38,6 +40,7 @@ import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pip
         CategorySelectorPrimengComponent,
         MilestoneExerciseTimelineComponent,
         MilestoneUserStoriesComponent,
+        ProgrammingExerciseEditableInstructionComponent,
         FormFooterComponent,
         Select,
         Checkbox,
@@ -53,6 +56,7 @@ export class MilestoneExerciseUpdateComponent implements OnInit {
     private readonly activatedRoute = inject(ActivatedRoute);
     private readonly navigationUtilService = inject(ArtemisNavigationUtilService);
 
+    protected readonly MarkdownEditorHeight = MarkdownEditorHeight;
     protected readonly titlePattern = EXERCISE_TITLE_NAME_PATTERN;
     protected readonly shortNamePattern = PROGRAMMING_EXERCISE_SHORT_NAME_PATTERN;
     protected readonly programmingLanguages = Object.values(ProgrammingLanguage).filter((language) => language !== ProgrammingLanguage.EMPTY);
@@ -93,6 +97,17 @@ export class MilestoneExerciseUpdateComponent implements OnInit {
     private loadCategories(courseId?: number) {
         loadCourseExerciseCategories(courseId, this.courseService, this.exerciseService, this.alertService).subscribe((existingCategories) => {
             this.existingCategories.set(existingCategories);
+        });
+    }
+
+    /**
+     * The problem statement is what students see when they open the Milestone (the exercise details page renders it for
+     * every non-quiz exercise type), so this doubles as the Milestone's description.
+     */
+    updateProblemStatement(problemStatement: string) {
+        this.milestoneExercise.update((milestoneExercise) => {
+            milestoneExercise.problemStatement = problemStatement;
+            return milestoneExercise;
         });
     }
 

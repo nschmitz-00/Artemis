@@ -93,6 +93,22 @@
 
         <hr />
         <section>
+            <h3 jhiTranslate="artemisApp.exercise.sections.problem"></h3>
+            <p class="text-muted small" jhiTranslate="artemisApp.milestoneExercise.problemStatementHint"></p>
+            <!-- The same editor the ProgrammingExercise form uses for its problem statement. A MilestoneExercise owns the
+                 three repositories like any ProgrammingExercise, so its test-case and task support applies here too. -->
+            <jhi-programming-exercise-editable-instructions
+                id="milestone-problem-statement"
+                [exercise]="milestoneExercise()"
+                [initialEditorHeight]="MarkdownEditorHeight.MEDIUM"
+                [showStatus]="!isCreate()"
+                [editMode]="!isCreate()"
+                (instructionChange)="updateProblemStatement($event)"
+            />
+        </section>
+
+        <hr />
+        <section>
             <jhi-milestone-user-stories [milestoneExercise]="milestoneExercise()" />
         </section>
 

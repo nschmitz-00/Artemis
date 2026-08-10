@@ -1,6 +1,8 @@
 import { Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { ActivatedRoute, ChildrenOutletContexts, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { Exercise, ExerciseType, getIcon } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { UserStoryExercise } from 'app/programming/shared/entities/user-story-exercise.model';
+import { deepClone } from 'app/foundation/util/deep-clone.util';
 import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
 import { StudentParticipation } from 'app/exercise/shared/entities/participation/student-participation.model';
 import { ProgrammingExerciseStudentParticipation } from 'app/exercise/shared/entities/participation/programming-exercise-student-participation.model';
@@ -131,8 +133,30 @@ export class ExerciseSplitPanelComponent {
         return [exercise.type, exercise.id, participationId ?? '', this.participationMode(), (exercise as ProgrammingExercise).allowOnlineEditor ?? ''].join('|');
     });
 
+    /**
+     * The exercise whose channel the Communication panel shows. A UserStoryExercise never gets a channel of its own -
+     * only its parent Milestone does, since UserStoryExerciseService deliberately does not call
+     * ChannelService#createExerciseChannel the way the Milestone creation path does - so discussion about a user story
+     * belongs in the Milestone's channel. Undefined when no channel can be resolved, which hides the panel.
+     */
+    readonly discussionExercise = computed((): Exercise | undefined => {
+        const exercise = this.exercise();
+        if (exercise.type !== ExerciseType.USER_STORY) {
+            return exercise;
+        }
+        const milestoneExercise = (exercise as UserStoryExercise).milestoneExercise;
+        if (!milestoneExercise) {
+            return undefined;
+        }
+        // The parent Milestone is serialized without its course (it is always the same course the user story is in), but
+        // DiscussionSectionComponent needs a course id as well as the exercise id to look the channel up.
+        const discussionTarget = deepClone(milestoneExercise);
+        discussionTarget.course = exercise.course;
+        return discussionTarget;
+    });
+
     readonly showDiscussion = computed(() => {
-        const course = this.exercise().course;
+        const course = this.discussionExercise()?.course;
         return !!course && (isCommunicationEnabled(course) || isMessagingEnabled(course));
     });
 
@@ -182,6 +206,13 @@ export class ExerciseSplitPanelComponent {
         if (!this.studentParticipation()) return false;
         if (type === ExerciseType.PROGRAMMING) {
             return (this.exercise() as ProgrammingExercise).allowOnlineEditor ?? false;
+        }
+        // Milestone and UserStory exercises have no student-facing editor: they are worked on through the Milestone's
+        // repository, and usesRouterOutlet() is false for them, so this panel would render empty. An empty panel still
+        // occupies the main container (ResizablePanelsComponent puts panels()[0] there and tabs the rest into the right
+        // group next to Communication), which would push the problem statement out of the middle of the page.
+        if (type === ExerciseType.MILESTONE || type === ExerciseType.USER_STORY) {
+            return false;
         }
         return true;
     });

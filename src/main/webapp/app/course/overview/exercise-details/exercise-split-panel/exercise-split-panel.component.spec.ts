@@ -9,6 +9,8 @@ import { LLMSelectionDecision } from 'app/account/user/shared/dto/updateLLMSelec
 import { User } from 'app/account/user/user.model';
 import { Exercise, ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { StudentParticipation } from 'app/exercise/shared/entities/participation/student-participation.model';
+import { Course, CourseInformationSharingConfiguration } from 'app/course/shared/entities/course.model';
+import { UserStoryExercise } from 'app/programming/shared/entities/user-story-exercise.model';
 import { IrisChatService } from 'app/iris/overview/services/iris-chat.service';
 import { ExerciseSplitPanelComponent } from 'app/course/overview/exercise-details/exercise-split-panel/exercise-split-panel.component';
 import { MockAccountService } from 'test/helpers/mocks/service/mock-account.service';
@@ -101,6 +103,85 @@ describe('ExerciseSplitPanelComponent', () => {
         accountService.userIdentity.set({ selectedLLMUsage: undefined } as User);
 
         expect(component.irisPanelStartsCollapsed()).toBe(false);
+    });
+
+    describe('editor panel for milestone and user story exercises', () => {
+        // ResizablePanelsComponent renders panels()[0] in the main container and tabs the rest into the right group next
+        // to Communication. Milestone/UserStory exercises have no editor route, so an editor panel here would render
+        // empty, take the main container, and push the problem statement into the right-hand tabs. Suppressing it puts
+        // the problem statement first, matching a programming exercise that is worked on with an offline IDE.
+        /** The label of the panel that ResizablePanelsComponent renders in the main container. */
+        const mainContainerPanelLabel = (): string => fixture.debugElement.query(By.directive(ResizablePanelsComponent)).injector.get(ResizablePanelsComponent).leftPanel().label();
+
+        it.each([ExerciseType.MILESTONE, ExerciseType.USER_STORY])('should put the problem statement in the main container for %s exercises', (type) => {
+            fixture.componentRef.setInput('exercise', { id: 1, type } as Exercise);
+            fixture.componentRef.setInput('studentParticipation', { id: 5 } as StudentParticipation);
+            fixture.detectChanges();
+
+            expect(component.usesRouterOutlet()).toBeFalsy();
+            expect(component.showEditorPanel()).toBeFalsy();
+            expect(mainContainerPanelLabel()).toBe('problemStatement');
+        });
+
+        it('should still show the editor panel for other participated exercise types', () => {
+            fixture.componentRef.setInput('exercise', { id: 1, type: ExerciseType.TEXT } as Exercise);
+            fixture.componentRef.setInput('studentParticipation', { id: 5 } as StudentParticipation);
+            fixture.detectChanges();
+
+            expect(component.showEditorPanel()).toBeTruthy();
+        });
+    });
+
+    describe('communication panel for user story exercises', () => {
+        // Only the parent Milestone owns a channel (UserStoryExerciseService never creates one), so discussion about a
+        // user story has to target the Milestone. DiscussionSectionComponent resolves the channel from the exercise it
+        // is given, via getChannelOfExercise(course.id, exercise.id).
+        const courseWithCommunication = { id: 1, courseInformationSharingConfiguration: CourseInformationSharingConfiguration.COMMUNICATION_AND_MESSAGING } as Course;
+
+        /** Mirrors the student details payload: the milestone is serialized without its course. */
+        const userStoryWithMilestone = () =>
+            ({
+                id: 7,
+                type: ExerciseType.USER_STORY,
+                course: courseWithCommunication,
+                milestoneExercise: { id: 2, type: ExerciseType.MILESTONE },
+            }) as Exercise;
+
+        it('should point the communication panel at the parent milestone, not the user story', () => {
+            fixture.componentRef.setInput('exercise', userStoryWithMilestone());
+            fixture.detectChanges();
+
+            expect(component.showDiscussion()).toBeTruthy();
+            // The milestone's exercise id, but the user story's course - the payload omits the course on the milestone
+            expect(component.discussionExercise()?.id).toBe(2);
+            expect(component.discussionExercise()?.course?.id).toBe(courseWithCommunication.id);
+        });
+
+        it('should hide the communication panel for a user story whose milestone is not loaded', () => {
+            fixture.componentRef.setInput('exercise', { id: 7, type: ExerciseType.USER_STORY, course: courseWithCommunication } as Exercise);
+            fixture.detectChanges();
+
+            expect(component.discussionExercise()).toBeUndefined();
+            expect(component.showDiscussion()).toBeFalsy();
+        });
+
+        it('should not mutate the user story when deriving the milestone discussion target', () => {
+            const userStory = userStoryWithMilestone();
+            fixture.componentRef.setInput('exercise', userStory);
+            fixture.detectChanges();
+
+            component.discussionExercise();
+
+            expect((userStory as UserStoryExercise).milestoneExercise?.course).toBeUndefined();
+        });
+
+        it('should keep targeting the exercise itself for every other type', () => {
+            fixture.componentRef.setInput('exercise', { id: 1, type: ExerciseType.MILESTONE, course: courseWithCommunication } as Exercise);
+            fixture.detectChanges();
+
+            expect(component.showDiscussion()).toBeTruthy();
+            expect(component.discussionExercise()?.id).toBe(1);
+        });
     });
 
     it('navigates only when the target route identity changes, not when the participation object is replaced (prevents the navigate-thrash loop on incoming results, #12976)', () => {

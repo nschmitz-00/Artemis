@@ -42,8 +42,13 @@ export const COURSE_SHORT_NAME_MAX_LENGTH = 24;
  */
 export const PROGRAMMING_EXERCISE_SHORT_NAME_MAX_LENGTH = 36;
 export const PROGRAMMING_EXERCISE_NAME_MAX_LENGTH = DEFAULT_JPA_STRING_COLUMN_LENGTH;
-/** Programming exercise titles must only contain alphanumeric characters, or whitespaces, or '_' or '-' **/
-export const EXERCISE_TITLE_NAME_PATTERN = '^[a-zA-Z0-9-_ ]+';
+/**
+ * Programming exercise titles must only contain alphanumeric characters, or whitespaces, or '_' or '-'.
+ * The '-' must stay escaped: this pattern is also bound to the native `pattern` attribute of an input (see
+ * TitleChannelNameComponent), which browsers compile with the `v` flag, and an unescaped '-' between two
+ * class members is a syntax error there ("Invalid character class").
+ */
+export const EXERCISE_TITLE_NAME_PATTERN = '^[a-zA-Z0-9\\-_ ]+';
 export const EXERCISE_TITLE_NAME_REGEX = new RegExp(EXERCISE_TITLE_NAME_PATTERN);
 /** Prefixes must follow the login pattern **/
 export const LOGIN_PATTERN = /^[_'.@A-Za-z0-9-]*$/;

@@ -63,7 +63,11 @@ export class UserStoryExerciseService {
     }
 
     private convertDataFromClient(userStoryExercise: UserStoryExercise): UserStoryExercise {
-        return this.programmingExerciseService.convertDataFromClient(userStoryExercise);
+        const copy = this.programmingExerciseService.convertDataFromClient(userStoryExercise);
+        // Exercise#categories is a Set<String> on the server, so the ExerciseCategory objects have to be serialized
+        // first. convertDataFromClient does not do this itself - ProgrammingExerciseService does it at its call sites.
+        ExerciseService.stringifyExerciseCategories(copy);
+        return copy;
     }
 
     private processEntityResponse(exerciseRes: EntityResponseType): EntityResponseType {

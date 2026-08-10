@@ -2,10 +2,22 @@
     <div class="table-responsive">
         <table class="table table-striped">
             <thead>
-                <tr>
-                    <th><span jhiTranslate="artemisApp.exercise.title"></span></th>
-                    <th><span jhiTranslate="artemisApp.exercise.dates"></span></th>
-                    <th><span jhiTranslate="artemisApp.exercise.points"></span></th>
+                <tr jhiSort [(predicate)]="predicate" [(ascending)]="reverse" (sortChange)="sortRows()">
+                    @if (courseContext()?.isAtLeastInstructor) {
+                        <th class="d-md-table-cell">
+                            <input
+                                id="select-all-milestone-exercises"
+                                class="form-check-input"
+                                type="checkbox"
+                                (change)="toggleMultipleExercises(milestoneExercises())"
+                                [ngModel]="allChecked()"
+                            />
+                        </th>
+                    }
+                    <th jhiSortBy="title"><span jhiTranslate="artemisApp.exercise.title"></span>&nbsp;<fa-icon [icon]="faSort" /></th>
+                    <th jhiSortBy="dueDate"><span jhiTranslate="artemisApp.exercise.dates"></span>&nbsp;<fa-icon [icon]="faSort" /></th>
+                    <th jhiSortBy="maxPoints"><span jhiTranslate="artemisApp.exercise.points"></span>&nbsp;<fa-icon [icon]="faSort" /></th>
+                    <th><span jhiTranslate="artemisApp.milestoneExercise.userStories.title"></span></th>
                     <th class="d-md-table-cell">
                         <span jhiTranslate="artemisApp.exercise.mode"></span>
                     </th>
@@ -16,6 +28,17 @@
             <tbody>
                 @for (milestoneExercise of filteredMilestoneExercises(); track milestoneExercise.id) {
                     <tr id="{{ 'exercise-card-' + milestoneExercise.id }}">
+                        @if (courseContext()?.isAtLeastInstructor) {
+                            <td class="d-md-table-cell">
+                                <input
+                                    id="select-milestone-exercise-{{ milestoneExercise.id }}"
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    (change)="toggleExercise(milestoneExercise)"
+                                    [ngModel]="isExerciseSelected(milestoneExercise)"
+                                />
+                            </td>
+                        }
                         <td id="milestone-exercise-{{ milestoneExercise.id }}-title">
                             <a [routerLink]="['/course-management', milestoneExercise.course?.id, 'milestone-exercises', milestoneExercise.id, 'edit']">
                                 {{ milestoneExercise.title }}
@@ -39,6 +62,9 @@
                         </td>
                         <td id="milestone-exercise-{{ milestoneExercise.id }}-maxPoints">
                             {{ milestoneExercise.maxPoints }}
+                        </td>
+                        <td id="milestone-exercise-{{ milestoneExercise.id }}-userStoryCount">
+                            {{ milestoneExercise.numberOfUserStoryExercises ?? 0 }}
                         </td>
                         <td class="d-md-table-cell">
                             <div class="d-flex justify-content-between">
@@ -90,6 +116,14 @@
                                         <span class="d-none d-md-inline" jhiTranslate="entity.action.editInEditor"></span>
                                     </a>
                                 }
+                                <a
+                                    id="milestone-exercise-{{ milestoneExercise.id }}-add-user-story"
+                                    [routerLink]="['/course-management', courseId(), 'milestone-exercises', milestoneExercise.id, 'user-story-exercises', 'new']"
+                                    class="btn btn-primary btn-sm me-1"
+                                >
+                                    <fa-icon [icon]="faPlus" />
+                                    <span jhiTranslate="artemisApp.milestoneExercise.userStories.add"></span>
+                                </a>
                                 <a [routerLink]="['/course-management', courseId(), 'milestone-exercises', milestoneExercise.id, 'edit']" class="btn btn-warning btn-sm me-1">
                                     <fa-icon [icon]="faWrench" />
                                     <span jhiTranslate="entity.action.edit"></span>
@@ -119,6 +153,27 @@
                 }
             </tbody>
         </table>
+        @if (selectedExercises().length > 0 && courseContext()?.isAtLeastInstructor) {
+            <div>
+                <button
+                    jhiDeleteButton
+                    id="delete-all-milestone-exercises"
+                    class="mb-1"
+                    [entityTitle]="'Multiple Milestone Exercises'"
+                    deleteQuestion="artemisApp.exerciseActions.deleteMultipleExercisesQuestion"
+                    [translateValues]="{
+                        courseTitle: courseContext()?.title,
+                        courseType: courseContext()?.testCourse
+                            ? ('artemisApp.exercise.delete.testCourse' | artemisTranslate)
+                            : ('artemisApp.exercise.delete.realCourse' | artemisTranslate),
+                    }"
+                    [dialogError]="dialogError$"
+                    (delete)="deleteMultipleExercises(selectedExercises(), milestoneExerciseService)"
+                >
+                    <fa-icon [icon]="faTrash" />
+                </button>
+            </div>
+        }
     </div>
 } @else {
     <p class="text-muted" jhiTranslate="artemisApp.exercise.noExercises"></p>
