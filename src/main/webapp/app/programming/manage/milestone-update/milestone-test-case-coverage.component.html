@@ -1,0 +1,41 @@
+@if (hasIssues()) {
+    <div class="d-flex flex-column gap-2 mb-3">
+        <h4 jhiTranslate="artemisApp.milestoneExercise.testCaseCoverage.title"></h4>
+
+        @if (orphanTestCases().length) {
+            <p-message severity="warn" [pt]="{ content: { class: 'w-100' }, text: { class: 'w-100' } }">
+                <div class="w-100">
+                    <strong jhiTranslate="artemisApp.milestoneExercise.testCaseCoverage.orphansTitle"></strong>
+                    <p class="mb-2" jhiTranslate="artemisApp.milestoneExercise.testCaseCoverage.orphansHint"></p>
+                    <ul class="mb-0">
+                        @for (testCase of orphanTestCases(); track testCase.testCaseId) {
+                            <li>{{ testCase.testName }}</li>
+                        }
+                    </ul>
+                </div>
+            </p-message>
+        }
+
+        @if (duplicateTestCases().length) {
+            <p-message severity="warn" [pt]="{ content: { class: 'w-100' }, text: { class: 'w-100' } }">
+                <div class="w-100">
+                    <strong jhiTranslate="artemisApp.milestoneExercise.testCaseCoverage.duplicatesTitle"></strong>
+                    <p class="mb-2" jhiTranslate="artemisApp.milestoneExercise.testCaseCoverage.duplicatesHint"></p>
+                    <ul class="mb-0">
+                        @for (testCase of duplicateTestCases(); track testCase.testCaseId) {
+                            <li>
+                                {{ testCase.testName }}
+                                <span class="text-muted-color">
+                                    <span jhiTranslate="artemisApp.milestoneExercise.testCaseCoverage.referencedBy"></span>
+                                    @for (userStory of testCase.referencingUserStories; track userStory.id; let isLast = $last) {
+                                        {{ userStory.title }}{{ isLast ? '' : ', ' }}
+                                    }
+                                </span>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </p-message>
+        }
+    </div>
+}

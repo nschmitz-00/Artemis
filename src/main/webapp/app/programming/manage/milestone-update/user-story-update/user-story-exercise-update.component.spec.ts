@@ -87,6 +87,24 @@ describe('UserStoryExerciseUpdate Component', () => {
         expect(create.mock.calls[0][1]).toEqual(expect.objectContaining({ title: 'Story 1', shortName: 'story1' }));
     });
 
+    // The parent milestone's points and bonus points are the sums over its user stories, so both have to be editable here -
+    // they are the only place either value is ever entered.
+    it('should offer both a points and a bonus points input', async () => {
+        await setUp();
+
+        expect(fixture.nativeElement.querySelector('#maxPoints')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('#bonusPoints')).not.toBeNull();
+    });
+
+    it('should send the bonus points when updating a user story', async () => {
+        await setUp({ id: 9, title: 'Story 1', maxPoints: 10, bonusPoints: 4 } as UserStoryExercise);
+        const update = vi.spyOn(userStoryExerciseService, 'update').mockReturnValue(of(new HttpResponse({ body: { id: 9 } as UserStoryExercise })));
+
+        fixture.nativeElement.querySelector('#save-entity').click();
+
+        expect(update.mock.calls[0][0]).toEqual(expect.objectContaining({ maxPoints: 10, bonusPoints: 4 }));
+    });
+
     it('should navigate forward to the milestone after creating, not back to wherever the form was opened from', async () => {
         await setUp();
         vi.spyOn(userStoryExerciseService, 'create').mockReturnValue(of(new HttpResponse({ body: { id: 9 } as UserStoryExercise })));

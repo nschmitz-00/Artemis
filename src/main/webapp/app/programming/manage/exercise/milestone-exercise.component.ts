@@ -25,6 +25,9 @@ import { RepositoryType } from 'app/programming/shared/code-editor/model/code-ed
 import { SortService } from 'app/foundation/service/sort.service';
 import { SortDirective } from 'app/foundation/sort/directive/sort.directive';
 import { SortByDirective } from 'app/foundation/sort/directive/sort-by.directive';
+import { AccountService } from 'app/core/auth/account.service';
+import { FeatureToggle } from 'app/foundation/feature-toggle/feature-toggle.service';
+import { FeatureToggleLinkDirective } from 'app/foundation/feature-toggle/feature-toggle-link.directive';
 
 @Component({
     selector: 'jhi-milestone-exercise',
@@ -38,6 +41,7 @@ import { SortByDirective } from 'app/foundation/sort/directive/sort-by.directive
         SortByDirective,
         ExerciseCategoriesComponent,
         DeleteButtonDirective,
+        FeatureToggleLinkDirective,
         ArtemisTranslatePipe,
         ArtemisDatePipe,
     ],
@@ -49,6 +53,7 @@ export class MilestoneExerciseComponent extends ExerciseComponent {
     private readonly exerciseService = inject(ExerciseService);
     private readonly profileService = inject(ProfileService);
     private readonly sortService = inject(SortService);
+    private readonly accountService = inject(AccountService);
 
     protected readonly faPencilAlt = faPencilAlt;
     protected readonly faPlus = faPlus;
@@ -58,6 +63,7 @@ export class MilestoneExerciseComponent extends ExerciseComponent {
     protected readonly faCheck = faCheck;
     protected readonly faTimes = faTimes;
     protected readonly RepositoryType = RepositoryType;
+    protected readonly FeatureToggle = FeatureToggle;
 
     readonly onlineIdeEnabled = signal(false);
 
@@ -73,7 +79,11 @@ export class MilestoneExerciseComponent extends ExerciseComponent {
         this.milestoneExerciseService.findAllForCourse(this.courseId()).subscribe({
             next: (res) => {
                 const milestoneExercises = res.body ?? [];
-                milestoneExercises.forEach((milestoneExercise) => (milestoneExercise.course = this.courseContext()));
+                milestoneExercises.forEach((milestoneExercise) => {
+                    // The course has to be reconnected first: the access rights are derived from the course's user groups
+                    milestoneExercise.course = this.courseContext();
+                    this.accountService.setAccessRightsForExercise(milestoneExercise);
+                });
                 this.milestoneExercises.set(milestoneExercises);
                 this.emitExerciseCount(this.milestoneExercises().length);
                 this.applyFilter();

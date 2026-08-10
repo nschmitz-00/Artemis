@@ -690,6 +690,25 @@ describe('ProgrammingExerciseUpdateComponent', () => {
             expect(comp.staticCodeAnalysisAllowed).toBe(true);
         });
 
+        /**
+         * The static code analysis, sequential test runs and exemplary dependency checkboxes each render only if the creation
+         * config reports the corresponding flag, so the config is what has to carry them - the component's own fields being
+         * right is not enough.
+         */
+        it('should report the build options of the selected language in the creation config', () => {
+            fixture.detectChanges();
+            comp.onProgrammingLanguageChange(ProgrammingLanguage.JAVA);
+
+            const config = comp.getProgrammingExerciseCreationConfig();
+
+            expect(config.staticCodeAnalysisAllowed).toBe(true);
+            expect(config.sequentialTestRunsAllowed).toBe(true);
+            expect(config.projectTypes).toEqual([ProjectType.PLAIN_MAVEN]);
+            expect(config.modePickerOptions?.map((option) => option.value)).toEqual([ProjectType.PLAIN_MAVEN]);
+            // The exemplary dependency checkbox additionally needs the language on the exercise itself
+            expect(comp.programmingExercise.programmingLanguage).toBe(ProgrammingLanguage.JAVA);
+        });
+
         it('should activate SCA for Java', () => {
             // WHEN
             fixture.detectChanges();

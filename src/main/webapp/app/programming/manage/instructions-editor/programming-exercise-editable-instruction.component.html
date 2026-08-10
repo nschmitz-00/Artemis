@@ -111,6 +111,7 @@
                 <jhi-programming-exercise-instruction-instructor-analysis
                     [exerciseTestCases]="exerciseTestCases()"
                     [problemStatement]="exercise().problemStatement || ''"
+                    [additionalCoveringProblemStatements]="additionalCoveringProblemStatements()"
                     [taskRegex]="taskRegex"
                     (problemStatementAnalysis)="onAnalysisUpdate($event)"
                     class="editable-instruction-container__status__testcase"

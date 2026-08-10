@@ -40,6 +40,7 @@ import { SubmissionPolicyType } from 'app/exercise/shared/entities/submission/su
 import { ModePickerOption } from 'app/exercise/mode-picker/mode-picker.component';
 import { DocumentationButtonComponent, DocumentationType } from 'app/shared-ui/components/buttons/documentation-button/documentation-button.component';
 import { ProgrammingExerciseCreationConfig } from 'app/programming/manage/update/programming-exercise-creation-config';
+import { ProgrammingExerciseLanguageState } from 'app/programming/manage/update/programming-exercise-language-state';
 import { MODULE_FEATURE_HYPERION, MODULE_FEATURE_PLAGIARISM, MODULE_FEATURE_THEIA, PROFILE_LOCALCI } from 'app/app.constants';
 import { SharingInfo } from 'app/sharing/sharing.model';
 import { ProgrammingExerciseInformationComponent } from 'app/programming/manage/update/update-components/information/programming-exercise-information.component';
@@ -130,7 +131,14 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
     exerciseGradingComponent = viewChild(ProgrammingExerciseGradingComponent);
     exercisePlagiarismComponent = viewChild(ExerciseUpdatePlagiarismComponent);
 
-    packageNamePattern = '';
+    get packageNamePattern(): string {
+        return this.languageState.packageNamePattern;
+    }
+
+    set packageNamePattern(value: string) {
+        this.languageState.packageNamePattern = value;
+    }
+
     isSimpleMode = signal<boolean>(true);
     isAuxiliaryRepositoryInputValid = signal<boolean>(true);
 
@@ -227,16 +235,18 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
     readonly isSaving = signal<boolean>(undefined!);
     goBackAfterSaving = false;
     problemStatementLoaded = false;
-    buildPlanLoaded = false;
+    get buildPlanLoaded(): boolean {
+        return this.languageState.buildPlanLoaded;
+    }
+
+    set buildPlanLoaded(value: boolean) {
+        this.languageState.buildPlanLoaded = value;
+    }
     templateParticipationResultLoaded = true;
     notificationText?: string;
     readonly courseId = signal<number>(undefined!);
 
     rerenderSubject = new Subject<void>();
-    // This is used to revert the select if the user cancels to override the new selected programming language.
-    private selectedProgrammingLanguageValue!: ProgrammingLanguage; // set in ngOnInit() from the loaded exercise before the selectedProgrammingLanguage getter is read
-    // This is used to revert the select if the user cancels to override the new selected project type.
-    private selectedProjectTypeValue?: ProjectType;
 
     // Left undefined until categories load; code distinguishes undefined ("not yet loaded") from an empty array.
     exerciseCategories?: ExerciseCategory[];
@@ -250,11 +260,62 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
 
     public supportedLanguages = ['java'];
 
-    public packageNameRequired = true;
-    public staticCodeAnalysisAllowed = false;
-    public checkoutSolutionRepositoryAllowed = false;
-    public sequentialTestRunsAllowed = false;
-    public auxiliaryRepositoriesSupported = false;
+    /**
+     * The language / project type / build option state machine, shared with the milestone exercise form so both render the
+     * same section through {@link ProgrammingExerciseLanguageComponent} and follow the same rules. The members below delegate
+     * to it rather than holding state of their own.
+     */
+    readonly languageState = new ProgrammingExerciseLanguageState(this.programmingLanguageFeatureService, {
+        exercise: () => this.programmingExercise,
+        // The imported problem statement has to survive; loading a template would overwrite it
+        shouldLoadTemplate: () => !(this.isImportFromFile || this.isImportFromSharing),
+        loadTemplate: (language: ProgrammingLanguage) => {
+            this.loadProgrammingLanguageTemplate(language);
+            // Rerender the instructions as the template has changed.
+            this.rerenderSubject.next();
+        },
+    });
+
+    public get packageNameRequired(): boolean {
+        return this.languageState.packageNameRequired;
+    }
+
+    public set packageNameRequired(value: boolean) {
+        this.languageState.packageNameRequired = value;
+    }
+
+    public get staticCodeAnalysisAllowed(): boolean {
+        return this.languageState.staticCodeAnalysisAllowed;
+    }
+
+    public set staticCodeAnalysisAllowed(value: boolean) {
+        this.languageState.staticCodeAnalysisAllowed = value;
+    }
+
+    public get checkoutSolutionRepositoryAllowed(): boolean {
+        return this.languageState.checkoutSolutionRepositoryAllowed;
+    }
+
+    public set checkoutSolutionRepositoryAllowed(value: boolean) {
+        this.languageState.checkoutSolutionRepositoryAllowed = value;
+    }
+
+    public get sequentialTestRunsAllowed(): boolean {
+        return this.languageState.sequentialTestRunsAllowed;
+    }
+
+    public set sequentialTestRunsAllowed(value: boolean) {
+        this.languageState.sequentialTestRunsAllowed = value;
+    }
+
+    public get auxiliaryRepositoriesSupported(): boolean {
+        return this.languageState.auxiliaryRepositoriesSupported;
+    }
+
+    public set auxiliaryRepositoriesSupported(value: boolean) {
+        this.languageState.auxiliaryRepositoriesSupported = value;
+    }
+
     auxiliaryRepositoriesValid = signal<boolean>(true);
     public customBuildPlansSupported = '';
     public theiaEnabled = false;
@@ -284,11 +345,30 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
     // Additional data for import from Sharing
     public sharingInfo: SharingInfo = new SharingInfo();
 
-    public projectTypes?: ProjectType[] = [];
-    // flag describing if the template and solution projects should include a dependency
-    public withDependenciesValue = false;
+    public get projectTypes(): ProjectType[] | undefined {
+        return this.languageState.projectTypes;
+    }
 
-    public modePickerOptions?: ModePickerOption<ProjectType>[] = [];
+    public set projectTypes(value: ProjectType[] | undefined) {
+        this.languageState.projectTypes = value;
+    }
+
+    // flag describing if the template and solution projects should include a dependency
+    public get withDependenciesValue(): boolean {
+        return this.languageState.withDependencies;
+    }
+
+    public set withDependenciesValue(value: boolean) {
+        this.languageState.setWithDependenciesFlag(value);
+    }
+
+    public get modePickerOptions(): ModePickerOption<ProjectType>[] | undefined {
+        return this.languageState.modePickerOptions;
+    }
+
+    public set modePickerOptions(value: ModePickerOption<ProjectType>[] | undefined) {
+        this.languageState.modePickerOptions = value;
+    }
 
     constructor() {
         effect(() => {
@@ -391,67 +471,11 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
      * @param language to change to.
      */
     set selectedProgrammingLanguage(language: ProgrammingLanguage) {
-        const languageChanged = this.selectedProgrammingLanguageValue !== language;
-        this.selectedProgrammingLanguageValue = language;
-
-        const programmingLanguageFeature = this.programmingLanguageFeatureService.getProgrammingLanguageFeature(language)!;
-        this.packageNameRequired = programmingLanguageFeature?.packageNameRequired;
-        this.staticCodeAnalysisAllowed = programmingLanguageFeature.staticCodeAnalysis;
-        this.checkoutSolutionRepositoryAllowed = programmingLanguageFeature.checkoutSolutionRepositoryAllowed;
-        this.sequentialTestRunsAllowed = programmingLanguageFeature.sequentialTestRuns;
-        this.auxiliaryRepositoriesSupported = programmingLanguageFeature.auxiliaryRepositoriesSupported;
-        // filter out MAVEN_MAVEN and GRADLE_GRADLE because they are not directly selectable but only via a checkbox
-        this.projectTypes = programmingLanguageFeature.projectTypes?.filter((projectType) => projectType !== ProjectType.MAVEN_MAVEN && projectType !== ProjectType.GRADLE_GRADLE);
-        this.modePickerOptions = this.projectTypes?.map((projectType) => ({
-            value: projectType,
-            labelKey: 'artemisApp.programmingExercise.projectTypes.' + projectType.toString(),
-            btnClass: 'btn-secondary',
-        }));
-
-        if (languageChanged) {
-            this.resetBuildOptionSelections();
-            // Reset project type when changing programming language as not all programming languages support (the same) project types
-            this.programmingExercise.projectType = this.projectTypes?.[0];
-            this.selectedProjectTypeValue = this.projectTypes?.[0];
-            this.withDependenciesValue = false;
-            this.buildPlanLoaded = false;
-            if (this.programmingExercise.buildConfig) {
-                this.programmingExercise.buildConfig.buildPlanConfiguration = undefined;
-            } else {
-                this.programmingExercise.buildConfig = new ProgrammingExerciseBuildConfig();
-            }
-            this.programmingExercise.customizeBuildPlan = language === ProgrammingLanguage.EMPTY;
-        }
-
-        // If we switch to another language which does not support static code analysis we need to reset options related to static code analysis
-        if (!this.staticCodeAnalysisAllowed) {
-            this.programmingExercise.staticCodeAnalysisEnabled = false;
-            this.programmingExercise.maxStaticCodeAnalysisPenalty = undefined;
-        }
-
-        if (!this.sequentialTestRunsAllowed) {
-            this.programmingExercise.buildConfig!.sequentialTestRuns = false;
-        }
-
-        if (language == ProgrammingLanguage.HASKELL || language == ProgrammingLanguage.OCAML) {
-            // Instructors typically test against the example solution for Haskell and OCAML exercises.
-            // If supported by the current CI configuration, this line activates the option per default.
-            this.programmingExercise.buildConfig!.checkoutSolutionRepository = this.checkoutSolutionRepositoryAllowed;
-        }
-        if (!this.checkoutSolutionRepositoryAllowed) {
-            this.programmingExercise.buildConfig!.checkoutSolutionRepository = false;
-        }
-
-        // Only load problem statement template when creating a new exercise and not when importing an existing exercise
-        if (this.programmingExercise.id === undefined && !(this.isImportFromFile || this.isImportFromSharing)) {
-            this.loadProgrammingLanguageTemplate(language);
-            // Rerender the instructions as the template has changed.
-            this.rerenderSubject.next();
-        }
+        this.languageState.selectedProgrammingLanguage = language;
     }
 
     get selectedProgrammingLanguage() {
-        return this.selectedProgrammingLanguageValue;
+        return this.languageState.selectedProgrammingLanguage;
     }
 
     /**
@@ -460,60 +484,11 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
      * @param type to change to.
      */
     set selectedProjectType(type: ProjectType) {
-        // update the (selected) project type
-        this.updateProjectTypeSettings(type);
-
-        // Only load problem statement template when creating a new exercise and not when importing an existing exercise
-        if (this.programmingExercise.id === undefined && !(this.isImportFromFile || this.isImportFromSharing)) {
-            this.loadProgrammingLanguageTemplate(this.programmingExercise.programmingLanguage!);
-            // Rerender the instructions as the template has changed.
-            this.rerenderSubject.next();
-        }
+        this.languageState.selectedProjectType = type;
     }
 
     get selectedProjectType(): ProjectType | undefined {
-        return this.selectedProjectTypeValue;
-    }
-
-    private updateProjectTypeSettings(type: ProjectType) {
-        if (ProjectType.XCODE === type) {
-            // Disable Online Editor
-            this.programmingExercise.allowOnlineEditor = false;
-        } else if (ProjectType.FACT === type) {
-            // Disallow SCA for C (FACT)
-            this.disableStaticCodeAnalysis();
-        }
-
-        // update the project types for java programming exercises according to whether dependencies should be included
-        if (this.programmingExercise.programmingLanguage === ProgrammingLanguage.JAVA) {
-            const programmingLanguageFeature = this.programmingLanguageFeatureService.getProgrammingLanguageFeature(ProgrammingLanguage.JAVA)!;
-            if (type == ProjectType.MAVEN_BLACKBOX) {
-                this.selectedProjectTypeValue = ProjectType.MAVEN_BLACKBOX;
-                this.programmingExercise.projectType = ProjectType.MAVEN_BLACKBOX;
-                this.sequentialTestRunsAllowed = false;
-            } else if (type === ProjectType.PLAIN_MAVEN || type === ProjectType.MAVEN_MAVEN) {
-                this.selectedProjectTypeValue = ProjectType.PLAIN_MAVEN;
-                this.sequentialTestRunsAllowed = programmingLanguageFeature.sequentialTestRuns;
-                if (this.withDependenciesValue) {
-                    this.programmingExercise.projectType = ProjectType.MAVEN_MAVEN;
-                } else {
-                    this.programmingExercise.projectType = ProjectType.PLAIN_MAVEN;
-                }
-            } else {
-                this.selectedProjectTypeValue = ProjectType.PLAIN_GRADLE;
-                this.sequentialTestRunsAllowed = programmingLanguageFeature.sequentialTestRuns;
-                if (this.withDependenciesValue) {
-                    this.programmingExercise.projectType = ProjectType.GRADLE_GRADLE;
-                } else {
-                    this.programmingExercise.projectType = ProjectType.PLAIN_GRADLE;
-                }
-            }
-        } else {
-            this.selectedProjectTypeValue = type;
-            this.programmingExercise.projectType = type;
-        }
-
-        this.resetBuildOptionSelections();
+        return this.languageState.selectedProjectType;
     }
 
     /**
@@ -522,25 +497,11 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
      * @param withDependencies whether the project should include a dependency
      */
     set withDependencies(withDependencies: boolean) {
-        this.withDependenciesValue = withDependencies;
-        this.selectedProjectType = this.programmingExercise.projectType!;
+        this.languageState.withDependencies = withDependencies;
     }
 
     get withDependencies() {
-        return this.withDependenciesValue;
-    }
-
-    private disableStaticCodeAnalysis() {
-        this.programmingExercise.staticCodeAnalysisEnabled = false;
-        this.programmingExercise.maxStaticCodeAnalysisPenalty = undefined;
-    }
-
-    private resetBuildOptionSelections() {
-        this.programmingExercise.staticCodeAnalysisEnabled = false;
-        this.programmingExercise.maxStaticCodeAnalysisPenalty = undefined;
-        if (this.programmingExercise.buildConfig) {
-            this.programmingExercise.buildConfig.sequentialTestRuns = false;
-        }
+        return this.languageState.withDependencies;
     }
 
     /**
@@ -552,14 +513,7 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
         this.activatedRoute.data.subscribe(({ programmingExercise }) => {
             this.programmingExercise = programmingExercise;
             this.backupExercise = cloneDeep(this.programmingExercise);
-            this.selectedProgrammingLanguageValue = this.programmingExercise.programmingLanguage!;
-            if (this.programmingExercise.projectType === ProjectType.MAVEN_MAVEN) {
-                this.selectedProjectTypeValue = ProjectType.PLAIN_MAVEN;
-            } else if (this.programmingExercise.projectType === ProjectType.GRADLE_GRADLE) {
-                this.selectedProjectTypeValue = ProjectType.PLAIN_GRADLE;
-            } else {
-                this.selectedProjectTypeValue = this.programmingExercise.projectType!;
-            }
+            this.languageState.adoptFrom(this.programmingExercise);
         });
 
         // If it is an import from this instance, just get the course, otherwise handle the edit and new cases
@@ -735,13 +689,7 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
     }
 
     private defineSupportedProgrammingLanguages() {
-        this.supportedLanguages = [];
-
-        for (const programmingLanguage of Object.values(ProgrammingLanguage)) {
-            if (this.programmingLanguageFeatureService.supportsProgrammingLanguage(programmingLanguage)) {
-                this.supportedLanguages.push(programmingLanguage);
-            }
-        }
+        this.supportedLanguages = this.languageState.supportedLanguages();
     }
 
     private loadCourseExerciseCategories(courseId?: number) {
@@ -1120,21 +1068,7 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
      * @param useBlackboxPattern whether to allow points in the regex
      */
     setPackageNamePattern(language: ProgrammingLanguage, useBlackboxPattern = false) {
-        switch (language) {
-            case ProgrammingLanguage.SWIFT:
-                this.packageNamePattern = APP_NAME_PATTERN_FOR_SWIFT;
-                break;
-            case ProgrammingLanguage.JAVA:
-            case ProgrammingLanguage.KOTLIN:
-                this.packageNamePattern = useBlackboxPattern ? PACKAGE_NAME_PATTERN_FOR_JAVA_BLACKBOX : PACKAGE_NAME_PATTERN_FOR_JAVA_KOTLIN;
-                break;
-            case ProgrammingLanguage.GO:
-                this.packageNamePattern = PACKAGE_NAME_PATTERN_FOR_GO;
-                break;
-            case ProgrammingLanguage.DART:
-                this.packageNamePattern = PACKAGE_NAME_PATTERN_FOR_DART;
-                break;
-        }
+        this.languageState.setPackageNamePattern(language, useBlackboxPattern);
     }
 
     /**
@@ -1606,7 +1540,7 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
 
         resetProgrammingForImport(this.programmingExercise);
 
-        this.selectedProgrammingLanguageValue = this.programmingExercise.programmingLanguage!; // avoid detecting language as changed
+        this.languageState.adoptFrom(this.programmingExercise); // avoid detecting language as changed
         this.selectedProgrammingLanguage = this.programmingExercise.programmingLanguage!;
         this.programmingExerciseLanguageForAi.set(this.programmingExercise.programmingLanguage);
         // we need to get it from the history object as setting the programming language

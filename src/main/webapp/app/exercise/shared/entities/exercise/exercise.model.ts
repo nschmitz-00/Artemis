@@ -76,6 +76,61 @@ export const exerciseTypes: ExerciseType[] = [
     ExerciseType.USER_STORY,
 ];
 
+/**
+ * Whether exercises of this type contribute their own max points and achieved points to aggregated scores.
+ *
+ * A milestone is a container: its max points are the sum of its user story children's max points, and a build result is
+ * graded once against the milestone and once against every child. Counting both sides would double every milestone's
+ * contribution, so the children count and the milestone itself does not.
+ *
+ * IMPORTANT NOTICE: has to stay consistent with ExerciseType#contributesPointsToAggregatedScores in ExerciseType.java
+ */
+export function contributesPointsToAggregatedScores(type?: ExerciseType): boolean {
+    return type !== ExerciseType.MILESTONE;
+}
+
+/**
+ * The exercise type under which scores of the given type are reported when scores are grouped by exercise type.
+ * A user story is programming work performed in the parent milestone's repository, so it is reported under PROGRAMMING;
+ * that keeps the per-type sums adding up to the course total.
+ *
+ * IMPORTANT NOTICE: has to stay consistent with ExerciseType#scoreAggregationBucket in ExerciseType.java
+ */
+export function scoreAggregationBucket(type?: ExerciseType): ExerciseType | undefined {
+    return type === ExerciseType.USER_STORY ? ExerciseType.PROGRAMMING : type;
+}
+
+/**
+ * The exercise types that can appear as a bucket when scores are grouped by exercise type. Milestones contribute no
+ * points at all and user stories are reported under {@link ExerciseType.PROGRAMMING}, so neither is a bucket of its own.
+ */
+export const scoreAggregationExerciseTypes: ExerciseType[] = exerciseTypes.filter((type) => contributesPointsToAggregatedScores(type) && scoreAggregationBucket(type) === type);
+
+/**
+ * Whether exercises of this type are backed by a programming exercise, i.e. by a git repository, test cases, and build
+ * results. Milestones and user stories are `ProgrammingExercise` subclasses on the server (MilestoneExercise.java,
+ * UserStoryExercise.java), so everything built for programming exercises - the instruction renderer with its task
+ * overview, test case status, build result handling - applies to them unchanged.
+ *
+ * Use this instead of comparing against {@link ExerciseType.PROGRAMMING} whenever the check is about "does this behave
+ * like a programming exercise", not about "is this exactly the plain programming exercise type".
+ */
+export function isProgrammingBasedExerciseType(type?: ExerciseType): boolean {
+    return type === ExerciseType.PROGRAMMING || type === ExerciseType.MILESTONE || type === ExerciseType.USER_STORY;
+}
+
+/**
+ * The exercise type whose UI branch applies to the given type. Milestones and user stories map to
+ * {@link ExerciseType.PROGRAMMING} because they need exactly its actions - starting a participation, the code/clone button, the
+ * online editor - so a `@switch` over this renders the right branch for them without a case of their own.
+ *
+ * This is about which UI to show, not about scoring: use {@link scoreAggregationBucket} for the latter, which keeps milestones
+ * separate because they contribute no points.
+ */
+export function uiExerciseTypeBranch(type?: ExerciseType): ExerciseType | undefined {
+    return isProgrammingBasedExerciseType(type) ? ExerciseType.PROGRAMMING : type;
+}
+
 // IMPORTANT NOTICE: The following strings have to be consistent with the ones defined in Exercise.java
 export enum IncludedInOverallScore {
     INCLUDED_COMPLETELY = 'INCLUDED_COMPLETELY',

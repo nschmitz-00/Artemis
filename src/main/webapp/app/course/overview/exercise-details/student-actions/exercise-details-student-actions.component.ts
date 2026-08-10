@@ -4,7 +4,7 @@ import { AlertService } from 'app/foundation/service/alert.service';
 import { ExternalCloningService } from 'app/programming/shared/services/external-cloning.service';
 import { FeatureToggle } from 'app/foundation/feature-toggle/feature-toggle.service';
 import { InitializationState } from 'app/exercise/shared/entities/participation/participation.model';
-import { Exercise, ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { Exercise, ExerciseType, isProgrammingBasedExerciseType, uiExerciseTypeBranch } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { hasExerciseDueDatePassed, isResumeExerciseAvailable, isStartExerciseAvailable, isStartPracticeAvailable } from 'app/exercise/util/exercise.utils';
 import { ProgrammingExerciseStudentParticipation } from 'app/exercise/shared/entities/participation/programming-exercise-student-participation.model';
 import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
@@ -125,6 +125,9 @@ export class ExerciseDetailsStudentActionsComponent {
 
     readonly athenaEnabled = this.profileService.isModuleFeatureActive(MODULE_FEATURE_ATHENA);
 
+    /** The type whose action branch the template renders; milestones and user stories use the programming exercise one. */
+    readonly actionsExerciseType = computed(() => uiExerciseTypeBranch(this.exercise().type));
+
     readonly beforeDueDate = computed(() => {
         const exercise = this.exercise();
         return !exercise.dueDate || !hasExerciseDueDatePassed(exercise, this._gradedParticipation());
@@ -135,7 +138,9 @@ export class ExerciseDetailsStudentActionsComponent {
             const quizExercise = exercise as QuizExercise;
             this._uninitializedQuiz.set(ArtemisQuizService.isUninitialized(quizExercise));
             this._quizNotStarted.set(ArtemisQuizService.notStarted(quizExercise));
-        } else if (exercise.type === ExerciseType.PROGRAMMING) {
+        } else if (isProgrammingBasedExerciseType(exercise.type)) {
+            // Milestones and user stories are ProgrammingExercise subclasses with a real repository, so they get the same
+            // actions - without this the Code button (and the online editor button) never render for them.
             this._programmingExercise.set(exercise);
         } else if (exercise.type === ExerciseType.MODELING) {
             this._editorLabel.set('openModelingEditor');

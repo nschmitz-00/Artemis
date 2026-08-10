@@ -40,9 +40,15 @@
                             </td>
                         }
                         <td id="milestone-exercise-{{ milestoneExercise.id }}-title">
-                            <a [routerLink]="['/course-management', milestoneExercise.course?.id, 'milestone-exercises', milestoneExercise.id, 'edit']">
+                            <!-- Unlike a programming exercise, a milestone has no read-only detail page, so its title only links
+                                 anywhere for users who may open the edit form. -->
+                            @if (milestoneExercise.isAtLeastEditor) {
+                                <a [routerLink]="['/course-management', milestoneExercise.course?.id, 'milestone-exercises', milestoneExercise.id, 'edit']">
+                                    {{ milestoneExercise.title }}
+                                </a>
+                            } @else {
                                 {{ milestoneExercise.title }}
-                            </a>
+                            }
                         </td>
                         <td style="white-space: nowrap">
                             <div class="d-flex flex-column small">
@@ -99,8 +105,13 @@
                         </td>
                         <td class="text-end" style="white-space: nowrap">
                             <div class="btn-group flex-btn-group-container">
-                                @if (milestoneExercise.templateParticipation) {
+                                <!-- Same "Edit in editor" action as the programming exercise list: a MilestoneExercise owns the
+                                     three repositories like any ProgrammingExercise, so it uses the same code editor route. -->
+                                @if (milestoneExercise.isAtLeastEditor && milestoneExercise.templateParticipation?.id) {
                                     <a
+                                        id="milestone-exercise-{{ milestoneExercise.id }}-edit-in-editor"
+                                        [jhiFeatureToggleLink]="FeatureToggle.ProgrammingExercises"
+                                        [attr.disabled]="false"
                                         [routerLink]="[
                                             '/course-management',
                                             courseId(),
@@ -116,37 +127,41 @@
                                         <span class="d-none d-md-inline" jhiTranslate="entity.action.editInEditor"></span>
                                     </a>
                                 }
-                                <a
-                                    id="milestone-exercise-{{ milestoneExercise.id }}-add-user-story"
-                                    [routerLink]="['/course-management', courseId(), 'milestone-exercises', milestoneExercise.id, 'user-story-exercises', 'new']"
-                                    class="btn btn-primary btn-sm me-1"
-                                >
-                                    <fa-icon [icon]="faPlus" />
-                                    <span jhiTranslate="artemisApp.milestoneExercise.userStories.add"></span>
-                                </a>
-                                <a [routerLink]="['/course-management', courseId(), 'milestone-exercises', milestoneExercise.id, 'edit']" class="btn btn-warning btn-sm me-1">
-                                    <fa-icon [icon]="faWrench" />
-                                    <span jhiTranslate="entity.action.edit"></span>
-                                </a>
-                                <button
-                                    id="delete-exercise"
-                                    jhiDeleteButton
-                                    [entityTitle]="milestoneExercise.title ?? ''"
-                                    deleteQuestion="artemisApp.exercise.delete.question"
-                                    deleteConfirmationText="artemisApp.exercise.delete.typeNameToConfirm"
-                                    entitySummaryTitle="artemisApp.exercise.delete.summary.title"
-                                    [fetchEntitySummary]="fetchExerciseDeletionSummary(milestoneExercise)"
-                                    [translateValues]="{
-                                        courseTitle: courseContext()?.title,
-                                        courseType: courseContext()?.testCourse
-                                            ? ('artemisApp.exercise.delete.testCourse' | artemisTranslate)
-                                            : ('artemisApp.exercise.delete.realCourse' | artemisTranslate),
-                                    }"
-                                    [dialogError]="dialogError$"
-                                    (delete)="deleteMilestoneExercise(milestoneExercise)"
-                                >
-                                    <fa-icon [icon]="faTrash" />
-                                </button>
+                                @if (milestoneExercise.isAtLeastEditor) {
+                                    <a
+                                        id="milestone-exercise-{{ milestoneExercise.id }}-add-user-story"
+                                        [routerLink]="['/course-management', courseId(), 'milestone-exercises', milestoneExercise.id, 'user-story-exercises', 'new']"
+                                        class="btn btn-primary btn-sm me-1"
+                                    >
+                                        <fa-icon [icon]="faPlus" />
+                                        <span jhiTranslate="artemisApp.milestoneExercise.userStories.add"></span>
+                                    </a>
+                                    <a [routerLink]="['/course-management', courseId(), 'milestone-exercises', milestoneExercise.id, 'edit']" class="btn btn-warning btn-sm me-1">
+                                        <fa-icon [icon]="faWrench" />
+                                        <span jhiTranslate="entity.action.edit"></span>
+                                    </a>
+                                }
+                                @if (milestoneExercise.isAtLeastInstructor) {
+                                    <button
+                                        id="delete-exercise"
+                                        jhiDeleteButton
+                                        [entityTitle]="milestoneExercise.title ?? ''"
+                                        deleteQuestion="artemisApp.exercise.delete.question"
+                                        deleteConfirmationText="artemisApp.exercise.delete.typeNameToConfirm"
+                                        entitySummaryTitle="artemisApp.exercise.delete.summary.title"
+                                        [fetchEntitySummary]="fetchExerciseDeletionSummary(milestoneExercise)"
+                                        [translateValues]="{
+                                            courseTitle: courseContext()?.title,
+                                            courseType: courseContext()?.testCourse
+                                                ? ('artemisApp.exercise.delete.testCourse' | artemisTranslate)
+                                                : ('artemisApp.exercise.delete.realCourse' | artemisTranslate),
+                                        }"
+                                        [dialogError]="dialogError$"
+                                        (delete)="deleteMilestoneExercise(milestoneExercise)"
+                                    >
+                                        <fa-icon [icon]="faTrash" />
+                                    </button>
+                                }
                             </div>
                         </td>
                     </tr>

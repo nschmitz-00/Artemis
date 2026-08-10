@@ -517,8 +517,10 @@ public class CourseStudentDataExportService {
             // Get grading scale if it exists
             Optional<GradingScale> gradingScaleOpt = gradingScaleRepository.findByCourseId(courseId);
 
-            // Get all exercises sorted by type and title
-            List<Exercise> exercises = course.getExercises().stream().filter(e -> e.getIncludedInOverallScore() != IncludedInOverallScore.NOT_INCLUDED)
+            // Get all exercises sorted by type and title. MilestoneExercises are left out: their max points are the sum of their
+            // UserStoryExercise children's, so a column for both sides would double every Milestone in the max points total.
+            List<Exercise> exercises = course.getExercises().stream().filter(e -> e.getExerciseType().contributesPointsToAggregatedScores())
+                    .filter(e -> e.getIncludedInOverallScore() != IncludedInOverallScore.NOT_INCLUDED)
                     .sorted(Comparator.comparing((Exercise e) -> e.getExerciseType().name()).thenComparing(Exercise::getTitle)).toList();
 
             // Get all student IDs from the grade scores
@@ -985,8 +987,10 @@ public class CourseStudentDataExportService {
                 scoresByStudentAndExercise.computeIfAbsent(score.userId(), _ -> new HashMap<>()).put(score.exerciseId(), score.score());
             }
 
-            // Include all exercises that are not explicitly excluded (NOT_INCLUDED)
-            List<Exercise> exercises = course.getExercises().stream().filter(e -> e.getIncludedInOverallScore() != IncludedInOverallScore.NOT_INCLUDED).toList();
+            // Include all exercises that are not explicitly excluded (NOT_INCLUDED) and that contribute points of their own
+            // (a MilestoneExercise's points are already covered by its UserStoryExercise children)
+            List<Exercise> exercises = course.getExercises().stream().filter(e -> e.getExerciseType().contributesPointsToAggregatedScores())
+                    .filter(e -> e.getIncludedInOverallScore() != IncludedInOverallScore.NOT_INCLUDED).toList();
 
             double maxPoints = exercises.stream().mapToDouble(Exercise::getMaxPoints).sum();
 

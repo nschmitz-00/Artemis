@@ -31,6 +31,7 @@ import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 import de.tum.cit.aet.artemis.programming.repository.MilestoneExerciseRepository;
 import de.tum.cit.aet.artemis.programming.repository.UserStoryExerciseRepository;
+import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseTaskService;
 import de.tum.cit.aet.artemis.programming.service.UserStoryExerciseService;
 
 /**
@@ -59,13 +60,17 @@ public class UserStoryExerciseResource {
 
     private final UserRepository userRepository;
 
+    private final ProgrammingExerciseTaskService programmingExerciseTaskService;
+
     public UserStoryExerciseResource(AuthorizationCheckService authCheckService, UserStoryExerciseService userStoryExerciseService,
-            UserStoryExerciseRepository userStoryExerciseRepository, MilestoneExerciseRepository milestoneExerciseRepository, UserRepository userRepository) {
+            UserStoryExerciseRepository userStoryExerciseRepository, MilestoneExerciseRepository milestoneExerciseRepository, UserRepository userRepository,
+            ProgrammingExerciseTaskService programmingExerciseTaskService) {
         this.authCheckService = authCheckService;
         this.userStoryExerciseService = userStoryExerciseService;
         this.userStoryExerciseRepository = userStoryExerciseRepository;
         this.milestoneExerciseRepository = milestoneExerciseRepository;
         this.userRepository = userRepository;
+        this.programmingExerciseTaskService = programmingExerciseTaskService;
     }
 
     /**
@@ -111,6 +116,8 @@ public class UserStoryExerciseResource {
         }
 
         UserStoryExercise updatedUserStoryExercise = userStoryExerciseService.updateUserStoryExercise(exerciseId, userStoryExercise);
+        // The problem statement is persisted with test ids (see UserStoryExerciseService); the editor works with test names
+        programmingExerciseTaskService.replaceTestIdsWithNames(updatedUserStoryExercise);
         return ResponseEntity.ok(updatedUserStoryExercise);
     }
 
@@ -127,6 +134,8 @@ public class UserStoryExerciseResource {
         UserStoryExercise userStoryExercise = userStoryExerciseRepository.findWithMilestoneExerciseByIdElseThrow(exerciseId);
         User user = userRepository.getUserWithGroupsAndAuthorities();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.EDITOR, userStoryExercise, user);
+        // The problem statement is persisted with test ids (see UserStoryExerciseService); the editor works with test names
+        programmingExerciseTaskService.replaceTestIdsWithNames(userStoryExercise);
         return ResponseEntity.ok(userStoryExercise);
     }
 

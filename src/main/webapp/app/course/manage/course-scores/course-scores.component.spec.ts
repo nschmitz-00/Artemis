@@ -367,6 +367,87 @@ describe('CourseScoresComponent', () => {
         expect(component.exerciseMaxPointsPerType).toEqual(exerciseMaxPointsPerType);
     });
 
+    // A milestone's max points are the sum of its user stories' max points, and one build result is graded against the milestone
+    // and against every user story, so counting the milestone alongside its children doubles both the maximum and the achieved
+    // points. The milestone is therefore skipped entirely and its children are reported under programming.
+    describe('milestone exercises', () => {
+        const pastDueDate = dayjs().subtract(5, 'minutes');
+        const milestoneWith30Points = {
+            title: 'milestone',
+            id: 20,
+            dueDate: pastDueDate,
+            type: ExerciseType.MILESTONE,
+            includedInOverallScore: IncludedInOverallScore.INCLUDED_COMPLETELY,
+            maxPoints: 30,
+            bonusPoints: 0,
+        } as Exercise;
+        const userStoryWith10Points = {
+            title: 'story one',
+            id: 21,
+            dueDate: pastDueDate,
+            type: ExerciseType.USER_STORY,
+            includedInOverallScore: IncludedInOverallScore.INCLUDED_COMPLETELY,
+            maxPoints: 10,
+            bonusPoints: 0,
+        } as Exercise;
+        const userStoryWith20Points = {
+            title: 'story two',
+            id: 22,
+            dueDate: pastDueDate,
+            type: ExerciseType.USER_STORY,
+            includedInOverallScore: IncludedInOverallScore.INCLUDED_COMPLETELY,
+            maxPoints: 20,
+            bonusPoints: 0,
+        } as Exercise;
+        const milestoneCourse = {
+            courseId: 1,
+            exercises: [milestoneWith30Points, userStoryWith10Points, userStoryWith20Points],
+            accuracyOfScores: 1,
+        } as Course;
+
+        const setUpMilestoneCourse = () => {
+            vi.spyOn(courseManagementService, 'findWithExercises').mockReturnValue(of(new HttpResponse({ body: milestoneCourse })));
+            vi.spyOn(gradingService, 'findGradingScaleForCourse').mockReturnValue(of(new HttpResponse<GradingScaleDTO>()));
+            vi.spyOn(plagiarismCasesService, 'getCoursePlagiarismCasesForScores').mockReturnValue(of(new HttpResponse<PlagiarismCaseDTO[]>({ body: [] })));
+            // The same build result is graded against the milestone and against both user stories, so all three score 100%
+            vi.spyOn(courseManagementService, 'findGradeScores').mockReturnValue(
+                of({
+                    ...courseGradeInformation,
+                    gradeScores: [createGradeScore(20, 1, 20, 100), createGradeScore(21, 1, 21, 100), createGradeScore(22, 1, 22, 100)],
+                }),
+            );
+            fixture.detectChanges();
+        };
+
+        it('should exclude the milestone from the exercises included in the score', () => {
+            setUpMilestoneCourse();
+
+            expect(component.includedExercises()).toEqual([userStoryWith10Points, userStoryWith20Points]);
+        });
+
+        it('should not count the milestone max points on top of its user stories', () => {
+            setUpMilestoneCourse();
+
+            expect(component.maxNumberOfOverallPoints()).toBe(30);
+        });
+
+        it('should report the user story points under programming', () => {
+            setUpMilestoneCourse();
+
+            expect(component.maxNumberOfPointsPerExerciseType().get(ExerciseType.PROGRAMMING)).toBe(30);
+            expect(component.studentStatistics()[0].sumPointsPerExerciseType.get(ExerciseType.PROGRAMMING)).toBe(30);
+            // The milestone must not show up as a column of its own
+            expect(component.maxNumberOfPointsPerExerciseType().get(ExerciseType.MILESTONE)).toBeUndefined();
+            expect(component.maxNumberOfPointsPerExerciseType().get(ExerciseType.USER_STORY)).toBeUndefined();
+        });
+
+        it('should not count the milestone result on top of the user story results', () => {
+            setUpMilestoneCourse();
+
+            expect(component.studentStatistics()[0].overallPoints).toBe(30);
+        });
+    });
+
     it('should calculate per student score', () => {
         setupMocks();
 

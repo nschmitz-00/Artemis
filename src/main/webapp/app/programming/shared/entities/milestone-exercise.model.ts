@@ -9,6 +9,34 @@ import { UserStoryExercise } from 'app/programming/shared/entities/user-story-ex
  * repositories (template, solution, tests) exactly like a regular ProgrammingExercise; its UserStoryExercise children
  * never have repositories of their own and instead reuse the Milestone's. See MilestoneExercise.java (server).
  */
+/**
+ * The minimal identification of a UserStoryExercise, used to name it in the test case coverage warnings.
+ * See UserStoryReferenceDTO.java (server).
+ */
+export interface UserStoryReference {
+    id: number;
+    title?: string;
+}
+
+/**
+ * One test case of a Milestone that its user stories do not claim exactly once. See MilestoneTestCaseIssueDTO.java (server).
+ */
+export interface MilestoneTestCaseIssue {
+    testCaseId: number;
+    testName?: string;
+    referencingUserStories: UserStoryReference[];
+}
+
+/**
+ * How well the user stories of a Milestone partition its active test cases. Grading a user story only ever considers the test
+ * cases its problem statement references, so an orphan test case is unreachable for students and a duplicate one pays out
+ * several times. Purely informational - the server never rejects a save because of it. See MilestoneTestCaseCoverageDTO.java.
+ */
+export interface MilestoneTestCaseCoverage {
+    orphanTestCases: MilestoneTestCaseIssue[];
+    duplicateTestCases: MilestoneTestCaseIssue[];
+}
+
 export class MilestoneExercise extends ProgrammingExercise {
     /**
      * The child UserStoryExercises of this Milestone. maxPoints on this Milestone itself is derived (server-computed)

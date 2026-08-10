@@ -45,7 +45,9 @@ public interface MilestoneExerciseRepository extends ArtemisJpaRepository<Milest
 
     // Exercise#categories is a LAZY element collection, so it has to be fetched explicitly or it is silently missing from the
     // serialized response (Jackson omits uninitialized collections rather than failing), and the exercise appears uncategorized.
-    @EntityGraph(type = LOAD, attributePaths = { "categories" })
+    // templateParticipation is LAZY for the same reason and is what the course exercise list's "Edit in editor" action links to
+    // (it routes to the code editor for the template repository, which is addressed by the participation id).
+    @EntityGraph(type = LOAD, attributePaths = { "categories", "templateParticipation" })
     List<MilestoneExercise> findAllByCourseId(long courseId);
 
     /**

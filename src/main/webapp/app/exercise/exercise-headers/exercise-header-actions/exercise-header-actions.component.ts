@@ -1,6 +1,6 @@
 import { Component, ElementRef, HostListener, computed, effect, inject, input, output, signal, untracked, viewChild, viewChildren } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { Exercise, ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { Exercise, ExerciseType, isProgrammingBasedExerciseType, uiExerciseTypeBranch } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { FaIconComponent } from '@fortawesome/angular-fontawesome';
 import {
     IconDefinition,
@@ -191,6 +191,9 @@ export class ExerciseHeaderActionsComponent {
 
     readonly athenaEnabled = this.profileService.isModuleFeatureActive(MODULE_FEATURE_ATHENA);
 
+    /** The type whose action branch the template renders; milestones and user stories use the programming exercise one. */
+    readonly actionsExerciseType = computed(() => uiExerciseTypeBranch(this.exercise().type));
+
     readonly activeParticipationForCode = computed(() => {
         return this.participationMode() === 'practice' ? (this._practiceParticipation() ?? this._gradedParticipation()) : this._gradedParticipation();
     });
@@ -253,7 +256,9 @@ export class ExerciseHeaderActionsComponent {
             const quizExercise = exercise as QuizExercise;
             this._uninitializedQuiz.set(ArtemisQuizService.isUninitialized(quizExercise));
             this._quizNotStarted.set(ArtemisQuizService.notStarted(quizExercise));
-        } else if (exercise.type === ExerciseType.PROGRAMMING) {
+        } else if (isProgrammingBasedExerciseType(exercise.type)) {
+            // Milestones and user stories are ProgrammingExercise subclasses with a real repository, so they get the same
+            // actions - without this the Code button (and the online editor button) never render for them.
             this._programmingExercise.set(exercise);
         } else if (exercise.type === ExerciseType.MODELING) {
             this._editorLabel.set('openModelingEditor');

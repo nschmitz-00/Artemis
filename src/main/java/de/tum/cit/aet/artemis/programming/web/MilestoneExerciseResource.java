@@ -33,6 +33,7 @@ import de.tum.cit.aet.artemis.account.repository.UserRepository;
 import de.tum.cit.aet.artemis.core.exception.BadRequestAlertException;
 import de.tum.cit.aet.artemis.core.security.Role;
 import de.tum.cit.aet.artemis.core.security.annotations.EnforceAtLeastEditor;
+import de.tum.cit.aet.artemis.core.security.annotations.EnforceAtLeastTutor;
 import de.tum.cit.aet.artemis.core.service.AuthorizationCheckService;
 import de.tum.cit.aet.artemis.core.service.feature.Feature;
 import de.tum.cit.aet.artemis.core.service.feature.FeatureToggle;
@@ -42,10 +43,12 @@ import de.tum.cit.aet.artemis.course.repository.CourseRepository;
 import de.tum.cit.aet.artemis.course.service.CourseService;
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.dto.MilestoneExerciseUserStoryCountDTO;
+import de.tum.cit.aet.artemis.programming.dto.MilestoneTestCaseCoverageDTO;
 import de.tum.cit.aet.artemis.programming.dto.UpdateProgrammingExerciseDTO;
 import de.tum.cit.aet.artemis.programming.exception.ContinuousIntegrationException;
 import de.tum.cit.aet.artemis.programming.repository.MilestoneExerciseRepository;
 import de.tum.cit.aet.artemis.programming.service.MilestoneExerciseService;
+import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseTaskService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseUpdateDtoService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseValidationService;
 
@@ -86,10 +89,12 @@ public class MilestoneExerciseResource {
 
     private final ProgrammingExerciseUpdateDtoService programmingExerciseUpdateDtoService;
 
+    private final ProgrammingExerciseTaskService programmingExerciseTaskService;
+
     public MilestoneExerciseResource(CourseService courseService, AuthorizationCheckService authCheckService,
             ProgrammingExerciseValidationService programmingExerciseValidationService, MilestoneExerciseService milestoneExerciseService,
             MilestoneExerciseRepository milestoneExerciseRepository, CourseRepository courseRepository, UserRepository userRepository,
-            ProgrammingExerciseUpdateDtoService programmingExerciseUpdateDtoService) {
+            ProgrammingExerciseUpdateDtoService programmingExerciseUpdateDtoService, ProgrammingExerciseTaskService programmingExerciseTaskService) {
         this.courseService = courseService;
         this.authCheckService = authCheckService;
         this.programmingExerciseValidationService = programmingExerciseValidationService;
@@ -98,6 +103,7 @@ public class MilestoneExerciseResource {
         this.courseRepository = courseRepository;
         this.userRepository = userRepository;
         this.programmingExerciseUpdateDtoService = programmingExerciseUpdateDtoService;
+        this.programmingExerciseTaskService = programmingExerciseTaskService;
     }
 
     /**
@@ -162,10 +168,12 @@ public class MilestoneExerciseResource {
         // Read before applying the DTO, which overwrites both on the same (L1-cached) entity
         Set<Long> originalCompetencyIds = milestoneExercise.getCompetencyLinks().stream().map(link -> link.getCompetency().getId()).collect(Collectors.toSet());
         Double derivedMaxPoints = milestoneExercise.getMaxPoints();
+        Double derivedBonusPoints = milestoneExercise.getBonusPoints();
 
         programmingExerciseUpdateDtoService.applyTo(updateDTO, milestoneExercise);
-        // maxPoints is derived from the UserStoryExercise children and must never be taken from the client.
+        // Both point totals are derived from the UserStoryExercise children and must never be taken from the client.
         milestoneExercise.setMaxPoints(derivedMaxPoints);
+        milestoneExercise.setBonusPoints(derivedBonusPoints);
 
         MilestoneExercise updatedMilestoneExercise = milestoneExerciseService.updateMilestoneExercise(milestoneExercise, null, originalCompetencyIds);
         return ResponseEntity.ok(updatedMilestoneExercise);
@@ -186,21 +194,51 @@ public class MilestoneExerciseResource {
                 .orElseThrow(() -> new BadRequestAlertException("MilestoneExercise not found", ENTITY_NAME, "milestoneExerciseNotFound"));
         User user = userRepository.getUserWithGroupsAndAuthorities();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.EDITOR, milestoneExercise, user);
+        // Problem statements are persisted with test ids, but the editor works with test names - for the children too, since the
+        // edit page feeds their statements to the instruction status bar to decide which test cases are still unused.
+        programmingExerciseTaskService.replaceTestIdsWithNames(milestoneExercise);
+        milestoneExercise.getUserStoryExercises().forEach(programmingExerciseTaskService::replaceTestIdsWithNames);
         return ResponseEntity.ok(milestoneExercise);
     }
 
     /**
+     * GET /milestone-exercises/{exerciseId}/test-case-coverage : Reports the Milestone's active test cases that its
+     * UserStoryExercises do not claim exactly once - orphans (claimed by none, so unreachable for students) and duplicates
+     * (claimed by several, so paid out several times).
+     * <p>
+     * Purely informational: the editor is expected to pass through both states while adding UserStories one at a time, so this
+     * never blocks a save.
+     *
+     * @param exerciseId the id of the MilestoneExercise to check
+     * @return the ResponseEntity with status 200 (OK) and the orphan and duplicate test cases
+     */
+    @GetMapping("milestone-exercises/{exerciseId}/test-case-coverage")
+    @EnforceAtLeastEditor
+    public ResponseEntity<MilestoneTestCaseCoverageDTO> getTestCaseCoverage(@PathVariable long exerciseId) {
+        log.debug("REST request to get the test case coverage of MilestoneExercise : {}", exerciseId);
+        MilestoneExercise milestoneExercise = milestoneExerciseRepository.findByIdElseThrow(exerciseId);
+        User user = userRepository.getUserWithGroupsAndAuthorities();
+        authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.EDITOR, milestoneExercise, user);
+        return ResponseEntity.ok(milestoneExerciseService.analyseTestCaseCoverage(exerciseId));
+    }
+
+    /**
      * GET /courses/{courseId}/milestone-exercises : Gets all MilestoneExercises of a course (for the course management exercise list).
+     * <p>
+     * Tutor-level like {@code ProgrammingExerciseRetrievalResource#getProgrammingExercisesForCourse}, not editor-level: this backs
+     * one section of the course management exercise list, which tutors can open. Requiring EDITOR here made that page fail with a
+     * 403 for them while every other exercise type still listed. The read-only nature is enforced in the list itself, where the
+     * edit/create/delete actions are gated on the per-exercise editor and instructor rights.
      *
      * @param courseId the id of the course
      * @return the ResponseEntity with status 200 (OK) and the list of MilestoneExercises of the course
      */
     @GetMapping("courses/{courseId}/milestone-exercises")
-    @EnforceAtLeastEditor
+    @EnforceAtLeastTutor
     public ResponseEntity<List<MilestoneExercise>> getMilestoneExercisesForCourse(@PathVariable long courseId) {
         log.debug("REST request to get all MilestoneExercises for course : {}", courseId);
         Course course = courseRepository.findByIdElseThrow(courseId);
-        authCheckService.checkHasAtLeastRoleInCourseElseThrow(Role.EDITOR, course, null);
+        authCheckService.checkHasAtLeastRoleInCourseElseThrow(Role.TEACHING_ASSISTANT, course, null);
 
         List<MilestoneExercise> milestoneExercises = milestoneExerciseRepository.findAllByCourseId(courseId);
         // Counted separately instead of fetching the children, which would serialize every UserStoryExercise in full just so

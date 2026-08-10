@@ -145,6 +145,13 @@ export class ProgrammingExerciseEditableInstructionComponent implements AfterVie
 
     readonly isGeneratingOrRefining = input<boolean>(false);
 
+    /**
+     * Problem statements of related exercises that reference the same test cases, so the status bar does not report those test
+     * cases as unused. Set on a milestone's editor: the milestone owns the test repository, but the tests are meant to be
+     * distributed across its user stories' problem statements rather than listed in the milestone's own.
+     */
+    readonly additionalCoveringProblemStatements = input<string[]>([]);
+
     readonly mode = input<MonacoEditorMode>('normal');
 
     readonly renderSideBySide = input<boolean>(true);

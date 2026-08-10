@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 import { ExerciseService } from 'app/exercise/services/exercise.service';
-import { MilestoneExercise } from 'app/programming/shared/entities/milestone-exercise.model';
+import { MilestoneExercise, MilestoneTestCaseCoverage } from 'app/programming/shared/entities/milestone-exercise.model';
 import { ProgrammingExerciseService } from 'app/programming/manage/services/programming-exercise.service';
 import { toUpdateProgrammingExerciseDTO } from 'app/programming/manage/services/update-programming-exercise-dto.model';
 
@@ -72,6 +72,15 @@ export class MilestoneExerciseService {
                 return res;
             }),
         );
+    }
+
+    /**
+     * Gets the Milestone's active test cases that its user stories do not claim exactly once: orphans (claimed by none, so
+     * unreachable for students) and duplicates (claimed by several, so paid out several times).
+     * @param milestoneExerciseId of the MilestoneExercise to check
+     */
+    getTestCaseCoverage(milestoneExerciseId: number): Observable<MilestoneTestCaseCoverage> {
+        return this.http.get<MilestoneTestCaseCoverage>(`${this.resourceUrl}/${milestoneExerciseId}/test-case-coverage`);
     }
 
     /**

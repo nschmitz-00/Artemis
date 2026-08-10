@@ -46,12 +46,15 @@ import de.tum.cit.aet.artemis.buildagent.dto.DockerRunConfig;
 import de.tum.cit.aet.artemis.exam.domain.Exam;
 import de.tum.cit.aet.artemis.exam.domain.ExerciseGroup;
 import de.tum.cit.aet.artemis.exam.domain.StudentExam;
+import de.tum.cit.aet.artemis.exercise.domain.InitializationState;
 import de.tum.cit.aet.artemis.localci.service.distributed.api.queue.DistributedQueue;
 import de.tum.cit.aet.artemis.localvc.service.VcsAccessLogService;
 import de.tum.cit.aet.artemis.programming.AbstractProgrammingIntegrationLocalCILocalVCTestBase;
 import de.tum.cit.aet.artemis.programming.domain.AuthenticationMechanism;
+import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseBuildConfig;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParticipation;
+import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 import de.tum.cit.aet.artemis.programming.domain.build.BuildPhaseCondition;
 import de.tum.cit.aet.artemis.programming.domain.submissionpolicy.LockRepositoryPolicy;
 import de.tum.cit.aet.artemis.programming.domain.submissionpolicy.SubmissionPolicy;
@@ -254,6 +257,58 @@ class LocalVCLocalCIIntegrationTest extends AbstractProgrammingIntegrationLocalC
         log.info("Found {} failed access logs", failedAccessLogs.size());
         testUserLogs.forEach(accessLog -> log.info("VCS Access Log: action={}, user={}, authMechanism={}", accessLog.getRepositoryActionType(), accessLog.getUser().getLogin(),
                 accessLog.getAuthenticationMechanism()));
+    }
+
+    /**
+     * A MilestoneExercise shares one repository with all of its UserStoryExercises: starting the Milestone creates a sibling
+     * participation per UserStory carrying the same repository URI. The repository URI resolves to the Milestone alone, so
+     * without treating the siblings as equally valid token holders a student handed the token from a UserStory page gets
+     * "Authentication failed" on a repository they may clone.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+    void testFetchMilestoneRepositoryWithUserStoryParticipationToken() throws Exception {
+        var student = userUtilService.getUserByLogin(student1Login);
+
+        MilestoneExercise milestoneExercise = new MilestoneExercise();
+        milestoneExercise.setCourse(course);
+        milestoneExercise.setTitle("Milestone");
+        milestoneExercise.setShortName("MSTOKEN");
+        milestoneExercise.setMaxPoints(0.0);
+        milestoneExercise.setBonusPoints(0.0);
+        milestoneExercise.setReleaseDate(ZonedDateTime.now().minusDays(1));
+        milestoneExercise.setAllowOfflineIde(true);
+        milestoneExercise.generateAndSetProjectKey();
+        programmingExerciseRepository.save(milestoneExercise);
+
+        String milestoneProjectKey = milestoneExercise.getProjectKey();
+        String milestoneRepositorySlug = localVCLocalCITestService.getRepositorySlug(milestoneProjectKey, student1Login);
+        LocalRepository milestoneRepository = localVCLocalCITestService.createAndConfigureLocalRepository(milestoneProjectKey, milestoneRepositorySlug);
+        var milestoneParticipation = localVCLocalCITestService.createParticipation(milestoneExercise, student1Login);
+
+        UserStoryExercise userStoryExercise = new UserStoryExercise();
+        userStoryExercise.setCourse(course);
+        userStoryExercise.setTitle("Story");
+        userStoryExercise.setShortName("USTOKEN");
+        userStoryExercise.setMaxPoints(1.0);
+        userStoryExercise.setBonusPoints(0.0);
+        userStoryExercise.setMilestoneExercise(milestoneExercise);
+        userStoryExercise.generateAndSetProjectKey();
+        programmingExerciseRepository.save(userStoryExercise);
+
+        // The sibling points at the Milestone's repository, exactly as ParticipationService#cascadeStartToUserStoryExercises creates it
+        var userStoryParticipation = new ProgrammingExerciseStudentParticipation(milestoneParticipation.getBranch());
+        userStoryParticipation.setExercise(userStoryExercise);
+        userStoryParticipation.setParticipant(student);
+        userStoryParticipation.setRepositoryUri(milestoneParticipation.getRepositoryUri());
+        userStoryParticipation.setInitializationState(InitializationState.INITIALIZED);
+        programmingExerciseStudentParticipationRepository.save(userStoryParticipation);
+
+        String userStoryToken = participationVcsAccessTokenService.createParticipationVCSAccessToken(student, userStoryParticipation).getVcsAccessToken();
+
+        localVCLocalCITestService.testFetchSuccessful(milestoneRepository.workingCopyGitRepo, student1Login, userStoryToken, milestoneProjectKey, milestoneRepositorySlug);
+
+        milestoneRepository.resetLocalRepo();
     }
 
     @Test

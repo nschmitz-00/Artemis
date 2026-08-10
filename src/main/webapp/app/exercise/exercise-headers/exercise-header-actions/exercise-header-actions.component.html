@@ -69,7 +69,9 @@
             (click)="onContinueExercise()!()"
         ></button>
     }
-    @switch (exercise().type) {
+    <!-- Switched on the normalized type so milestones and user stories take the programming branch: they are backed by a real
+         repository and need the same start / code / editor actions. -->
+    @switch (actionsExerciseType()) {
         <!-- QUIZ EXERCISE ACTIONS START -->
         @case (ExerciseType.QUIZ) {
             <div class="btn-group">

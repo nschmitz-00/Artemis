@@ -19,15 +19,27 @@ export class ProgrammingExerciseInstructionAnalysisService {
      * Given a programming exercise's problem statement, analyze the test cases contained (or not contained!) in it.
      * Will give out a mixed object that contains singular analysis for test cases and an accumulated analysis object.
      *
-     * @param problemStatement  multiline string.
-     * @param taskRegex         identifies tasks in a problem statement.
-     * @param exerciseTestCases used to check if a test case is valid / missing.
+     * @param problemStatement                     multiline string.
+     * @param taskRegex                            identifies tasks in a problem statement.
+     * @param exerciseTestCases                    used to check if a test case is valid / missing.
+     * @param additionalCoveringProblemStatements  further problem statements that may reference the same test cases, so a test
+     *                                                 case referenced by any of them does not count as missing. This is what a
+     *                                                 milestone's user stories are: the milestone owns the test repository, but
+     *                                                 the tests are meant to be distributed across its user stories' problem
+     *                                                 statements rather than listed in the milestone's own.
      */
-    public analyzeProblemStatement = (problemStatement: string, taskRegex: RegExp, exerciseTestCases: string[]) => {
+    public analyzeProblemStatement = (problemStatement: string, taskRegex: RegExp, exerciseTestCases: string[], additionalCoveringProblemStatements: string[] = []) => {
         // Look for task regex matches in the problem statement including their line numbers.
         const tasksFromProblemStatement = matchRegexWithLineNumbers(problemStatement, taskRegex);
+        const testCasesCoveredElsewhere = additionalCoveringProblemStatements.flatMap((statement) =>
+            this.extractRegexFromTasks(matchRegexWithLineNumbers(statement, taskRegex), TEST_CASE_REGEX).flatMap(([, testCases]) => testCases),
+        );
 
-        const { invalidTestCases, missingTestCases, repeatedTestCases, invalidTestCaseAnalysis } = this.analyzeTestCases(tasksFromProblemStatement, exerciseTestCases);
+        const { invalidTestCases, missingTestCases, repeatedTestCases, invalidTestCaseAnalysis } = this.analyzeTestCases(
+            tasksFromProblemStatement,
+            exerciseTestCases,
+            testCasesCoveredElsewhere,
+        );
 
         const completeAnalysis: ProblemStatementAnalysis = this.mergeAnalysis(invalidTestCaseAnalysis);
         return { invalidTestCases, missingTestCases, repeatedTestCases, completeAnalysis, numOfTasks: tasksFromProblemStatement.length };
@@ -43,8 +55,10 @@ export class ProgrammingExerciseInstructionAnalysisService {
      *
      * @param tasksFromProblemStatement to analyze.
      * @param exerciseTestCases to double check the test cases found in the problem statement.
+     * @param testCasesCoveredElsewhere test cases referenced by a related problem statement (see analyzeProblemStatement); they
+     *                                      are already used and must not be reported as missing here.
      */
-    private analyzeTestCases = (tasksFromProblemStatement: RegExpLineNumberMatchArray, exerciseTestCases: string[]) => {
+    private analyzeTestCases = (tasksFromProblemStatement: RegExpLineNumberMatchArray, exerciseTestCases: string[], testCasesCoveredElsewhere: string[]) => {
         // Extract the testCase list from the task matches.
         const testCasesInMarkdown = this.extractRegexFromTasks(tasksFromProblemStatement, TEST_CASE_REGEX);
         // Look for test cases that are not part of the test repository. Could, e.g., be typos.
@@ -58,9 +72,13 @@ export class ProgrammingExerciseInstructionAnalysisService {
                     ] as AnalysisItem,
             )
             .filter(([, testCases]) => testCases.length);
-        // Look for test cases that are part of the test repository but not in the problem statement. Probably forgotten to insert.
+        // Look for test cases that are part of the test repository but neither in this problem statement nor in a related one
+        // (a milestone's user stories). Probably forgotten to insert.
+        const coveredElsewhere = testCasesCoveredElsewhere.map((testCase) => testCase.toLowerCase());
         const missingTestCases = exerciseTestCases.filter(
-            (testCase) => !testCasesInMarkdown.some(([, foundTestCases]) => foundTestCases.map((foundTestCase) => foundTestCase.toLowerCase()).includes(testCase.toLowerCase())),
+            (testCase) =>
+                !testCasesInMarkdown.some(([, foundTestCases]) => foundTestCases.map((foundTestCase) => foundTestCase.toLowerCase()).includes(testCase.toLowerCase())) &&
+                !coveredElsewhere.includes(testCase.toLowerCase()),
         );
 
         const invalidTestCases = invalidTestCaseAnalysis.flatMap(([, testCases]) => testCases);

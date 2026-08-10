@@ -65,12 +65,16 @@ public class UserStoryExerciseService {
         // UserStoryExercise's own key is never actually used to look up a repository (all repo access is delegated to the
         // Milestone, see UserStoryExercise#getProjectKey), it merely satisfies the NOT NULL constraint on the shared column.
         userStoryExercise.generateAndSetProjectKey();
+        // Store test references as ids rather than names, exactly like ProgrammingExerciseCreationUpdateService does. Students
+        // are served the problem statement as stored, and the instruction renderer resolves a task's test status from these ids -
+        // with plain names it cannot (test cases are not exposed to students), so every task would render as "not executed".
+        programmingExerciseTaskService.replaceTestNamesWithIds(userStoryExercise);
 
         UserStoryExercise savedUserStoryExercise = userStoryExerciseRepository.save(userStoryExercise);
         programmingExerciseTaskService.updateTasksFromProblemStatement(savedUserStoryExercise);
 
         milestoneExercise.addUserStoryExercise(savedUserStoryExercise);
-        milestoneExercise.recalculateMaxPoints();
+        milestoneExercise.recalculateDerivedPoints();
         milestoneExerciseRepository.save(milestoneExercise);
 
         return savedUserStoryExercise;
@@ -92,13 +96,17 @@ public class UserStoryExerciseService {
         existingUserStoryExercise.setTitle(updatedUserStoryExercise.getTitle());
         existingUserStoryExercise.setShortName(updatedUserStoryExercise.getShortName());
         existingUserStoryExercise.setMaxPoints(updatedUserStoryExercise.getMaxPoints());
+        existingUserStoryExercise.setBonusPoints(updatedUserStoryExercise.getBonusPoints());
         existingUserStoryExercise.setProblemStatement(updatedUserStoryExercise.getProblemStatement());
+        // The editor works with test names; students are served the stored statement and need ids to resolve test status (see
+        // createUserStoryExercise). getUserStoryExercise converts back to names when loading the form again.
+        programmingExerciseTaskService.replaceTestNamesWithIds(existingUserStoryExercise);
 
         UserStoryExercise savedUserStoryExercise = userStoryExerciseRepository.save(existingUserStoryExercise);
         programmingExerciseTaskService.updateTasksFromProblemStatement(savedUserStoryExercise);
 
         MilestoneExercise milestoneExercise = milestoneExerciseRepository.findWithUserStoryExercisesByIdElseThrow(existingUserStoryExercise.getMilestoneExercise().getId());
-        milestoneExercise.recalculateMaxPoints();
+        milestoneExercise.recalculateDerivedPoints();
         milestoneExerciseRepository.save(milestoneExercise);
 
         return savedUserStoryExercise;
@@ -116,7 +124,7 @@ public class UserStoryExerciseService {
         userStoryExerciseRepository.delete(userStoryExercise);
 
         MilestoneExercise milestoneExercise = milestoneExerciseRepository.findWithUserStoryExercisesByIdElseThrow(milestoneExerciseId);
-        milestoneExercise.recalculateMaxPoints();
+        milestoneExercise.recalculateDerivedPoints();
         milestoneExerciseRepository.save(milestoneExercise);
     }
 

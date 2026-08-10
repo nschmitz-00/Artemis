@@ -62,4 +62,46 @@ describe('ProgrammingExerciseInstructionAnalysisService', () => {
         expect(repeatedTestCases).toEqual(['testBubbleSort']);
         expect(completeAnalysis).toEqual(expectedAnalysis);
     });
+
+    // A milestone owns the test repository, but its tests are meant to be referenced from its user stories' problem statements,
+    // not from the milestone's own - so without taking those into account every test case is reported as unused.
+    describe('test cases covered by a related problem statement', () => {
+        const emptyMilestoneStatement = 'Build the sorting application.';
+
+        it('should not report a test case as missing when a related problem statement references it', () => {
+            const { missingTestCases } = analysisService.analyzeProblemStatement(emptyMilestoneStatement, taskRegex, ['testBubbleSort', 'testMergeSort'], [problemStatement]);
+
+            expect(missingTestCases).toHaveLength(0);
+        });
+
+        it('should still report a test case that no related problem statement references', () => {
+            const { missingTestCases } = analysisService.analyzeProblemStatement(
+                emptyMilestoneStatement,
+                taskRegex,
+                ['testBubbleSort', 'testMergeSort', 'testUnclaimed'],
+                [problemStatement],
+            );
+
+            expect(missingTestCases).toEqual(['testUnclaimed']);
+        });
+
+        it('should report every test case as missing when no related problem statement is given', () => {
+            const { missingTestCases } = analysisService.analyzeProblemStatement(emptyMilestoneStatement, taskRegex, ['testBubbleSort', 'testMergeSort']);
+
+            expect(missingTestCases).toEqual(['testBubbleSort', 'testMergeSort']);
+        });
+
+        /** The milestone's own statement stays the authority for what is a valid reference; coverage only silences "missing". */
+        it('should not treat a test case referenced only elsewhere as making the own statement invalid', () => {
+            const { invalidTestCases, missingTestCases } = analysisService.analyzeProblemStatement(
+                '[task][Sort](testBubbleSort)',
+                taskRegex,
+                ['testBubbleSort', 'testMergeSort'],
+                [problemStatement],
+            );
+
+            expect(invalidTestCases).toHaveLength(0);
+            expect(missingTestCases).toHaveLength(0);
+        });
+    });
 });

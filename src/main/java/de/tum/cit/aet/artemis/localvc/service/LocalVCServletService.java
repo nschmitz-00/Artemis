@@ -10,6 +10,7 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +61,7 @@ import de.tum.cit.aet.artemis.localvc.exception.LocalVCInternalException;
 import de.tum.cit.aet.artemis.localvc.service.ssh.SshConstants;
 import de.tum.cit.aet.artemis.programming.domain.AuthenticationMechanism;
 import de.tum.cit.aet.artemis.programming.domain.Commit;
+import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseParticipation;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParticipation;
@@ -71,6 +73,7 @@ import de.tum.cit.aet.artemis.programming.exception.ContinuousIntegrationExcepti
 import de.tum.cit.aet.artemis.programming.exception.VersionControlException;
 import de.tum.cit.aet.artemis.programming.repository.ParticipationVCSAccessTokenRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseRepository;
+import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseStudentParticipationRepository;
 import de.tum.cit.aet.artemis.programming.repository.RepositoryVCSAccessTokenRepository;
 import de.tum.cit.aet.artemis.programming.service.AuxiliaryRepositoryService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseParticipationService;
@@ -127,6 +130,8 @@ public class LocalVCServletService {
 
     private final ExerciseVersionService exerciseVersionService;
 
+    private final ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository;
+
     @Value("${artemis.version-control.url}")
     private URI localVCBaseUri;
 
@@ -147,7 +152,8 @@ public class LocalVCServletService {
             ProgrammingSubmissionMessagingService programmingSubmissionMessagingService, ProgrammingExerciseTestCaseChangedService programmingExerciseTestCaseChangedService,
             ParticipationVCSAccessTokenRepository participationVCSAccessTokenRepository, RepositoryVCSAccessTokenRepository repositoryVCSAccessTokenRepository,
             Optional<VcsAccessLogService> vcsAccessLogService, AuthorizationCheckService authorizationCheckService, RateLimitService rateLimitService,
-            ExerciseVersionService exerciseVersionService) {
+            ExerciseVersionService exerciseVersionService, ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository) {
+        this.programmingExerciseStudentParticipationRepository = programmingExerciseStudentParticipationRepository;
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.programmingExerciseRepository = programmingExerciseRepository;
@@ -508,17 +514,18 @@ public class LocalVCServletService {
             try {
 
                 // check participation vcs access token
-                List<ProgrammingExerciseStudentParticipation> participations;
-                Optional<ProgrammingExerciseStudentParticipation> studentParticipation;
+                List<ProgrammingExerciseStudentParticipation> candidateParticipations;
                 if (exercise.isTeamMode()) {
-                    studentParticipation = programmingExerciseParticipationService.findTeamParticipationByExerciseAndUser(exercise, user);
+                    candidateParticipations = programmingExerciseParticipationService.findTeamParticipationByExerciseAndUser(exercise, user).stream().toList();
                 }
                 else {
-                    participations = programmingExerciseParticipationService.findStudentParticipationsByExerciseAndStudentId(exercise, user.getLogin());
-                    studentParticipation = participations.stream().filter(participation -> participation.getRepositoryUri().equals(localVCRepositoryUri.toString())).findAny();
+                    candidateParticipations = programmingExerciseParticipationService.findStudentParticipationsByExerciseAndStudentId(exercise, user.getLogin()).stream()
+                            .filter(participation -> localVCRepositoryUri.toString().equals(participation.getRepositoryUri())).toList();
                 }
-                if (studentParticipation.isPresent()) {
-                    var storedToken = participationVCSAccessTokenRepository.findByUserIdAndParticipationId(user.getId(), studentParticipation.get().getId());
+                candidateParticipations = withUserStorySiblings(candidateParticipations, user, exercise, localVCRepositoryUri);
+
+                for (ProgrammingExerciseStudentParticipation participation : candidateParticipations) {
+                    var storedToken = participationVCSAccessTokenRepository.findByUserIdAndParticipationId(user.getId(), participation.getId());
                     if (storedToken.isPresent() && Objects.equals(storedToken.get().getVcsAccessToken(), providedToken)) {
                         user.setVcsAccessToken(storedToken.get().getVcsAccessToken());
                         return true;
@@ -530,6 +537,36 @@ public class LocalVCServletService {
             }
         }
         return false;
+    }
+
+    /**
+     * Adds the student's UserStoryExercise participations on the same repository to the candidates whose token may authenticate.
+     * <p>
+     * A MilestoneExercise shares one repository with all its UserStoryExercises: starting the Milestone also creates a sibling
+     * participation per UserStory, all carrying the same repository URI (see {@code ParticipationService#cascadeStartToUserStoryExercises}).
+     * The repository URI resolves to the Milestone alone (the UserStory rows have project keys of their own), so without this
+     * only the Milestone participation's token would ever be accepted - and a student handed a token from a UserStory page would
+     * get "Authentication failed" on a repository they are perfectly entitled to clone.
+     *
+     * @param participations       the participations found for the resolved exercise
+     * @param user                 the user attempting authentication
+     * @param exercise             the exercise the repository URI resolved to
+     * @param localVCRepositoryUri the repository being accessed
+     * @return the participations whose token is valid for this repository; unchanged for anything but a MilestoneExercise
+     */
+    private List<ProgrammingExerciseStudentParticipation> withUserStorySiblings(List<ProgrammingExerciseStudentParticipation> participations, User user,
+            ProgrammingExercise exercise, LocalVCRepositoryUri localVCRepositoryUri) {
+        if (!(exercise instanceof MilestoneExercise)) {
+            return participations;
+        }
+        List<ProgrammingExerciseStudentParticipation> siblings = programmingExerciseStudentParticipationRepository
+                .findAllUserStorySiblingsByMilestoneIdAndRepositoryUriAndStudentId(exercise.getId(), localVCRepositoryUri.toString(), user.getId());
+        if (siblings.isEmpty()) {
+            return participations;
+        }
+        List<ProgrammingExerciseStudentParticipation> allCandidates = new ArrayList<>(participations);
+        allCandidates.addAll(siblings);
+        return allCandidates;
     }
 
     /**

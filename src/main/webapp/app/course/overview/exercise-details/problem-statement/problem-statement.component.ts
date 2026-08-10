@@ -3,7 +3,7 @@ import { NgClass } from '@angular/common';
 import { Component, DestroyRef, OnInit, computed, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
-import { Exercise, ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { Exercise, isProgrammingBasedExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { StudentParticipation } from 'app/exercise/shared/entities/participation/student-participation.model';
 import { ExerciseDetailsType, ExerciseService } from 'app/exercise/services/exercise.service';
 import { ParticipationService } from 'app/exercise/participation/participation.service';
@@ -32,10 +32,17 @@ export class ProblemStatementComponent implements OnInit {
     readonly exercise = computed(() => this.exerciseInput() ?? this.fetchedExercise());
     readonly participation = computed(() => this.participationInput() ?? this.fetchedParticipation());
 
-    /** Returns the exercise as ProgrammingExercise if it's a programming exercise, undefined otherwise */
+    /**
+     * Returns the exercise as ProgrammingExercise if it is backed by a programming exercise, undefined otherwise.
+     *
+     * Milestones and user stories are included: they are ProgrammingExercise subclasses with a real repository, test
+     * cases, and build results, so they get the same instruction renderer - and with it the task overview at the top of
+     * the problem statement and the per-task test status - as a plain programming exercise. Rendering them as plain
+     * markdown instead would show the raw `[task][...](...)` syntax and no progress at all.
+     */
     readonly programmingExercise = computed(() => {
         const ex = this.exercise();
-        return ex?.type === ExerciseType.PROGRAMMING ? ex : undefined;
+        return isProgrammingBasedExerciseType(ex?.type) ? ex : undefined;
     });
 
     readonly isStandalone = signal(false);

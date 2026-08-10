@@ -89,8 +89,8 @@ public class ParticipantScoreService {
         }
         Set<Exercise> exercisesOfExam = new HashSet<>();
         exam.getExerciseGroups().stream().map(ExerciseGroup::getExercises).forEach(exercisesOfExam::addAll);
-        Set<Exercise> includedExercises = exercisesOfExam.stream().filter(exercise -> !exercise.getIncludedInOverallScore().equals(IncludedInOverallScore.NOT_INCLUDED))
-                .collect(Collectors.toSet());
+        Set<Exercise> includedExercises = exercisesOfExam.stream().filter(exercise -> exercise.getExerciseType().contributesPointsToAggregatedScores())
+                .filter(exercise -> !exercise.getIncludedInOverallScore().equals(IncludedInOverallScore.NOT_INCLUDED)).collect(Collectors.toSet());
 
         Set<User> registeredUsers = exam.getRegisteredUsers();
 
@@ -120,8 +120,10 @@ public class ParticipantScoreService {
         usersOfCourse.addAll(userRepository.findAllWithGroupsAndAuthoritiesByDeletedIsFalseAndGroupsContains(course.getTeachingAssistantGroupName()));
         usersOfCourse.addAll(userRepository.findAllWithGroupsAndAuthoritiesByDeletedIsFalseAndGroupsContains(course.getInstructorGroupName()));
 
-        // we only consider released exercises that are not optional
+        // we only consider released exercises that are not optional, and that contribute points of their own: a MilestoneExercise's
+        // max points are the sum of its UserStoryExercise children's, so counting both would double every Milestone's contribution
         Set<Exercise> exercisesToConsider = course.getExercises().stream().filter(Exercise::isCourseExercise)
+                .filter(exercise -> exercise.getExerciseType().contributesPointsToAggregatedScores())
                 .filter(exercise -> exercise.getReleaseDate() == null || exercise.getReleaseDate().isBefore(ZonedDateTime.now()))
                 .filter(exercise -> exercise.getIncludedInOverallScore() != IncludedInOverallScore.NOT_INCLUDED).collect(Collectors.toSet());
 

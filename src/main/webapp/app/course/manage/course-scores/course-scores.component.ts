@@ -5,7 +5,14 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import dayjs from 'dayjs/esm';
 import { sum } from 'lodash-es';
 import { downloadCsv } from 'app/foundation/util/csv-download.util';
-import { Exercise, ExerciseType, IncludedInOverallScore, exerciseTypes } from 'app/exercise/shared/entities/exercise/exercise.model';
+import {
+    Exercise,
+    ExerciseType,
+    IncludedInOverallScore,
+    contributesPointsToAggregatedScores,
+    scoreAggregationBucket,
+    scoreAggregationExerciseTypes,
+} from 'app/exercise/shared/entities/exercise/exercise.model';
 import { Course } from 'app/course/shared/entities/course.model';
 import { SortService } from 'app/foundation/service/sort.service';
 import { LocaleConversionService } from 'app/foundation/service/locale-conversion.service';
@@ -150,7 +157,9 @@ export class CourseScoresComponent implements OnInit {
     readonly standardDeviationPointsTotal = signal(0);
 
     // Expose the imports to the template
-    readonly exerciseTypes = exerciseTypes;
+    // Every column and every per-type sum on this page is a score bucket, so milestones (which contribute no points of their
+    // own) and user stories (which are reported under programming) must not appear as types here.
+    readonly exerciseTypes = scoreAggregationExerciseTypes;
     readonly highlightType = HighlightType;
     readonly roundScorePercentSpecifiedByCourseSettings = roundScorePercentSpecifiedByCourseSettings;
     readonly roundValueSpecifiedByCourseSettings = roundValueSpecifiedByCourseSettings;
@@ -229,7 +238,8 @@ export class CourseScoresComponent implements OnInit {
             .exercises!.filter((exercise) => {
                 const isReleasedExercise = !exercise.releaseDate || exercise.releaseDate.isBefore(dayjs());
                 const isExerciseThatCounts = exercise.includedInOverallScore !== IncludedInOverallScore.NOT_INCLUDED;
-                return isReleasedExercise && isExerciseThatCounts;
+                // A milestone's max points are the sum of its user stories' max points, so counting both would double it
+                return isReleasedExercise && isExerciseThatCounts && contributesPointsToAggregatedScores(exercise.type);
             })
             .sort(CourseScoresComponent.compareExercises);
     }
@@ -292,7 +302,7 @@ export class CourseScoresComponent implements OnInit {
         const includedExercises = this.includedExercises();
 
         for (const exerciseType of this.exerciseTypes) {
-            const exercisesOfType = includedExercises.filter((exercise) => exercise.type === exerciseType);
+            const exercisesOfType = includedExercises.filter((exercise) => scoreAggregationBucket(exercise.type) === exerciseType);
             this.exercisesPerType.set(exerciseType, exercisesOfType);
 
             const maxPointsOfAllExercisesOfType = new Map();
@@ -447,6 +457,8 @@ export class CourseScoresComponent implements OnInit {
         const course = this.course()!;
         const includedExercises = this.includedExercises();
         const gradeScore = student.gradeScores.find((gradeScore) => gradeScore.exerciseId === exercise.id);
+        // User story points are reported under programming, so they land in the same bucket the columns are built from
+        const exerciseTypeBucket = scoreAggregationBucket(exercise.type)!;
 
         if (gradeScore) {
             // Note: It is important that we round on the individual exercise level first and then sum up.
@@ -461,8 +473,8 @@ export class CourseScoresComponent implements OnInit {
             // We only include this exercise if it is included in the exercise score
             if (includedIDs.includes(exercise.id)) {
                 student.overallPoints += pointsAchievedByStudentInExercise;
-                const oldPointsSum = student.sumPointsPerExerciseType.get(exercise.type!)!;
-                student.sumPointsPerExerciseType.set(exercise.type!, oldPointsSum + pointsAchievedByStudentInExercise);
+                const oldPointsSum = student.sumPointsPerExerciseType.get(exerciseTypeBucket)!;
+                student.sumPointsPerExerciseType.set(exerciseTypeBucket, oldPointsSum + pointsAchievedByStudentInExercise);
                 student.numberOfParticipatedExercises += 1;
                 exercise.numberOfParticipationsWithRatedResult! += 1;
                 if (gradeScore.score >= 100) {
@@ -470,12 +482,12 @@ export class CourseScoresComponent implements OnInit {
                     exercise.numberOfSuccessfulParticipations! += 1;
                 }
 
-                student.pointsPerExerciseType.setValue(exercise.type!, exercise, pointsAchievedByStudentInExercise);
+                student.pointsPerExerciseType.setValue(exerciseTypeBucket, exercise, pointsAchievedByStudentInExercise);
             }
         } else {
             // there is no result, the student has not participated or submitted too late
             student.pointsPerExercise.set(exercise.id!, 0);
-            student.pointsPerExerciseType.setValue(exercise.type!, exercise, Number.NaN);
+            student.pointsPerExerciseType.setValue(exerciseTypeBucket, exercise, Number.NaN);
         }
     }
 

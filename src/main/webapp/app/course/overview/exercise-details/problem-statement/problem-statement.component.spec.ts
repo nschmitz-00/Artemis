@@ -123,27 +123,26 @@ describe('ProblemStatementComponent', () => {
             fixture.componentRef.setInput('exerciseInput', undefined);
             expect(component.programmingExercise()).toBeUndefined();
         });
+
+        // Milestones and user stories are ProgrammingExercise subclasses with a repository, test cases, and build results, so
+        // they have to take the instructions renderer branch - otherwise students see the raw `[task][...](...)` markdown and
+        // get no task overview and no test status at all.
+        it.each([ExerciseType.MILESTONE, ExerciseType.USER_STORY])('should return the exercise if exercise type is %s', (type) => {
+            const programmingBasedExercise = { id: 1, type };
+            fixture.componentRef.setInput('exerciseInput', programmingBasedExercise as Exercise);
+            expect(component.programmingExercise()).toEqual(programmingBasedExercise);
+        });
     });
 
-    it('should render the problem statement of a milestone exercise as markdown for students', () => {
-        const milestoneExercise = { id: 1, type: ExerciseType.MILESTONE, problemStatement: '# Build the parser' } as Exercise;
-        fixture.componentRef.setInput('exerciseInput', milestoneExercise);
+    it.each([ExerciseType.MILESTONE, ExerciseType.USER_STORY])('should render the task overview and instructions for a %s exercise', (type) => {
+        fixture.componentRef.setInput('exerciseInput', { id: 1, type, problemStatement: '[task][Build the parser](<testid>7</testid>)' } as Exercise);
+        fixture.componentRef.setInput('participationInput', participation);
         fixture.detectChanges();
 
         const compiled = fixture.debugElement.nativeElement;
-        // A MilestoneExercise is not of type PROGRAMMING, so it takes the plain markdown branch rather than the
-        // programming instructions renderer, and the description reaches the markdown directive from there
-        expect(component.programmingExercise()).toBeUndefined();
-        expect(compiled.querySelector('jhi-programming-exercise-instructions')).toBeFalsy();
-        expect(compiled.querySelector('#problem-statement')).toBeTruthy();
-        expect(fixture.debugElement.query(By.directive(MarkdownDirective)).injector.get(MarkdownDirective).jhiMarkdown()).toBe('# Build the parser');
-    });
-
-    it('should not render a problem statement section for a milestone exercise without a description', () => {
-        fixture.componentRef.setInput('exerciseInput', { id: 1, type: ExerciseType.MILESTONE } as Exercise);
-        fixture.detectChanges();
-
-        expect(fixture.debugElement.nativeElement.querySelector('#problem-statement')).toBeFalsy();
+        expect(compiled.querySelector('jhi-programming-exercise-instructions')).toBeTruthy();
+        // The plain markdown branch would render the task syntax verbatim instead
+        expect(compiled.querySelector('#problem-statement')).toBeFalsy();
     });
 
     it('should render programming exercise instructions when exercise is a programming exercise and participation and exercise are available', () => {

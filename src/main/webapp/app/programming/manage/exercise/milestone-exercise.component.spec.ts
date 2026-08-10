@@ -11,6 +11,7 @@ import { MilestoneExercise } from 'app/programming/shared/entities/milestone-exe
 import { MilestoneExerciseService } from 'app/programming/manage/services/milestone-exercise.service';
 import { Course } from 'app/course/shared/entities/course.model';
 import { ExerciseFilter } from 'app/exercise/shared/entities/exercise/exercise-filter.model';
+import { TemplateProgrammingExerciseParticipation } from 'app/exercise/shared/entities/participation/template-programming-exercise-participation.model';
 import { EventManager } from 'app/foundation/service/event-manager.service';
 import { AlertService } from 'app/foundation/service/alert.service';
 import { ProfileService } from 'app/core/layouts/profiles/shared/profile.service';
@@ -35,7 +36,19 @@ describe('MilestoneExercise Management Component', () => {
         milestoneExercise.maxPoints = maxPoints;
         milestoneExercise.dueDate = dueDate;
         milestoneExercise.numberOfUserStoryExercises = numberOfUserStoryExercises;
+        // The list endpoint is tutor-level, so the row actions are gated on the per-exercise rights the component derives from
+        // the course. MockAccountService#setAccessRightsForExercise is a no-op, so they have to be set here.
+        milestoneExercise.isAtLeastTutor = true;
+        milestoneExercise.isAtLeastEditor = true;
+        milestoneExercise.isAtLeastInstructor = true;
         return milestoneExercise;
+    };
+
+    /** Strips an exercise down to the rights a tutor has, the way the component would for a tutor of the course. */
+    const asTutorOnly = (exercise: MilestoneExercise): MilestoneExercise => {
+        exercise.isAtLeastEditor = false;
+        exercise.isAtLeastInstructor = false;
+        return exercise;
     };
 
     let comp: MilestoneExerciseComponent;
@@ -178,6 +191,101 @@ describe('MilestoneExercise Management Component', () => {
             initWithCourse();
 
             expect(fixture.nativeElement.querySelectorAll('[id$="-add-user-story"]')).toHaveLength(0);
+        });
+    });
+
+    describe('Edit in editor button', () => {
+        /** A milestone exercise as the list endpoint returns it for an editor: with its template participation fetched. */
+        const buildWithTemplateParticipation = (id: number, templateParticipationId: number): MilestoneExercise => {
+            const exercise = buildMilestoneExercise(id, 'Milestone', 10, dayjs('2026-09-01'), 1);
+            exercise.templateParticipation = { id: templateParticipationId } as TemplateProgrammingExerciseParticipation;
+            return exercise;
+        };
+
+        const editInEditorHref = (id: number): string | undefined =>
+            fixture.nativeElement.querySelector(`#milestone-exercise-${id}-edit-in-editor`)?.getAttribute('href') ?? undefined;
+
+        it('should link to the code editor for the template repository', () => {
+            const exercise = buildWithTemplateParticipation(456, 42);
+            vi.spyOn(milestoneExerciseService, 'findAllForCourse').mockReturnValue(of(new HttpResponse({ body: [exercise] })));
+
+            initWithCourse();
+
+            expect(editInEditorHref(exercise.id!)).toBe(`/course-management/${course.id}/programming-exercises/${exercise.id}/code-editor/TEMPLATE/42`);
+        });
+
+        it('should be rendered next to the other row actions', () => {
+            const exercise = buildWithTemplateParticipation(456, 42);
+            vi.spyOn(milestoneExerciseService, 'findAllForCourse').mockReturnValue(of(new HttpResponse({ body: [exercise] })));
+
+            initWithCourse();
+
+            const buttonGroup = fixture.nativeElement.querySelector(`#exercise-card-${exercise.id} .flex-btn-group-container`);
+            expect(buttonGroup.querySelector(`#milestone-exercise-${exercise.id}-edit-in-editor`)).not.toBeNull();
+            expect(buttonGroup.querySelector('#delete-exercise')).not.toBeNull();
+        });
+
+        /**
+         * The route addresses the template repository by the participation id, so an exercise whose repositories have not been
+         * provisioned (the list endpoint then sends no participation at all) must not render a link to nowhere.
+         */
+        it('should not be rendered when the exercise has no template participation', () => {
+            milestoneExercise.templateParticipation = undefined;
+            vi.spyOn(milestoneExerciseService, 'findAllForCourse').mockReturnValue(of(new HttpResponse({ body: [milestoneExercise] })));
+
+            initWithCourse();
+
+            expect(editInEditorHref(milestoneExercise.id!)).toBeUndefined();
+        });
+
+        it('should not be rendered for users below editor', () => {
+            const exercise = asTutorOnly(buildWithTemplateParticipation(456, 42));
+            vi.spyOn(milestoneExerciseService, 'findAllForCourse').mockReturnValue(of(new HttpResponse({ body: [exercise] })));
+
+            initWithCourse();
+
+            expect(editInEditorHref(exercise.id!)).toBeUndefined();
+        });
+
+        it('should set the access rights on the loaded exercises', () => {
+            const setAccessRights = vi.spyOn(TestBed.inject(AccountService), 'setAccessRightsForExercise');
+
+            initWithCourse();
+
+            expect(setAccessRights).toHaveBeenCalledTimes(2);
+            // The course is what the access rights are derived from, so it has to be reconnected first
+            expect(setAccessRights.mock.calls[0][0].course).toEqual(course);
+        });
+    });
+
+    // The list endpoint is tutor-level so that tutors can open the course exercises page at all; the table has to be read-only
+    // for them, since every write action behind these buttons still requires editor or instructor rights.
+    describe('Read-only view for tutors', () => {
+        const initAsTutor = () => {
+            vi.spyOn(milestoneExerciseService, 'findAllForCourse').mockReturnValue(of(new HttpResponse({ body: [asTutorOnly(milestoneExercise)] })));
+            initWithCourse();
+        };
+
+        it('should still list the milestone exercises', () => {
+            initAsTutor();
+
+            expect(comp.filteredMilestoneExercises()).toHaveLength(1);
+            expect(fixture.nativeElement.querySelector(`#milestone-exercise-${milestoneExercise.id}-title`).textContent.trim()).toBe(milestoneExercise.title);
+        });
+
+        it('should render the title as plain text, since a milestone has no read-only detail page', () => {
+            initAsTutor();
+
+            expect(fixture.nativeElement.querySelector(`#milestone-exercise-${milestoneExercise.id}-title a`)).toBeNull();
+        });
+
+        it('should not offer the edit, add user story, or delete actions', () => {
+            initAsTutor();
+
+            const buttonGroup = fixture.nativeElement.querySelector(`#exercise-card-${milestoneExercise.id} .flex-btn-group-container`);
+            expect(buttonGroup.querySelector(`#milestone-exercise-${milestoneExercise.id}-add-user-story`)).toBeNull();
+            expect(buttonGroup.querySelector(`a[href$="/milestone-exercises/${milestoneExercise.id}/edit"]`)).toBeNull();
+            expect(buttonGroup.querySelector('#delete-exercise')).toBeNull();
         });
     });
 

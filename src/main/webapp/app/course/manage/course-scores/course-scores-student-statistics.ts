@@ -1,5 +1,5 @@
 import { GradeScoreDTO, StudentGradeDTO } from 'app/course/manage/services/course-management.service';
-import { ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { ExerciseType, scoreAggregationExerciseTypes } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { GradeStep } from 'app/assessment/shared/entities/grade-step.model';
 import { ExerciseTypeStatisticsMap } from 'app/course/manage/course-scores/exercise-type-statistics-map';
 
@@ -23,8 +23,9 @@ export class CourseScoresStudentStatistics {
 
     constructor(student: StudentGradeDTO) {
         this.student = student;
-        // initialize with 0 or empty string
-        for (const exerciseType of Object.values(ExerciseType)) {
+        // initialize with 0 or empty string. Only score buckets get an entry: a milestone contributes no points of its own and
+        // user story points are summed under programming, so neither has a bucket here.
+        for (const exerciseType of scoreAggregationExerciseTypes) {
             this.sumPointsPerExerciseType.set(exerciseType, 0);
             this.scorePerExerciseType.set(exerciseType, 0);
             this.pointsPerExerciseType.set(exerciseType, new Map());

@@ -23,9 +23,12 @@ import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseBuildConfig;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParticipation;
+import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseTestCase;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingLanguage;
 import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
+import de.tum.cit.aet.artemis.programming.dto.MilestoneTestCaseCoverageDTO;
 import de.tum.cit.aet.artemis.programming.dto.UpdateProgrammingExerciseDTO;
+import de.tum.cit.aet.artemis.programming.dto.UserStoryReferenceDTO;
 import de.tum.cit.aet.artemis.programming.repository.MilestoneExerciseRepository;
 import de.tum.cit.aet.artemis.programming.repository.ParticipationVCSAccessTokenRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseBuildConfigRepository;
@@ -64,7 +67,8 @@ class MilestoneExerciseIntegrationTest extends AbstractProgrammingIntegrationInd
 
     @BeforeEach
     void init() {
-        userUtilService.addUsers(TEST_PREFIX, 1, 0, 1, 1);
+        // A tutor is needed because the course exercise list is tutor-level (the whole page is), unlike every other endpoint here
+        userUtilService.addUsers(TEST_PREFIX, 1, 1, 1, 1);
         Course course = courseRepository.save(CourseFactory.generateCourse(null, PAST_TIMESTAMP, FUTURE_TIMESTAMP, new HashSet<>(), TEST_PREFIX + "tumuser", TEST_PREFIX + "tutor",
                 TEST_PREFIX + "editor", TEST_PREFIX + "instructor"));
 
@@ -85,19 +89,19 @@ class MilestoneExerciseIntegrationTest extends AbstractProgrammingIntegrationInd
         newMilestoneExercise.setBuildConfig(buildConfig);
         milestoneExercise = milestoneExerciseRepository.save(newMilestoneExercise);
 
-        addUserStoryExercise("Story 1", "STORYONE", 3.0);
-        addUserStoryExercise("Story 2", "STORYTWO", 4.0);
+        addUserStoryExercise("Story 1", "STORYONE", 3.0, 1.0);
+        addUserStoryExercise("Story 2", "STORYTWO", 4.0, 2.0);
         milestoneExercise = milestoneExerciseRepository.findWithUserStoryExercisesByIdElseThrow(milestoneExercise.getId());
         // The real client always round-trips the build config, which the update path saves unconditionally
         milestoneExercise.setBuildConfig(buildConfig);
     }
 
-    private void addUserStoryExercise(String title, String shortName, double maxPoints) {
+    private void addUserStoryExercise(String title, String shortName, double maxPoints, double bonusPoints) {
         UserStoryExercise userStoryExercise = new UserStoryExercise();
         userStoryExercise.setTitle(title);
         userStoryExercise.setShortName(shortName);
         userStoryExercise.setMaxPoints(maxPoints);
-        userStoryExercise.setBonusPoints(0.0);
+        userStoryExercise.setBonusPoints(bonusPoints);
         userStoryExercise.setAssessmentType(AssessmentType.AUTOMATIC);
         userStoryExercise.setIncludedInOverallScore(IncludedInOverallScore.INCLUDED_COMPLETELY);
         userStoryExerciseService.createUserStoryExercise(milestoneExercise.getId(), userStoryExercise);
@@ -158,10 +162,45 @@ class MilestoneExerciseIntegrationTest extends AbstractProgrammingIntegrationInd
     void shouldNotLetTheClientOverwriteTheDerivedMaxPoints() throws Exception {
         assertThat(milestoneExercise.getMaxPoints()).isEqualTo(7.0);
         milestoneExercise.setMaxPoints(999.0);
+        milestoneExercise.setBonusPoints(999.0);
 
         MilestoneExercise updatedMilestoneExercise = update(milestoneExercise);
 
         assertThat(updatedMilestoneExercise.getMaxPoints()).isEqualTo(7.0);
+        assertThat(updatedMilestoneExercise.getBonusPoints()).isEqualTo(3.0);
+    }
+
+    /**
+     * Both point totals are sums over the children: the UserStories are the graded units, so a Milestone total that disagreed
+     * with them would be unreachable in one direction or the other.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "editor1", roles = "EDITOR")
+    void shouldDeriveBothPointTotalsFromTheUserStories() {
+        assertThat(milestoneExercise.getMaxPoints()).isEqualTo(7.0);
+        assertThat(milestoneExercise.getBonusPoints()).isEqualTo(3.0);
+
+        UserStoryExercise firstUserStory = milestoneExercise.getUserStoryExercises().getFirst();
+        UserStoryExercise update = new UserStoryExercise();
+        update.setTitle(firstUserStory.getTitle());
+        update.setShortName(firstUserStory.getShortName());
+        update.setMaxPoints(10.0);
+        update.setBonusPoints(5.0);
+        userStoryExerciseService.updateUserStoryExercise(firstUserStory.getId(), update);
+
+        MilestoneExercise reloaded = milestoneExerciseRepository.findWithUserStoryExercisesByIdElseThrow(milestoneExercise.getId());
+        assertThat(reloaded.getMaxPoints()).isEqualTo(14.0);
+        assertThat(reloaded.getBonusPoints()).isEqualTo(7.0);
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "editor1", roles = "EDITOR")
+    void shouldResetBothPointTotalsWhenTheLastUserStoryIsDeleted() {
+        milestoneExercise.getUserStoryExercises().forEach(userStoryExercise -> userStoryExerciseService.deleteUserStoryExercise(userStoryExercise.getId()));
+
+        MilestoneExercise reloaded = milestoneExerciseRepository.findWithUserStoryExercisesByIdElseThrow(milestoneExercise.getId());
+        assertThat(reloaded.getMaxPoints()).isZero();
+        assertThat(reloaded.getBonusPoints()).isZero();
     }
 
     /**
@@ -227,6 +266,45 @@ class MilestoneExerciseIntegrationTest extends AbstractProgrammingIntegrationInd
         assertThat(milestoneExercises.getFirst().getUserStoryExercises()).isEmpty();
     }
 
+    /**
+     * The course exercise list offers "Edit in editor", which routes to the code editor for the Milestone's template repository
+     * and addresses it by the template participation's id. That association is LAZY, so without fetching it explicitly Jackson
+     * omits it from the response and the action never renders.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "editor1", roles = "EDITOR")
+    void shouldReturnTheTemplateParticipationForTheCourseExerciseList() throws Exception {
+        programmingExerciseParticipationUtilService.addTemplateParticipationForProgrammingExercise(milestoneExercise);
+
+        List<MilestoneExercise> milestoneExercises = request.getList(
+                "/api/programming/courses/" + milestoneExercise.getCourseViaExerciseGroupOrCourseMember().getId() + "/milestone-exercises", HttpStatus.OK, MilestoneExercise.class);
+
+        assertThat(milestoneExercises).hasSize(1);
+        assertThat(milestoneExercises.getFirst().getTemplateParticipation()).isNotNull();
+        assertThat(milestoneExercises.getFirst().getTemplateParticipation().getId()).isNotNull();
+    }
+
+    /**
+     * The course exercise list is one page with a section per exercise type, and tutors can open it. Requiring EDITOR here made
+     * that whole page fail with a 403 for them while every other exercise type still listed, so the list is tutor-level; the
+     * read-only nature is enforced by the row actions, which are gated on the per-exercise editor and instructor rights.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "tutor1", roles = "TA")
+    void shouldLetTutorsReadTheCourseExerciseList() throws Exception {
+        List<MilestoneExercise> milestoneExercises = request.getList(
+                "/api/programming/courses/" + milestoneExercise.getCourseViaExerciseGroupOrCourseMember().getId() + "/milestone-exercises", HttpStatus.OK, MilestoneExercise.class);
+
+        assertThat(milestoneExercises).hasSize(1);
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+    void shouldNotLetStudentsReadTheCourseExerciseList() throws Exception {
+        request.getList("/api/programming/courses/" + milestoneExercise.getCourseViaExerciseGroupOrCourseMember().getId() + "/milestone-exercises", HttpStatus.FORBIDDEN,
+                MilestoneExercise.class);
+    }
+
     @Test
     @WithMockUser(username = TEST_PREFIX + "editor1", roles = "EDITOR")
     void shouldReportZeroUserStoryExercisesForAMilestoneWithoutAny() throws Exception {
@@ -244,6 +322,160 @@ class MilestoneExerciseIntegrationTest extends AbstractProgrammingIntegrationInd
         MilestoneExercise fetchedMilestoneExercise = request.get("/api/programming/milestone-exercises/" + milestoneExercise.getId(), HttpStatus.OK, MilestoneExercise.class);
 
         assertThat(fetchedMilestoneExercise.getCategories()).containsExactly("{\"color\":\"#ad5658\",\"category\":\"Blub\"}");
+    }
+
+    // --- Test case coverage: the UserStoryExercises should claim each of the Milestone's active test cases exactly once ---
+
+    /** Points a UserStoryExercise's problem statement at the given test cases, which creates the tagged tasks linking them. */
+    private void referenceTestCases(String userStoryTitle, String... testNames) {
+        UserStoryExercise userStoryExercise = milestoneExercise.getUserStoryExercises().stream().filter(exercise -> userStoryTitle.equals(exercise.getTitle())).findFirst()
+                .orElseThrow();
+        UserStoryExercise update = new UserStoryExercise();
+        update.setTitle(userStoryExercise.getTitle());
+        update.setShortName(userStoryExercise.getShortName());
+        update.setMaxPoints(userStoryExercise.getMaxPoints());
+        update.setProblemStatement("[task][Do the thing](%s)".formatted(String.join(",", testNames)));
+        userStoryExerciseService.updateUserStoryExercise(userStoryExercise.getId(), update);
+    }
+
+    private MilestoneTestCaseCoverageDTO getTestCaseCoverage() throws Exception {
+        return request.get("/api/programming/milestone-exercises/" + milestoneExercise.getId() + "/test-case-coverage", HttpStatus.OK, MilestoneTestCaseCoverageDTO.class);
+    }
+
+    /**
+     * Students are served the problem statement exactly as stored, and the instruction renderer resolves each task's test status
+     * from the {@code <testid>} references in it - test cases themselves are never exposed to students, so a statement that still
+     * carried plain test names would leave every task in the overview stuck at "not executed". The test cases live on the parent
+     * Milestone, so the conversion has to look them up there rather than on the (test-case-less) UserStory row.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "editor1", roles = "EDITOR")
+    void shouldStoreTheUserStoryProblemStatementWithTestIds() throws Exception {
+        ProgrammingExerciseTestCase testCase = programmingExerciseUtilService.addTestCaseToProgrammingExercise(milestoneExercise, "testOne");
+        referenceTestCases("Story 1", "testOne");
+
+        UserStoryExercise stored = userStoryExerciseRepository.findByIdElseThrow(milestoneExercise.getUserStoryExercises().getFirst().getId());
+        assertThat(stored.getProblemStatement()).isEqualTo("[task][Do the thing](<testid>%d</testid>)".formatted(testCase.getId()));
+    }
+
+    /**
+     * The Milestone edit page feeds the user stories' problem statements to the instruction editor's status bar, which decides
+     * from them which of the Milestone's test cases are still unused. That comparison is by test name, so the children have to
+     * come back with names rather than the ids they are stored with - otherwise every test case is reported as unused.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "editor1", roles = "EDITOR")
+    void shouldReturnTheUserStoryProblemStatementsWithTestNamesWithTheMilestone() throws Exception {
+        programmingExerciseUtilService.addTestCaseToProgrammingExercise(milestoneExercise, "testOne");
+        referenceTestCases("Story 1", "testOne");
+
+        // Asserted on the raw JSON: MilestoneExercise#userStoryExercises is mapped READ_ONLY, so deserializing the response back
+        // into the entity would silently drop exactly the children this is about.
+        String response = request.get("/api/programming/milestone-exercises/" + milestoneExercise.getId(), HttpStatus.OK, String.class);
+
+        assertThat(response).contains("[task][Do the thing](testOne)").doesNotContain("<testid>");
+    }
+
+    /** The editor authors tasks with test names, so the stored ids have to be converted back when the edit form loads. */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "editor1", roles = "EDITOR")
+    void shouldReturnTheUserStoryProblemStatementWithTestNamesToTheEditor() throws Exception {
+        programmingExerciseUtilService.addTestCaseToProgrammingExercise(milestoneExercise, "testOne");
+        referenceTestCases("Story 1", "testOne");
+        long userStoryExerciseId = milestoneExercise.getUserStoryExercises().getFirst().getId();
+
+        UserStoryExercise fetched = request.get("/api/programming/user-story-exercises/" + userStoryExerciseId, HttpStatus.OK, UserStoryExercise.class);
+
+        assertThat(fetched.getProblemStatement()).isEqualTo("[task][Do the thing](testOne)");
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "editor1", roles = "EDITOR")
+    void shouldReportNoTestCaseIssuesWhenEveryTestCaseIsClaimedExactlyOnce() throws Exception {
+        programmingExerciseUtilService.addTestCaseToProgrammingExercise(milestoneExercise, "testOne");
+        programmingExerciseUtilService.addTestCaseToProgrammingExercise(milestoneExercise, "testTwo");
+        referenceTestCases("Story 1", "testOne");
+        referenceTestCases("Story 2", "testTwo");
+
+        MilestoneTestCaseCoverageDTO coverage = getTestCaseCoverage();
+
+        assertThat(coverage.orphanTestCases()).isEmpty();
+        assertThat(coverage.duplicateTestCases()).isEmpty();
+    }
+
+    /**
+     * A test case no UserStory references is never graded (grading scopes each UserStory to its own referenced test cases), so
+     * its points are unreachable for students - the editor has to be told.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "editor1", roles = "EDITOR")
+    void shouldReportATestCaseNoUserStoryReferencesAsAnOrphan() throws Exception {
+        programmingExerciseUtilService.addTestCaseToProgrammingExercise(milestoneExercise, "testOne");
+        programmingExerciseUtilService.addTestCaseToProgrammingExercise(milestoneExercise, "testUnclaimed");
+        referenceTestCases("Story 1", "testOne");
+
+        MilestoneTestCaseCoverageDTO coverage = getTestCaseCoverage();
+
+        assertThat(coverage.orphanTestCases()).singleElement().satisfies(orphan -> assertThat(orphan.testName()).isEqualTo("testUnclaimed"),
+                orphan -> assertThat(orphan.referencingUserStories()).isEmpty());
+        assertThat(coverage.duplicateTestCases()).isEmpty();
+    }
+
+    /** A test case referenced by two UserStories is graded once per UserStory, so its points are paid out twice. */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "editor1", roles = "EDITOR")
+    void shouldReportATestCaseReferencedByTwoUserStoriesAsADuplicate() throws Exception {
+        programmingExerciseUtilService.addTestCaseToProgrammingExercise(milestoneExercise, "testShared");
+        referenceTestCases("Story 1", "testShared");
+        referenceTestCases("Story 2", "testShared");
+
+        MilestoneTestCaseCoverageDTO coverage = getTestCaseCoverage();
+
+        assertThat(coverage.orphanTestCases()).isEmpty();
+        assertThat(coverage.duplicateTestCases()).singleElement().satisfies(duplicate -> assertThat(duplicate.testName()).isEqualTo("testShared"),
+                duplicate -> assertThat(duplicate.referencingUserStories()).extracting(UserStoryReferenceDTO::title).containsExactly("Story 1", "Story 2"));
+    }
+
+    /** Inactive test cases are never graded, so an unclaimed one is not a problem the editor needs to act on. */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "editor1", roles = "EDITOR")
+    void shouldIgnoreInactiveTestCases() throws Exception {
+        ProgrammingExerciseTestCase inactiveTestCase = programmingExerciseUtilService.addTestCaseToProgrammingExercise(milestoneExercise, "testInactive");
+        inactiveTestCase.setActive(false);
+        testCaseRepository.save(inactiveTestCase);
+
+        MilestoneTestCaseCoverageDTO coverage = getTestCaseCoverage();
+
+        assertThat(coverage.orphanTestCases()).isEmpty();
+        assertThat(coverage.duplicateTestCases()).isEmpty();
+    }
+
+    /**
+     * Grading collects a UserStory's test case ids into a set, so referencing the same test case from two tasks of the same
+     * UserStory grades it once - that is not a duplicate claim.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "editor1", roles = "EDITOR")
+    void shouldNotReportATestCaseReferencedTwiceByTheSameUserStoryAsADuplicate() throws Exception {
+        programmingExerciseUtilService.addTestCaseToProgrammingExercise(milestoneExercise, "testOne");
+        UserStoryExercise userStoryExercise = milestoneExercise.getUserStoryExercises().getFirst();
+        UserStoryExercise update = new UserStoryExercise();
+        update.setTitle(userStoryExercise.getTitle());
+        update.setShortName(userStoryExercise.getShortName());
+        update.setMaxPoints(userStoryExercise.getMaxPoints());
+        update.setProblemStatement("[task][First](testOne)\n[task][Second](testOne)");
+        userStoryExerciseService.updateUserStoryExercise(userStoryExercise.getId(), update);
+
+        MilestoneTestCaseCoverageDTO coverage = getTestCaseCoverage();
+
+        assertThat(coverage.orphanTestCases()).isEmpty();
+        assertThat(coverage.duplicateTestCases()).isEmpty();
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+    void shouldNotLetStudentsReadTheTestCaseCoverage() throws Exception {
+        request.get("/api/programming/milestone-exercises/" + milestoneExercise.getId() + "/test-case-coverage", HttpStatus.FORBIDDEN, MilestoneTestCaseCoverageDTO.class);
     }
 
     @Test

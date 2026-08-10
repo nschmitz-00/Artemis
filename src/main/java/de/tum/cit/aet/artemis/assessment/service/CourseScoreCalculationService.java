@@ -299,13 +299,17 @@ public class CourseScoreCalculationService {
 
         Map<ExerciseType, CourseScoresDTO> scoresPerExerciseType = new HashMap<>();
 
-        // Get scores per exercise type.
-        for (ExerciseType type : ExerciseType.values()) {
+        // Get scores per exercise type. Exercises are grouped by their score aggregation bucket rather than their own type, so
+        // that UserStoryExercises are reported under PROGRAMMING and MilestoneExercises (which contribute no points of their
+        // own) fall out entirely - otherwise the per-type scores would no longer sum up to the total course score.
+        for (ExerciseType type : ExerciseType.scoreAggregationBuckets()) {
             // Filter out the entities per exercise type.
-            var exercisesOfExerciseType = course.getExercises().stream().filter(exercise -> exercise.getExerciseType() == type).collect(Collectors.toSet());
+            var exercisesOfExerciseType = course.getExercises().stream().filter(exercise -> exercise.getExerciseType().scoreAggregationBucket() == type)
+                    .collect(Collectors.toSet());
             var exerciseCourseScores = exercisesOfExerciseType.stream().map(ExerciseCourseScoreDTO::from).collect(Collectors.toSet());
             var maxAndReachablePoints = calculateMaxAndReachablePoints(null, exerciseCourseScores);
-            var studentParticipationsOfType = studentParticipations.stream().filter(participation -> participation.getExercise().getExerciseType() == type).toList();
+            var studentParticipationsOfType = studentParticipations.stream().filter(participation -> participation.getExercise().getExerciseType().scoreAggregationBucket() == type)
+                    .toList();
 
             // Hand over all plagiarism cases (not just the ones for the current exercise type) because a student will receive a 0 score for all exercises if there is any
             // PLAGIARISM verdict.
@@ -526,10 +530,16 @@ public class CourseScoreCalculationService {
      * Edge case 2: An automatically assessed programming exercise with test runs after the due date
      * -> include in maxPointsInCourse after the final test run is over, not immediately after release because
      * the test run after due date is important for the final course score (hidden tests).
+     * Edge case 3: A MilestoneExercise is a container whose max points are the sum of its UserStoryExercise children's,
+     * and a build result is graded once against it and once against every child
+     * -> never include it, or every Milestone's points would be counted twice (see {@link ExerciseType#contributesPointsToAggregatedScores()}).
      *
      * @param exercise the exercise whose involvement should be determined
      */
     private boolean includeIntoScoreCalculation(ExerciseCourseScoreDTO exercise) {
+        if (!exercise.type().contributesPointsToAggregatedScores()) {
+            return false;
+        }
         boolean isExerciseIncluded = exercise.includedInOverallScore() != IncludedInOverallScore.NOT_INCLUDED;
         boolean isExerciseFinished = !isAssessedAutomatically(exercise) && (exercise.dueDate() == null || exercise.dueDate().isBefore(ZonedDateTime.now()));
 
@@ -552,8 +562,13 @@ public class CourseScoreCalculationService {
         return isNonAutomaticAssessmentDone || isAutomaticAssessmentDone(exercise);
     }
 
+    /**
+     * A UserStoryExercise is programming work graded by the parent Milestone's test cases, so it has to take the automatic
+     * assessment path here just like a plain ProgrammingExercise - otherwise its points would only be counted after the due date
+     * has passed, unlike every other automatically assessed programming exercise.
+     */
     private boolean isAssessedAutomatically(ExerciseCourseScoreDTO exercise) {
-        return exercise.type() == ExerciseType.PROGRAMMING && exercise.assessmentType() == AssessmentType.AUTOMATIC;
+        return exercise.type().scoreAggregationBucket() == ExerciseType.PROGRAMMING && exercise.assessmentType() == AssessmentType.AUTOMATIC;
     }
 
     private boolean isAutomaticAssessmentDone(ExerciseCourseScoreDTO exercise) {

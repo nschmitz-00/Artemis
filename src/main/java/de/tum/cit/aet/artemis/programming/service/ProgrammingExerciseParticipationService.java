@@ -287,7 +287,8 @@ public class ProgrammingExerciseParticipationService {
         if (repositoryTypeOrUserName.equals(RepositoryType.TEMPLATE.toString())) {
             return templateParticipationRepository.findWithSubmissionsByRepositoryUriElseThrow(repositoryURL);
         }
-        return studentParticipationRepository.findWithSubmissionsByRepositoryUriElseThrow(repositoryURL);
+        // Scoped by exercise: a MilestoneExercise shares its repository with all its UserStoryExercises, so the uri alone matches several participations
+        return studentParticipationRepository.findWithSubmissionsByRepositoryUriAndExerciseIdElseThrow(repositoryURL, exercise.getId());
 
     }
 
@@ -313,7 +314,8 @@ public class ProgrammingExerciseParticipationService {
             return templateParticipationRepository.findByRepositoryUriElseThrow(repositoryURL);
         }
 
-        return studentParticipationRepository.findByRepositoryUriElseThrow(repositoryURL);
+        // Scoped by exercise: a MilestoneExercise shares its repository with all its UserStoryExercises, so the uri alone matches several participations
+        return studentParticipationRepository.findByRepositoryUriAndExerciseIdElseThrow(repositoryURL, exercise.getId());
     }
 
     /**

@@ -442,17 +442,33 @@ public class ProgrammingExerciseTaskService {
         return testCaseNames.stream().map(testName -> convertTestNameToTestIdReplacement(testName, testCases)).collect(Collectors.joining(","));
     }
 
+    /**
+     * The id of the exercise that owns the test cases a problem statement may reference. For a {@link UserStoryExercise} that is
+     * the parent {@link MilestoneExercise}, which owns the shared test repository - the UserStory row has no test cases of its
+     * own, so looking them up by its own id would always come back empty and silently leave every test reference unconverted.
+     *
+     * @param exercise the exercise whose problem statement references test cases
+     * @return the id of the exercise the referenced test cases belong to
+     */
+    private long testCaseOwnerId(ProgrammingExercise exercise) {
+        if (exercise instanceof UserStoryExercise userStoryExercise && userStoryExercise.getMilestoneExercise() != null) {
+            return userStoryExercise.getMilestoneExercise().getId();
+        }
+        return exercise.getId();
+    }
+
     private void replaceInProblemStatement(ProgrammingExercise exercise, BiFunction<String, Set<ProgrammingExerciseTestCase>, String> replacer, boolean onlyActive) {
         var problemStatement = exercise.getProblemStatement();
         if (problemStatement == null || problemStatement.isEmpty()) {
             return;
         }
+        long testCaseOwnerId = testCaseOwnerId(exercise);
         Set<ProgrammingExerciseTestCase> testCases;
         if (onlyActive) {
-            testCases = programmingExerciseTestCaseRepository.findByExerciseIdAndActive(exercise.getId(), true);
+            testCases = programmingExerciseTestCaseRepository.findByExerciseIdAndActive(testCaseOwnerId, true);
         }
         else {
-            testCases = programmingExerciseTestCaseRepository.findByExerciseId(exercise.getId());
+            testCases = programmingExerciseTestCaseRepository.findByExerciseId(testCaseOwnerId);
         }
 
         if (testCases.isEmpty()) {

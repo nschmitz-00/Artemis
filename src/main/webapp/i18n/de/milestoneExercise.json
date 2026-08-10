@@ -6,19 +6,10 @@
                 "createLabel": "Neue Meilenstein-Aufgabe erstellen",
                 "editLabel": "Meilenstein-Aufgabe bearbeiten"
             },
-            "language": {
-                "title": "Sprache & Build-Konfiguration",
-                "programmingLanguage": "Programmiersprache",
-                "projectType": "Projekttyp",
-                "packageName": "Package-Name",
-                "staticCodeAnalysisEnabled": "Statische Code-Analyse aktivieren",
-                "sequentialTestRuns": "Sequentielle Testläufe",
-                "customizeBuildPlan": "Build-Konfiguration anpassen"
-            },
             "problemStatementHint": "Diese Beschreibung wird Studierenden angezeigt, wenn sie den Meilenstein öffnen. Sie wird als Markdown gerendert.",
             "grading": {
-                "title": "Bewertung",
-                "totalPoints": "Gesamtpunkte (Summe der {{ count }} User Stories unten)"
+                "totalPoints": "(Summe der {{ count }} User Stories unten)",
+                "totalBonusPoints": "(Summe der {{ count }} User Stories unten)"
             },
             "userStories": {
                 "title": "User Stories",
@@ -26,6 +17,14 @@
                 "noUserStories": "Es wurden noch keine User Stories hinzugefügt.",
                 "saveMilestoneFirst": "Speichern Sie zunächst den Meilenstein, um User Stories hinzuzufügen.",
                 "deleteQuestion": "Sind Sie sicher, dass Sie die User Story <strong>{{ title }}</strong> endgültig löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden!"
+            },
+            "testCaseCoverage": {
+                "title": "Testfall-Abdeckung",
+                "orphansTitle": "Testfälle ohne zugeordnete User Story",
+                "orphansHint": "Für diese Testfälle können Studierende keine Punkte erhalten, da nur die von einer User Story referenzierten Testfälle bewertet werden. Referenziere sie in der Aufgabenstellung einer User Story.",
+                "duplicatesTitle": "Testfälle, die mehreren User Stories zugeordnet sind",
+                "duplicatesHint": "Diese Testfälle werden für jede referenzierende User Story einzeln bewertet, wodurch Studierende ihre Punkte mehrfach erhalten. Referenziere jeden Testfall in genau einer User Story.",
+                "referencedBy": "referenziert von:"
             }
         }
     }

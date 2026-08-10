@@ -37,9 +37,16 @@
         <hr />
         <section>
             <h3 jhiTranslate="artemisApp.exercise.sections.grading"></h3>
-            <div class="col-md-4 mb-3">
-                <label for="maxPoints" jhiTranslate="artemisApp.exercise.points"></label>
-                <p-inputnumber inputId="maxPoints" name="maxPoints" [min]="0" [(ngModel)]="userStoryExercise().maxPoints" styleClass="w-100" />
+            <!-- The parent Milestone's points and bonus points are the sums of these, so they are only ever set here -->
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="maxPoints" jhiTranslate="artemisApp.exercise.points"></label>
+                    <p-inputnumber inputId="maxPoints" name="maxPoints" [min]="0" [(ngModel)]="userStoryExercise().maxPoints" styleClass="w-100" />
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="bonusPoints" jhiTranslate="artemisApp.exercise.bonusPoints"></label>
+                    <p-inputnumber inputId="bonusPoints" name="bonusPoints" [min]="0" [(ngModel)]="userStoryExercise().bonusPoints" styleClass="w-100" />
+                </div>
             </div>
         </section>
 

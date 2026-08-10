@@ -16,6 +16,7 @@ import org.springframework.stereotype.Repository;
 import de.tum.cit.aet.artemis.core.exception.EntityNotFoundException;
 import de.tum.cit.aet.artemis.core.repository.base.ArtemisJpaRepository;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseTask;
+import de.tum.cit.aet.artemis.programming.dto.UserStoryTestCaseReferenceDTO;
 
 /**
  * Spring Data repository for the ProgrammingExerciseTask entity.
@@ -97,4 +98,24 @@ public interface ProgrammingExerciseTaskRepository extends ArtemisJpaRepository<
             WHERE t.referencingUserStoryExercise.id = :userStoryExerciseId
             """)
     Set<Long> findTestCaseIdsByReferencingUserStoryExerciseId(@Param("userStoryExerciseId") long userStoryExerciseId);
+
+    /**
+     * Gets every "UserStoryExercise references test case" link of a MilestoneExercise, one row per distinct pair.
+     * <p>
+     * Both joins are inner joins, so tasks of the Milestone's own problem statement (which have no referencing UserStory) are
+     * excluded - only the UserStories' claims on the shared test repository are of interest here. The result being a {@code Set}
+     * collapses the case where several tasks of the <i>same</i> UserStory reference the same test case, which is not a duplicate
+     * claim: grading deduplicates the test case ids per UserStory anyway.
+     *
+     * @param milestoneExerciseId of the MilestoneExercise owning the tasks and test cases
+     * @return one entry per distinct (test case, referencing UserStoryExercise) pair
+     */
+    @Query("""
+            SELECT new de.tum.cit.aet.artemis.programming.dto.UserStoryTestCaseReferenceDTO(tc.id, userStory.id, userStory.title)
+            FROM ProgrammingExerciseTask t
+                JOIN t.testCases tc
+                JOIN t.referencingUserStoryExercise userStory
+            WHERE t.exercise.id = :milestoneExerciseId
+            """)
+    Set<UserStoryTestCaseReferenceDTO> findUserStoryTestCaseReferencesByMilestoneExerciseId(@Param("milestoneExerciseId") long milestoneExerciseId);
 }

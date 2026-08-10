@@ -2,6 +2,8 @@ package de.tum.cit.aet.artemis.programming.domain;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Function;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.DiscriminatorValue;
@@ -84,14 +86,19 @@ public class MilestoneExercise extends ProgrammingExercise {
     }
 
     /**
-     * Recalculates {@link #getMaxPoints()} as the sum of the max points of all {@link UserStoryExercise} children.
+     * Recalculates {@link #getMaxPoints()} and {@link #getBonusPoints()} as the sums over all {@link UserStoryExercise} children.
      * Must be called (and the result persisted) whenever a child UserStoryExercise is created, updated, or deleted.
+     * <p>
+     * Both are derived rather than client-settable: the UserStories are the graded units (a build result is scored against each
+     * of them separately, see {@code ProgrammingExerciseGradingService#findActiveTestCasesScopedToExercise}), so a Milestone
+     * total that disagreed with its children's would be unreachable in either direction.
      */
-    public void recalculateMaxPoints() {
-        double totalPoints = userStoryExercises.stream().mapToDouble(userStoryExercise -> {
-            Double points = userStoryExercise.getMaxPoints();
-            return points != null ? points : 0.0;
-        }).sum();
-        setMaxPoints(totalPoints);
+    public void recalculateDerivedPoints() {
+        setMaxPoints(sumOverChildren(UserStoryExercise::getMaxPoints));
+        setBonusPoints(sumOverChildren(UserStoryExercise::getBonusPoints));
+    }
+
+    private double sumOverChildren(Function<UserStoryExercise, Double> pointsGetter) {
+        return userStoryExercises.stream().map(pointsGetter).filter(Objects::nonNull).mapToDouble(Double::doubleValue).sum();
     }
 }

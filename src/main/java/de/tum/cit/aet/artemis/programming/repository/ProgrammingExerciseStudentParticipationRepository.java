@@ -120,6 +120,29 @@ public interface ProgrammingExerciseStudentParticipationRepository extends Artem
         return getValueElseThrow(findByRepositoryUri(repositoryUri));
     }
 
+    /**
+     * A repository uri alone no longer identifies a single participation: a MilestoneExercise shares one repository with all of
+     * its UserStoryExercises, so the same uri carries one participation per exercise (see
+     * {@code ParticipationService#cascadeStartToUserStoryExercises}). Scoping by exercise makes the lookup single-valued again;
+     * for every other programming exercise this matches exactly what the uri-only lookup returned.
+     *
+     * @param repositoryUri the uri of the repository being accessed
+     * @param exerciseId    the id of the exercise the repository uri resolved to
+     * @return the participation of that exercise on that repository, if it exists
+     */
+    @EntityGraph(type = LOAD, attributePaths = { "submissions" })
+    Optional<ProgrammingExerciseStudentParticipation> findWithSubmissionsByRepositoryUriAndExerciseId(String repositoryUri, long exerciseId);
+
+    Optional<ProgrammingExerciseStudentParticipation> findByRepositoryUriAndExerciseId(String repositoryUri, long exerciseId);
+
+    default ProgrammingExerciseStudentParticipation findByRepositoryUriAndExerciseIdElseThrow(String repositoryUri, long exerciseId) {
+        return getValueElseThrow(findByRepositoryUriAndExerciseId(repositoryUri, exerciseId));
+    }
+
+    default ProgrammingExerciseStudentParticipation findWithSubmissionsByRepositoryUriAndExerciseIdElseThrow(String repositoryUri, long exerciseId) {
+        return getValueElseThrow(findWithSubmissionsByRepositoryUriAndExerciseId(repositoryUri, exerciseId));
+    }
+
     @EntityGraph(type = LOAD, attributePaths = { "team.students" })
     Optional<ProgrammingExerciseStudentParticipation> findByExerciseIdAndTeamId(long exerciseId, long teamId);
 

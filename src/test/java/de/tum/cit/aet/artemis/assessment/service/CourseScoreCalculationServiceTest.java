@@ -21,6 +21,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 
 import de.tum.cit.aet.artemis.account.domain.User;
 import de.tum.cit.aet.artemis.account.util.UserUtilService;
+import de.tum.cit.aet.artemis.assessment.domain.AssessmentType;
 import de.tum.cit.aet.artemis.assessment.domain.GradingScale;
 import de.tum.cit.aet.artemis.assessment.domain.Result;
 import de.tum.cit.aet.artemis.assessment.dto.BonusSourceResultDTO;
@@ -37,8 +38,10 @@ import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.course.dto.CourseForDashboardDTO;
 import de.tum.cit.aet.artemis.course.dto.CourseScoresDTO;
 import de.tum.cit.aet.artemis.exercise.domain.Exercise;
+import de.tum.cit.aet.artemis.exercise.domain.ExerciseType;
 import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
 import de.tum.cit.aet.artemis.exercise.domain.participation.StudentParticipation;
+import de.tum.cit.aet.artemis.exercise.dto.CourseGradeScoreDTO;
 import de.tum.cit.aet.artemis.exercise.participation.util.ParticipationUtilService;
 import de.tum.cit.aet.artemis.exercise.test_repository.StudentParticipationTestRepository;
 import de.tum.cit.aet.artemis.plagiarism.domain.PlagiarismVerdict;
@@ -317,6 +320,67 @@ class CourseScoreCalculationServiceTest extends AbstractSpringIntegrationIndepen
         assertThat(mostSeverePlagiarismVerdict).isNull();
         boolean presentationScorePassed = courseScoreCalculationService.isPresentationScoreSufficientForBonus(studentScore.presentationScore(), course.getPresentationScore());
         assertThat(presentationScorePassed).isFalse();
+    }
+
+    // --- MilestoneExercise / UserStoryExercise: the Milestone is a container and must not contribute its own points ---
+
+    /**
+     * A MilestoneExercise's max points are the sum of its UserStoryExercise children's, and a single build result is graded once
+     * against the Milestone and once against every child. If the Milestone were counted alongside its children, both the course
+     * maximum and the achieved points would come out at exactly twice their real value.
+     */
+    private Set<ExerciseCourseScoreDTO> milestoneWithTwoUserStories() {
+        ZonedDateTime past = ZonedDateTime.now().minusDays(1);
+        return Set.of(
+                new ExerciseCourseScoreDTO(101L, ExerciseType.MILESTONE, IncludedInOverallScore.INCLUDED_COMPLETELY, AssessmentType.AUTOMATIC, past, past, null, 30.0, 0.0,
+                        course.getId()),
+                new ExerciseCourseScoreDTO(102L, ExerciseType.USER_STORY, IncludedInOverallScore.INCLUDED_COMPLETELY, AssessmentType.AUTOMATIC, past, past, null, 10.0, 0.0,
+                        course.getId()),
+                new ExerciseCourseScoreDTO(103L, ExerciseType.USER_STORY, IncludedInOverallScore.INCLUDED_COMPLETELY, AssessmentType.AUTOMATIC, past, past, null, 20.0, 0.0,
+                        course.getId()));
+    }
+
+    @Test
+    void shouldNotCountTheMilestoneMaxPointsOnTopOfItsUserStories() {
+        assertThat(courseScoreCalculationService.calculateReachablePoints(null, milestoneWithTwoUserStories())).isEqualTo(30.0);
+    }
+
+    @Test
+    void shouldNotCountTheMilestoneResultOnTopOfTheUserStoryResults() {
+        User student = userUtilService.getUserByLogin(TEST_PREFIX + "student1");
+        // The same build result is graded against the Milestone and against both children, so all three carry a full score
+        List<CourseGradeScoreDTO> gradeScores = List.of(new CourseGradeScoreDTO(1L, student.getId(), 101L, 100.0, null, ExerciseType.MILESTONE),
+                new CourseGradeScoreDTO(2L, student.getId(), 102L, 100.0, null, ExerciseType.USER_STORY),
+                new CourseGradeScoreDTO(3L, student.getId(), 103L, 100.0, null, ExerciseType.USER_STORY));
+
+        StudentScoresDTO studentScores = courseScoreCalculationService.calculateCourseScoreForStudent(course, null, student.getId(), gradeScores,
+                new MaxAndReachablePointsDTO(30.0, 30.0, 0.0), List.of(), milestoneWithTwoUserStories());
+
+        assertThat(studentScores.absoluteScore()).isEqualTo(30.0);
+        assertThat(studentScores.relativeScore()).isEqualTo(100.0);
+    }
+
+    /** A Milestone without children is worth 0 and must not break the calculation either. */
+    @Test
+    void shouldIgnoreAMilestoneWithoutUserStories() {
+        ZonedDateTime past = ZonedDateTime.now().minusDays(1);
+        Set<ExerciseCourseScoreDTO> exercises = Set.of(new ExerciseCourseScoreDTO(101L, ExerciseType.MILESTONE, IncludedInOverallScore.INCLUDED_COMPLETELY,
+                AssessmentType.AUTOMATIC, past, past, null, 0.0, 0.0, course.getId()));
+
+        assertThat(courseScoreCalculationService.calculateReachablePoints(null, exercises)).isZero();
+    }
+
+    /**
+     * A UserStoryExercise is graded by the parent Milestone's test cases, so it has to be treated as automatically assessed like
+     * a plain ProgrammingExercise - its points count as soon as they can be earned, not only once the due date has passed.
+     */
+    @Test
+    void shouldCountUserStoryPointsBeforeTheDueDateHasPassed() {
+        ZonedDateTime future = ZonedDateTime.now().plusDays(1);
+        Set<ExerciseCourseScoreDTO> exercises = Set.of(new ExerciseCourseScoreDTO(102L, ExerciseType.USER_STORY, IncludedInOverallScore.INCLUDED_COMPLETELY,
+                AssessmentType.AUTOMATIC, future, future, null, 10.0, 0.0, course.getId()));
+
+        assertThat(courseScoreCalculationService.calculateReachablePoints(null, exercises)).isEqualTo(10.0);
     }
 
     @Test

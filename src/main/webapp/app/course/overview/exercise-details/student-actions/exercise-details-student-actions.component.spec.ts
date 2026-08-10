@@ -385,6 +385,42 @@ describe('ExerciseDetailsStudentActionsComponent', () => {
         expect(codeButton).not.toBeNull();
     });
 
+    // Milestones and user stories are ProgrammingExercise subclasses working in a real repository, so the student needs the same
+    // code/clone button. Their own exercise type has no action branch of its own, hence the normalized switch.
+    it.each([ExerciseType.MILESTONE, ExerciseType.USER_STORY])('should show the code button for a %s exercise', async (type: ExerciseType) => {
+        const exerciseData = { type, allowOfflineIde: true, allowOnlineEditor: false } as ProgrammingExercise;
+        exerciseData.studentParticipations = [
+            { initializationState: InitializationState.INITIALIZED, repositoryUri: 'https://clone-me.git' } as ProgrammingExerciseStudentParticipation,
+        ];
+        fixture.componentRef.setInput('courseId', 1);
+        fixture.componentRef.setInput('exercise', exerciseData);
+        TestBed.tick();
+        comp.updateParticipations();
+
+        fixture.changeDetectorRef.detectChanges();
+        await fixture.whenStable();
+
+        expect(comp.actionsExerciseType()).toBe(ExerciseType.PROGRAMMING);
+        expect(comp.programmingExercise()).toBe(exerciseData);
+        expect(debugElement.query(By.css('jhi-code-button'))).not.toBeNull();
+    });
+
+    it('should show the online editor button for a milestone that allows it', async () => {
+        const exerciseData = { type: ExerciseType.MILESTONE, allowOfflineIde: false, allowOnlineEditor: true } as ProgrammingExercise;
+        exerciseData.studentParticipations = [
+            { initializationState: InitializationState.INITIALIZED, repositoryUri: 'https://clone-me.git' } as ProgrammingExerciseStudentParticipation,
+        ];
+        fixture.componentRef.setInput('courseId', 1);
+        fixture.componentRef.setInput('exercise', exerciseData);
+        TestBed.tick();
+        comp.updateParticipations();
+
+        fixture.changeDetectorRef.detectChanges();
+        await fixture.whenStable();
+
+        expect(debugElement.query(By.css('jhi-open-code-editor-button'))).not.toBeNull();
+    });
+
     // Quiz not supported yet
     it.each([ExerciseType.PROGRAMMING, ExerciseType.MODELING, ExerciseType.TEXT, ExerciseType.FILE_UPLOAD])(
         'should disable start exercise button before start date %s',
