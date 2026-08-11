@@ -1,16 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-
-// Mock y-monaco to avoid needing the full Monaco API in tests. The form transitively imports the editable-instruction
-// editor, which pulls in y-monaco's deep `monaco-editor/esm/...` import; that subpath escapes the `monaco-editor` alias
-// in vitest.config and breaks dependency resolution. Stubbing the module here mirrors what
-// programming-exercise-problem.component.spec.ts does.
-vi.mock('y-monaco', () => ({
-    // Use a real `function` (not an arrow) so the production code can invoke it with `new`.
-    MonacoBinding: vi.fn(function (this: any) {
-        this.destroy = vi.fn();
-    }),
-}));
-
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpResponse, provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
@@ -32,6 +20,25 @@ import { ProfileService } from 'app/core/layouts/profiles/shared/profile.service
 import { MockProfileService } from 'test/helpers/mocks/service/mock-profile.service';
 import { MockProvider } from 'ng-mocks';
 import { ArtemisNavigationUtilService } from 'app/foundation/util/navigation.utils';
+import { AssessmentType } from 'app/assessment/shared/entities/assessment-type.model';
+import { DialogService } from 'primeng/dynamicdialog';
+import { MockDialogService } from 'test/helpers/mocks/service/mock-dialog.service';
+import { ExerciseEditorSyncService } from 'app/exercise/synchronization/services/exercise-editor-sync.service';
+import { WebsocketService } from 'app/foundation/service/websocket.service';
+import { MockWebsocketService } from 'test/helpers/mocks/service/mock-websocket.service';
+import { AccountService } from 'app/core/auth/account.service';
+import { MockAccountService } from 'test/helpers/mocks/service/mock-account.service';
+
+// Mock y-monaco to avoid needing the full Monaco API in tests. The form transitively imports the editable-instruction
+// editor, which pulls in y-monaco's deep `monaco-editor/esm/...` import; that subpath escapes the `monaco-editor` alias
+// in vitest.config and breaks dependency resolution. Stubbing the module here mirrors what
+// programming-exercise-problem.component.spec.ts does.
+vi.mock('y-monaco', () => ({
+    // Use a real `function` (not an arrow) so the production code can invoke it with `new`.
+    MonacoBinding: vi.fn(function (this: any) {
+        this.destroy = vi.fn();
+    }),
+}));
 
 describe('MilestoneExerciseUpdate Component', () => {
     const course = { id: 123 } as Course;
@@ -57,6 +64,9 @@ describe('MilestoneExerciseUpdate Component', () => {
                 { provide: TranslateService, useClass: MockTranslateService },
                 // The shared language section resolves the supported languages and build options through these
                 { provide: ProfileService, useClass: MockProfileService },
+                // Editing connects the problem statement synchronization, which has no websocket server in the test environment
+                { provide: WebsocketService, useClass: MockWebsocketService },
+                { provide: AccountService, useClass: MockAccountService },
                 MockProvider(ArtemisNavigationUtilService),
                 MockProvider(AlertService),
                 MockProvider(ExerciseService),
@@ -164,5 +174,89 @@ describe('MilestoneExerciseUpdate Component', () => {
 
         expect(create).toHaveBeenCalledOnce();
         expect(create.mock.calls[0][0].problemStatement).toBe('# Brand new description');
+    });
+
+    // Rendered for real (the tests above stub the template away): a milestone is configured for assessment exactly like a
+    // programming exercise, and the section only shows up if the form provides everything the shared components inject.
+    describe('rendered assessment configuration', () => {
+        let connectEditorSync: ReturnType<typeof vi.spyOn>;
+
+        /** Sets the component up with its real template, so the shared grading and timeline components are instantiated. */
+        const setUpRendered = async (exerciseId?: string) => {
+            milestoneExercise = new MilestoneExercise({ ...course, complaintsEnabled: true } as Course, undefined);
+            milestoneExercise.id = 2;
+            milestoneExercise.title = 'Milestone';
+            milestoneExercise.assessmentType = AssessmentType.SEMI_AUTOMATIC;
+
+            const paramMap = convertToParamMap(exerciseId ? { exerciseId, courseId: String(course.id) } : { courseId: String(course.id) });
+
+            await TestBed.configureTestingModule({
+                providers: [
+                    { provide: TranslateService, useClass: MockTranslateService },
+                    { provide: ProfileService, useClass: MockProfileService },
+                    { provide: DialogService, useClass: MockDialogService },
+                    // The instructions editor synchronizes over a websocket, which has no server in the test environment
+                    { provide: WebsocketService, useClass: MockWebsocketService },
+                    { provide: AccountService, useClass: MockAccountService },
+                    MockProvider(ArtemisNavigationUtilService),
+                    MockProvider(AlertService),
+                    MockProvider(ExerciseService),
+                    MockProvider(CourseManagementService),
+                    provideRouter([]),
+                    provideHttpClient(),
+                    provideHttpClientTesting(),
+                    // The timeline reads the url to detect an import, so the stub needs more than the snapshot
+                    { provide: ActivatedRoute, useValue: { url: of([]), snapshot: { paramMap } } },
+                ],
+            }).compileComponents();
+
+            fixture = TestBed.createComponent(MilestoneExerciseUpdateComponent);
+            comp = fixture.componentInstance;
+            milestoneExerciseService = TestBed.inject(MilestoneExerciseService);
+            vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+            const courseService = TestBed.inject(CourseManagementService);
+            vi.spyOn(courseService, 'find').mockReturnValue(of(new HttpResponse({ body: milestoneExercise.course! })));
+            vi.spyOn(courseService, 'findAllCategoriesOfCourse').mockReturnValue(of(new HttpResponse({ body: [] })));
+            const exerciseService = TestBed.inject(ExerciseService);
+            vi.spyOn(exerciseService, 'convertExerciseCategoriesAsStringFromServer').mockReturnValue([]);
+            vi.spyOn(exerciseService, 'getExistingExerciseDetailsInCourse').mockReturnValue(of(new Map()));
+            vi.spyOn(milestoneExerciseService, 'find').mockReturnValue(of(new HttpResponse({ body: milestoneExercise })));
+            // Left running rather than stubbed: the instructions editor subscribes to the session right after, which only
+            // works on a real connection. The websocket behind it is mocked away below.
+            connectEditorSync = vi.spyOn(TestBed.inject(ExerciseEditorSyncService), 'connect');
+
+            fixture.detectChanges();
+        };
+
+        const rendered = (selector: string): boolean => !!fixture.nativeElement.querySelector(selector);
+
+        it('should offer the same assessment configuration as the programming exercise form when editing', async () => {
+            await setUpRendered('2');
+
+            expect(rendered('#timeline')).toBe(true);
+            expect(rendered('#manualAssessmentEnabled')).toBe(true);
+            expect(rendered('#allowComplaintsForAutomaticAssessment')).toBe(true);
+            expect(rendered('#allowFeedbackRequests')).toBe(true);
+            expect(rendered('#field_showTestNamesToStudents')).toBe(true);
+            expect(rendered('#gradingInstructions')).toBe(true);
+            expect(rendered('jhi-presentation-score-checkbox')).toBe(true);
+            expect(rendered('jhi-included-in-overall-score-picker')).toBe(true);
+            expect(rendered('jhi-submission-policy-update')).toBe(true);
+        });
+
+        it('should offer the assessment configuration when creating a milestone as well', async () => {
+            await setUpRendered();
+
+            expect(rendered('#timeline')).toBe(true);
+            expect(rendered('#manualAssessmentEnabled')).toBe(true);
+        });
+
+        // The instructions editor synchronizes the problem statement between concurrent editors and throws if nothing
+        // connected the session first, which took the whole form down with it.
+        it('should connect the editor synchronization when editing an existing milestone', async () => {
+            await setUpRendered('2');
+
+            expect(connectEditorSync).toHaveBeenCalledExactlyOnceWith(milestoneExercise.id);
+        });
     });
 });

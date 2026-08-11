@@ -1,4 +1,45 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ActivatedRoute, Router } from '@angular/router';
+import { LocalStorageService } from 'app/foundation/service/local-storage.service';
+import { SessionStorageService } from 'app/foundation/service/session-storage.service';
+import { of, throwError } from 'rxjs';
+import { ProgrammingExerciseDetailComponent } from 'app/programming/manage/detail/programming-exercise-detail.component';
+import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
+import { MilestoneExercise } from 'app/programming/shared/entities/milestone-exercise.model';
+import { MockActivatedRoute } from 'test/helpers/mocks/activated-route/mock-activated-route';
+import { Course } from 'app/course/shared/entities/course.model';
+import { provideTranslateService } from '@ngx-translate/core';
+import { StatisticsService } from 'app/exercise/statistics-graph/service/statistics.service';
+import { ExerciseManagementStatisticsDto } from 'app/exercise/statistics/exercise-management-statistics-dto';
+import { ProfileService } from 'app/core/layouts/profiles/shared/profile.service';
+import { MockProfileService } from 'test/helpers/mocks/service/mock-profile.service';
+import { Exam } from 'app/exam/shared/entities/exam.model';
+import { ProgrammingExerciseGradingService } from 'app/programming/manage/services/programming-exercise-grading.service';
+import { MockProgrammingExerciseService } from 'test/helpers/mocks/service/mock-programming-exercise.service';
+import { ProgrammingExerciseService } from 'app/programming/manage/services/programming-exercise.service';
+import { MockComponent, MockProvider } from 'ng-mocks';
+import { AlertService, AlertType } from 'app/foundation/service/alert.service';
+import { MockNgbModalService } from 'test/helpers/mocks/service/mock-ngb-modal.service';
+import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
+import { DialogService } from 'primeng/dynamicdialog';
+import { MockProgrammingExerciseGradingService } from 'test/helpers/mocks/service/mock-programming-exercise-grading.service';
+import { TemplateProgrammingExerciseParticipation } from 'app/exercise/shared/entities/participation/template-programming-exercise-participation.model';
+import { SolutionProgrammingExerciseParticipation } from 'app/exercise/shared/entities/participation/solution-programming-exercise-participation.model';
+import { HttpErrorResponse, HttpHeaders, HttpResponse, provideHttpClient } from '@angular/common/http';
+import { ProgrammingLanguageFeatureService } from 'app/programming/shared/services/programming-language-feature/programming-language-feature.service';
+import { MockRouter } from 'test/helpers/mocks/mock-router';
+import { SubmissionPolicyService } from 'app/programming/manage/services/submission-policy.service';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { ProfileInfo, ProgrammingLanguageFeature } from 'app/core/layouts/profiles/profile-info.model';
+import { MODULE_FEATURE_PLAGIARISM } from 'app/app.constants';
+import { RepositoryDiffInformation } from 'app/programming/shared/utils/diff.utils';
+import { MockResizeObserver } from 'test/helpers/mocks/service/mock-resize-observer';
+import { WebsocketService } from 'app/foundation/service/websocket.service';
+import { MockWebsocketService } from 'test/helpers/mocks/service/mock-websocket.service';
+import { ExerciseDetailStatisticsComponent } from 'app/exercise/statistics/exercise-detail-statistic/exercise-detail-statistics.component';
+import { DetailOverviewListComponent } from 'app/shared-ui/detail-overview-list/detail-overview-list.component';
+import { DocumentationButtonComponent } from 'app/shared-ui/components/buttons/documentation-button/documentation-button.component';
 
 // Mock the diff.utils module to avoid Monaco Editor issues in tests — must be hoisted above imports.
 vi.mock('app/programming/shared/utils/diff.utils', async () => ({
@@ -31,48 +72,6 @@ vi.mock('app/programming/shared/utils/diff.utils', async () => ({
         } as RepositoryDiffInformation);
     }),
 }));
-
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, Router } from '@angular/router';
-import { LocalStorageService } from 'app/foundation/service/local-storage.service';
-import { SessionStorageService } from 'app/foundation/service/session-storage.service';
-import { of, throwError } from 'rxjs';
-import { ProgrammingExerciseDetailComponent } from 'app/programming/manage/detail/programming-exercise-detail.component';
-import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
-import { MockActivatedRoute } from 'test/helpers/mocks/activated-route/mock-activated-route';
-import { Course } from 'app/course/shared/entities/course.model';
-import { provideTranslateService } from '@ngx-translate/core';
-import { StatisticsService } from 'app/exercise/statistics-graph/service/statistics.service';
-import { ExerciseManagementStatisticsDto } from 'app/exercise/statistics/exercise-management-statistics-dto';
-import { ProfileService } from 'app/core/layouts/profiles/shared/profile.service';
-import { MockProfileService } from 'test/helpers/mocks/service/mock-profile.service';
-import { Exam } from 'app/exam/shared/entities/exam.model';
-import { ProgrammingExerciseGradingService } from 'app/programming/manage/services/programming-exercise-grading.service';
-import { MockProgrammingExerciseService } from 'test/helpers/mocks/service/mock-programming-exercise.service';
-import { ProgrammingExerciseService } from 'app/programming/manage/services/programming-exercise.service';
-import { MockComponent, MockProvider } from 'ng-mocks';
-import { AlertService, AlertType } from 'app/foundation/service/alert.service';
-import { MockNgbModalService } from 'test/helpers/mocks/service/mock-ngb-modal.service';
-import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
-import { DialogService } from 'primeng/dynamicdialog';
-import { MockProgrammingExerciseGradingService } from 'test/helpers/mocks/service/mock-programming-exercise-grading.service';
-import { TemplateProgrammingExerciseParticipation } from 'app/exercise/shared/entities/participation/template-programming-exercise-participation.model';
-import { SolutionProgrammingExerciseParticipation } from 'app/exercise/shared/entities/participation/solution-programming-exercise-participation.model';
-import { HttpErrorResponse, HttpResponse, provideHttpClient } from '@angular/common/http';
-import { ProgrammingLanguageFeatureService } from 'app/programming/shared/services/programming-language-feature/programming-language-feature.service';
-import { MockRouter } from 'test/helpers/mocks/mock-router';
-import { SubmissionPolicyService } from 'app/programming/manage/services/submission-policy.service';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { ProfileInfo, ProgrammingLanguageFeature } from 'app/core/layouts/profiles/profile-info.model';
-import { MODULE_FEATURE_PLAGIARISM } from 'app/app.constants';
-import { RepositoryDiffInformation } from 'app/programming/shared/utils/diff.utils';
-import { MockResizeObserver } from 'test/helpers/mocks/service/mock-resize-observer';
-import { HttpHeaders } from '@angular/common/http';
-import { WebsocketService } from 'app/foundation/service/websocket.service';
-import { MockWebsocketService } from 'test/helpers/mocks/service/mock-websocket.service';
-import { ExerciseDetailStatisticsComponent } from 'app/exercise/statistics/exercise-detail-statistic/exercise-detail-statistics.component';
-import { DetailOverviewListComponent } from 'app/shared-ui/detail-overview-list/detail-overview-list.component';
-import { DocumentationButtonComponent } from 'app/shared-ui/components/buttons/documentation-button/documentation-button.component';
 
 describe('ProgrammingExerciseDetailComponent', () => {
     let comp: ProgrammingExerciseDetailComponent;
@@ -306,6 +305,27 @@ describe('ProgrammingExerciseDetailComponent', () => {
             // Clean up the spies
             templateFilesSpy.mockRestore();
             solutionFilesSpy.mockRestore();
+        });
+    });
+
+    // A MilestoneExercise is a ProgrammingExercise (see MilestoneExercise.java) and therefore shares this detail page,
+    // but it is edited through its own route, so only the edit link differs.
+    describe('onInit for milestone exercise', () => {
+        const milestoneCourse = { id: 7 } as Course;
+        const milestoneExercise = new MilestoneExercise(milestoneCourse, undefined);
+        milestoneExercise.id = 123;
+
+        beforeEach(() => {
+            const route = TestBed.inject(ActivatedRoute);
+            route.snapshot.data = { programmingExercise: milestoneExercise };
+        });
+
+        it('should point the edit link at the milestone update form and everything else at the programming exercise routes', () => {
+            comp.ngOnInit();
+
+            expect(comp.isMilestoneExercise()).toBe(true);
+            expect(comp.editBaseResource()).toBe(`/course-management/${milestoneCourse.id}/milestone-exercises/${milestoneExercise.id}/`);
+            expect(comp.baseResource()).toBe(`/course-management/${milestoneCourse.id}/programming-exercises/${milestoneExercise.id}/`);
         });
     });
 

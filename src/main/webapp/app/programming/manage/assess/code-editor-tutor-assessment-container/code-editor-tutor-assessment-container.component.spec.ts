@@ -25,6 +25,7 @@ import { MockRepositoryFileService } from 'test/helpers/mocks/service/mock-repos
 
 import { CodeEditorTutorAssessmentContainerComponent } from 'app/programming/manage/assess/code-editor-tutor-assessment-container/code-editor-tutor-assessment-container.component';
 import { Result } from 'app/exercise/shared/entities/result/result.model';
+import { ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { AssessmentType } from 'app/assessment/shared/entities/assessment-type.model';
 import { ProgrammingExerciseStudentParticipation } from 'app/exercise/shared/entities/participation/programming-exercise-student-participation.model';
 import { AssessmentLayoutComponent } from 'app/assessment/manage/assessment-layout/assessment-layout.component';
@@ -933,5 +934,64 @@ describe('CodeEditorTutorAssessmentContainerComponent', () => {
 
         const banner = fixture.debugElement.query(By.directive(FeedbackSuggestionsBannerComponent));
         expect(banner).not.toBeNull();
+    });
+
+    // A milestone submission is graded per user story, so the assessment page distributes the feedback over them instead of
+    // storing it on the submission's own result.
+    describe('Milestone assessment', () => {
+        const inlineFeedback = (userStoryExerciseId?: number): Feedback => {
+            const feedback = new Feedback();
+            feedback.type = FeedbackType.MANUAL;
+            feedback.credits = 2;
+            feedback.detailText = 'Nice loop';
+            feedback.reference = 'file:Sort.java_line:3';
+            feedback.userStoryExerciseId = userStoryExerciseId;
+            return feedback;
+        };
+
+        const setUpMilestoneAssessment = () => {
+            const milestoneExercise = { id: 1, type: ExerciseType.MILESTONE, maxPoints: 10, course: exercise.course } as unknown as ProgrammingExercise;
+            comp.exercise.set(milestoneExercise);
+            comp.participation.set(participation);
+            comp.submission.set(submission);
+            const milestoneResult = new Result();
+            milestoneResult.id = 77;
+            milestoneResult.feedbacks = [];
+            comp.manualResult.set(milestoneResult);
+        };
+
+        it('should save the user story results together with the milestone result', () => {
+            setUpMilestoneAssessment();
+            const saveUserStoryAssessments = vi.spyOn(comp['milestoneAssessmentState'], 'saveOrSubmit').mockReturnValue(of([]));
+            const saveAssessment = vi.spyOn(programmingAssessmentManualResultService, 'saveAssessment').mockReturnValue(of(overrideEntityResponse));
+
+            comp.save();
+
+            expect(saveUserStoryAssessments).toHaveBeenCalledExactlyOnceWith(false);
+            expect(saveAssessment).toHaveBeenCalledOnce();
+        });
+
+        it('should keep the manual feedback off the milestone result, which carries no points of its own', () => {
+            setUpMilestoneAssessment();
+            const automaticFeedback = new Feedback();
+            automaticFeedback.type = FeedbackType.AUTOMATIC;
+            automaticFeedback.credits = 3;
+            comp.automaticFeedback.set([automaticFeedback]);
+            comp.referencedFeedback = [inlineFeedback(2)];
+
+            comp['setFeedbacksForManualResult']();
+
+            expect(comp.manualResult()!.feedbacks).toEqual([automaticFeedback]);
+        });
+
+        it('should block the assessment while inline feedback names no user story', () => {
+            setUpMilestoneAssessment();
+
+            comp.onUpdateFeedback([inlineFeedback(undefined)]);
+            expect(comp.assessmentsAreValid()).toBe(false);
+
+            comp.onUpdateFeedback([inlineFeedback(2)]);
+            expect(comp.assessmentsAreValid()).toBe(true);
+        });
     });
 });

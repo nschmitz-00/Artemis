@@ -36,6 +36,7 @@ import de.tum.cit.aet.artemis.exercise.domain.Exercise;
 import de.tum.cit.aet.artemis.fileupload.domain.FileUploadExercise;
 import de.tum.cit.aet.artemis.modeling.domain.ModelingExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
+import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 import de.tum.cit.aet.artemis.text.domain.TextExercise;
 
 /**
@@ -482,12 +483,16 @@ public interface CourseRepository extends ArtemisJpaRepository<Course, Long>, Jp
 
     /**
      * filters the passed exercises for the relevant ones that need to be manually assessed. This excludes quizzes and automatic programming exercises
+     * <p>
+     * {@link UserStoryExercise}s are excluded as well: they are graded from the submission of their parent
+     * {@link de.tum.cit.aet.artemis.programming.domain.MilestoneExercise}, which a tutor assesses once for all of them at once, so listing them separately would
+     * offer the same submission for assessment as many times as the Milestone has user stories.
      *
      * @param exercises all exercises (e.g. of a course or exercise group) that should be filtered
      * @return the filtered and relevant exercises for manual assessment
      */
     default Set<Exercise> filterInterestingExercisesForAssessmentDashboards(Set<Exercise> exercises) {
-        return exercises.stream()
+        return exercises.stream().filter(exercise -> !(exercise instanceof UserStoryExercise))
                 .filter(exercise -> exercise instanceof TextExercise || exercise instanceof ModelingExercise || exercise instanceof FileUploadExercise
                         || (exercise instanceof ProgrammingExercise && (exercise.getAssessmentType() != AUTOMATIC || exercise.getAllowComplaintsForAutomaticAssessments())))
                 .collect(Collectors.toSet());

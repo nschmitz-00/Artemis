@@ -16,6 +16,8 @@ import { TranslateService } from '@ngx-translate/core';
 import { MockTranslateService } from 'test/helpers/mocks/service/mock-translate.service';
 import { MockProvider } from 'ng-mocks';
 import { ArtemisNavigationUtilService } from 'app/foundation/util/navigation.utils';
+import { AssessmentType } from 'app/assessment/shared/entities/assessment-type.model';
+import dayjs from 'dayjs/esm';
 
 describe('UserStoryExerciseUpdate Component', () => {
     const course = { id: 123 } as Course;
@@ -29,10 +31,11 @@ describe('UserStoryExerciseUpdate Component', () => {
     const milestoneEditRoute = () => ['/course-management', course.id, 'milestone-exercises', 2, 'edit'];
 
     /** Sets the component up in creation mode, or - when an existing story is passed - in edit mode for it. */
-    const setUp = async (existingUserStoryExercise?: UserStoryExercise) => {
+    const setUp = async (existingUserStoryExercise?: UserStoryExercise, milestoneSettings?: Partial<MilestoneExercise>) => {
         milestoneExercise = new MilestoneExercise(course, undefined);
         milestoneExercise.id = 2;
         milestoneExercise.title = 'Milestone';
+        Object.assign(milestoneExercise, milestoneSettings ?? {});
 
         const paramMap = convertToParamMap(
             existingUserStoryExercise ? { milestoneExerciseId: '2', userStoryExerciseId: String(existingUserStoryExercise.id) } : { milestoneExerciseId: '2' },
@@ -126,6 +129,45 @@ describe('UserStoryExerciseUpdate Component', () => {
 
         expect(update).toHaveBeenCalledOnce();
         expect(navigate).toHaveBeenCalledExactlyOnceWith(milestoneEditRoute());
+    });
+
+    // Every assessment setting belongs to the milestone: its user stories are graded from one and the same submission, so
+    // they cannot have settings of their own (see UserStoryExercise.java, server).
+    describe('Inherited assessment settings', () => {
+        const textOf = (selector: string): string => fixture.nativeElement.querySelector(selector).textContent.trim();
+
+        it('should show the milestone settings read-only instead of offering inputs of its own', async () => {
+            await setUp(undefined, {
+                assessmentType: AssessmentType.SEMI_AUTOMATIC,
+                assessmentDueDate: dayjs('2026-09-01'),
+                allowComplaintsForAutomaticAssessments: true,
+                allowFeedbackRequests: false,
+                feedbackSuggestionModule: 'module_programming_themisml',
+            });
+
+            expect(textOf('#inherited-assessment-type')).toContain('artemisApp.AssessmentType.SEMI_AUTOMATIC');
+            expect(textOf('#inherited-assessment-due-date')).not.toBe('-');
+            expect(textOf('#inherited-allow-complaints')).toContain('artemisApp.exercise.yes');
+            expect(textOf('#inherited-allow-feedback-requests')).toContain('artemisApp.exercise.no');
+            expect(textOf('#inherited-feedback-suggestions')).toContain('artemisApp.exercise.yes');
+            // Read-only means exactly that: no control that would let an editor set them per user story
+            expect(fixture.nativeElement.querySelector('#assessmentType')).toBeNull();
+            expect(fixture.nativeElement.querySelector('#assessmentDueDate')).toBeNull();
+        });
+
+        it('should render a dash when the milestone has no assessment due date', async () => {
+            await setUp();
+
+            expect(textOf('#inherited-assessment-due-date')).toBe('-');
+        });
+
+        it('should link to the milestone form as the place where they are edited', async () => {
+            await setUp();
+
+            expect(fixture.nativeElement.querySelector('#edit-assessment-on-milestone').getAttribute('href')).toBe(
+                `/course-management/${course.id}/milestone-exercises/${milestoneExercise.id}/edit`,
+            );
+        });
     });
 
     it('should go back when cancelling instead of navigating to the milestone', async () => {

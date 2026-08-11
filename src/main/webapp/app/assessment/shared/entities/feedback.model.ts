@@ -90,6 +90,11 @@ export class Feedback implements BaseEntity {
 
     public isSubsequent?: boolean; // helper attribute to find feedback which is not included in the total score on the client
 
+    // The user story this feedback was written for while assessing a milestone submission. Client only property: the
+    // assignment is expressed by which user story's result the feedback is stored on, so the server ignores this field and
+    // it is restored from the loaded results (see MilestoneAssessmentStateService).
+    public userStoryExerciseId?: number;
+
     private static readonly PROGRAMMING_REFERENCE_PREFIX = 'file:';
     private static readonly PROGRAMMING_REFERENCE_LINE_SEPERATOR = '_line:';
 

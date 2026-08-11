@@ -6,6 +6,11 @@
                 "createLabel": "Create a new User Story",
                 "editLabel": "Edit a User Story"
             },
+            "assessment": {
+                "title": "Assessment",
+                "inheritedHint": "The assessment settings are configured once for the whole milestone and apply to all of its user stories, because one submission is graded for all of them at once.",
+                "editOnMilestone": "Edit them on the milestone."
+            },
             "problemStatementHint": "All dates and repositories are inherited from the milestone. You can reference test cases from the milestone's test repository, e.g. [task][Implement BubbleSort](testBubbleSort,testBubbleSortHidden)."
         }
     }

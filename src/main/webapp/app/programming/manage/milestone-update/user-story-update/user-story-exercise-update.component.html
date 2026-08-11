@@ -51,6 +51,50 @@
         </section>
 
         <hr />
+        <!-- Read-only: every assessment setting is configured once on the parent Milestone and inherited by all of its user
+             stories (see UserStoryExercise.java, server) - one submission is graded for all of them at once, so they cannot
+             differ per user story. -->
+        <section>
+            <h3 jhiTranslate="artemisApp.userStoryExercise.assessment.title"></h3>
+            <p class="text-muted small">
+                <span jhiTranslate="artemisApp.userStoryExercise.assessment.inheritedHint"></span>
+                <a id="edit-assessment-on-milestone" [routerLink]="milestoneRoute()" jhiTranslate="artemisApp.userStoryExercise.assessment.editOnMilestone"></a>
+            </p>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label jhiTranslate="artemisApp.assessmentMode"></label>
+                    <p class="form-control-plaintext" id="inherited-assessment-type">
+                        {{ 'artemisApp.AssessmentType.' + milestoneExercise().assessmentType | artemisTranslate }}
+                    </p>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label jhiTranslate="artemisApp.exercise.assessmentDueDate"></label>
+                    <p class="form-control-plaintext" id="inherited-assessment-due-date">
+                        {{ milestoneExercise().assessmentDueDate ? (milestoneExercise().assessmentDueDate | artemisDate) : '-' }}
+                    </p>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label jhiTranslate="artemisApp.exercise.feedbackSuggestionsEnabled"></label>
+                    <p class="form-control-plaintext" id="inherited-feedback-suggestions">
+                        {{ (milestoneExercise().feedbackSuggestionModule ? 'artemisApp.exercise.yes' : 'artemisApp.exercise.no') | artemisTranslate }}
+                    </p>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label jhiTranslate="artemisApp.programmingExercise.timeline.complaintOnAutomaticAssessment"></label>
+                    <p class="form-control-plaintext" id="inherited-allow-complaints">
+                        {{ (milestoneExercise().allowComplaintsForAutomaticAssessments ? 'artemisApp.exercise.yes' : 'artemisApp.exercise.no') | artemisTranslate }}
+                    </p>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label jhiTranslate="artemisApp.programmingExercise.timeline.manualFeedbackRequests"></label>
+                    <p class="form-control-plaintext" id="inherited-allow-feedback-requests">
+                        {{ (milestoneExercise().allowFeedbackRequests ? 'artemisApp.exercise.yes' : 'artemisApp.exercise.no') | artemisTranslate }}
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <hr />
         <section>
             <h3 jhiTranslate="artemisApp.exercise.sections.problem"></h3>
             <p class="text-muted small" jhiTranslate="artemisApp.userStoryExercise.problemStatementHint"></p>

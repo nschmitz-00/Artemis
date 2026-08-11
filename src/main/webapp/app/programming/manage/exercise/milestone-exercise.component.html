@@ -40,10 +40,10 @@
                             </td>
                         }
                         <td id="milestone-exercise-{{ milestoneExercise.id }}-title">
-                            <!-- Unlike a programming exercise, a milestone has no read-only detail page, so its title only links
-                                 anywhere for users who may open the edit form. -->
-                            @if (milestoneExercise.isAtLeastEditor) {
-                                <a [routerLink]="['/course-management', milestoneExercise.course?.id, 'milestone-exercises', milestoneExercise.id, 'edit']">
+                            <!-- Same as the programming exercise list: the title opens the read-only detail page, which is
+                                 tutor-level, so it stays plain text for everyone below tutor. -->
+                            @if (milestoneExercise.isAtLeastTutor) {
+                                <a [routerLink]="['/course-management', courseId(), 'milestone-exercises', milestoneExercise.id]">
                                     {{ milestoneExercise.title }}
                                 </a>
                             } @else {

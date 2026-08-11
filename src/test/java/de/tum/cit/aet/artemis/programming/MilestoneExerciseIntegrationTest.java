@@ -3,6 +3,7 @@ package de.tum.cit.aet.artemis.programming;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -201,6 +202,71 @@ class MilestoneExerciseIntegrationTest extends AbstractProgrammingIntegrationInd
         MilestoneExercise reloaded = milestoneExerciseRepository.findWithUserStoryExercisesByIdElseThrow(milestoneExercise.getId());
         assertThat(reloaded.getMaxPoints()).isZero();
         assertThat(reloaded.getBonusPoints()).isZero();
+    }
+
+    /**
+     * A Milestone's user stories are all graded from one and the same submission, so their assessment configuration cannot
+     * differ - it is configured once on the Milestone and read from there by every user story.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "editor1", roles = "EDITOR")
+    void shouldInheritTheAssessmentSettingsOfTheMilestone() {
+        milestoneExercise.setAssessmentType(AssessmentType.SEMI_AUTOMATIC);
+        milestoneExercise.setAssessmentDueDate(FUTURE_TIMESTAMP);
+        milestoneExercise.setAllowComplaintsForAutomaticAssessments(true);
+        milestoneExercise.setAllowFeedbackRequests(true);
+        milestoneExercise.setFeedbackSuggestionModule("module_programming_themisml");
+        milestoneExercise.setSecondCorrectionEnabled(true);
+        milestoneExercise.setPresentationScoreEnabled(true);
+        milestoneExercise.setIncludedInOverallScore(IncludedInOverallScore.INCLUDED_AS_BONUS);
+        milestoneExercise.setGradingInstructions("Deduct one point for every missing test.");
+        milestoneExerciseRepository.save(milestoneExercise);
+
+        Long userStoryExerciseId = milestoneExercise.getUserStoryExercises().getFirst().getId();
+        UserStoryExercise userStoryExercise = userStoryExerciseRepository.findWithMilestoneExerciseByIdElseThrow(userStoryExerciseId);
+
+        assertThat(userStoryExercise.getAssessmentType()).isEqualTo(AssessmentType.SEMI_AUTOMATIC);
+        // Truncated on both sides: the database round trip drops the sub-millisecond part of the in-memory timestamp
+        assertThat(userStoryExercise.getAssessmentDueDate().toInstant().truncatedTo(ChronoUnit.SECONDS)).isEqualTo(FUTURE_TIMESTAMP.toInstant().truncatedTo(ChronoUnit.SECONDS));
+        assertThat(userStoryExercise.getAllowComplaintsForAutomaticAssessments()).isTrue();
+        assertThat(userStoryExercise.getAllowFeedbackRequests()).isTrue();
+        assertThat(userStoryExercise.getFeedbackSuggestionModule()).isEqualTo("module_programming_themisml");
+        assertThat(userStoryExercise.getSecondCorrectionEnabled()).isTrue();
+        assertThat(userStoryExercise.getPresentationScoreEnabled()).isTrue();
+        assertThat(userStoryExercise.getIncludedInOverallScore()).isEqualTo(IncludedInOverallScore.INCLUDED_AS_BONUS);
+        assertThat(userStoryExercise.getGradingInstructions()).isEqualTo("Deduct one point for every missing test.");
+    }
+
+    /**
+     * The assessment settings a client sends for a user story are never honoured (they are read from the Milestone), so they
+     * must not be stored either - a row carrying values that contradict the Milestone is misleading in the database and in
+     * every export.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "editor1", roles = "EDITOR")
+    void shouldNotStoreAssessmentSettingsOnTheUserStoryRow() {
+        UserStoryExercise userStoryExercise = new UserStoryExercise();
+        userStoryExercise.setTitle("Story 3");
+        userStoryExercise.setShortName("STORYTHREE");
+        userStoryExercise.setMaxPoints(1.0);
+        userStoryExercise.setBonusPoints(0.0);
+        userStoryExercise.setAssessmentType(AssessmentType.MANUAL);
+        userStoryExercise.setAssessmentDueDate(FUTURE_TIMESTAMP);
+        userStoryExercise.setAllowFeedbackRequests(true);
+        userStoryExercise.setGradingInstructions("Should never be stored");
+
+        Long createdId = userStoryExerciseService.createUserStoryExercise(milestoneExercise.getId(), userStoryExercise).getId();
+
+        UserStoryExercise stored = userStoryExerciseRepository.findWithMilestoneExerciseByIdElseThrow(createdId);
+        // Detaching the parent in memory is what makes the row's own columns observable at all: with a parent present, every
+        // assessment getter answers from the Milestone (see UserStoryExercise).
+        stored.setMilestoneExercise(null);
+        // ProgrammingExercise#getAssessmentType answers AUTOMATIC for an unset column, so AUTOMATIC here means the MANUAL
+        // the client sent was not stored
+        assertThat(stored.getAssessmentType()).isEqualTo(AssessmentType.AUTOMATIC);
+        assertThat(stored.getAssessmentDueDate()).isNull();
+        assertThat(stored.getAllowFeedbackRequests()).isFalse();
+        assertThat(stored.getGradingInstructions()).isNull();
     }
 
     /**

@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
@@ -35,6 +35,8 @@ import { MarkdownEditorHeight } from 'app/editor/markdown-editor/monaco/markdown
 import { FormFooterComponent } from 'app/shared-ui/form/form-footer/form-footer.component';
 import { InputTextModule } from 'primeng/inputtext';
 import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pipe';
+import { BuildPhasesTemplateService } from 'app/programming/shared/services/build-phases-template.service';
+import { ExerciseEditorSyncService } from 'app/exercise/synchronization/services/exercise-editor-sync.service';
 
 @Component({
     selector: 'jhi-milestone-exercise-update',
@@ -54,8 +56,11 @@ import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pip
         InputTextModule,
         ArtemisTranslatePipe,
     ],
+    // The timeline inside the grading section injects this and it is not provided in root, so - exactly like
+    // ProgrammingExerciseUpdateComponent - the form has to provide it, or the whole section fails to render with NG0201
+    providers: [BuildPhasesTemplateService],
 })
-export class MilestoneExerciseUpdateComponent implements OnInit {
+export class MilestoneExerciseUpdateComponent implements OnInit, OnDestroy {
     private readonly milestoneExerciseService = inject(MilestoneExerciseService);
     private readonly courseService = inject(CourseManagementService);
     private readonly exerciseService = inject(ExerciseService);
@@ -63,6 +68,7 @@ export class MilestoneExerciseUpdateComponent implements OnInit {
     private readonly activatedRoute = inject(ActivatedRoute);
     private readonly navigationUtilService = inject(ArtemisNavigationUtilService);
 
+    private readonly exerciseEditorSyncService = inject(ExerciseEditorSyncService);
     private readonly profileService = inject(ProfileService);
     private readonly programmingLanguageFeatureService = inject(ProgrammingLanguageFeatureService);
 
@@ -145,6 +151,9 @@ export class MilestoneExerciseUpdateComponent implements OnInit {
                     this.milestoneExercise.set(res.body!);
                     this.adoptLanguageOfLoadedExercise(res.body!);
                     this.loadCategories(res.body!.course?.id);
+                    // The embedded instructions editor synchronizes the problem statement between concurrent editors and
+                    // throws if nothing connected the session first, exactly like on the programming exercise form
+                    this.exerciseEditorSyncService.connect(res.body!.id!);
                 },
                 error: (error: HttpErrorResponse) => this.alertService.addErrorAlert(error.message),
             });
@@ -157,6 +166,10 @@ export class MilestoneExerciseUpdateComponent implements OnInit {
                 this.onProgrammingLanguageChange(res.body!.defaultProgrammingLanguage ?? ProgrammingLanguage.JAVA);
             });
         }
+    }
+
+    ngOnDestroy(): void {
+        this.exerciseEditorSyncService.disconnect();
     }
 
     /**

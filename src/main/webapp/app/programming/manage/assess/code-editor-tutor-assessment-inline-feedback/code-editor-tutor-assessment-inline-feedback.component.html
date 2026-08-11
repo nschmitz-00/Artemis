@@ -14,6 +14,20 @@
     }
     @if (!viewOnly()) {
         <div class="m-2" (drop)="updateFeedbackOnDrop($event)" (dragover)="$event.preventDefault()">
+            @if (userStoryOptions().length > 0) {
+                <!-- Assessing a milestone: the points belong to its user stories, so every comment has to say which one it is for -->
+                <div class="row align-items-start">
+                    <div class="form-group col-8 m-0">
+                        <label for="feedback-user-story" jhiTranslate="artemisApp.milestoneExercise.assessment.userStoryOfFeedback"></label>
+                        <select id="feedback-user-story" class="form-select form-select-sm" [(ngModel)]="feedback.userStoryExerciseId">
+                            <option [ngValue]="undefined" jhiTranslate="artemisApp.milestoneExercise.assessment.selectUserStory"></option>
+                            @for (userStory of userStoryOptions(); track userStory.userStoryExerciseId) {
+                                <option [ngValue]="userStory.userStoryExerciseId">{{ userStory.title }}</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+            }
             <div class="row align-items-start">
                 <div class="form-group col-8 m-0">
                     <label class="d-inline" jhiTranslate="artemisApp.assessment.detail.feedback"></label>
@@ -80,7 +94,13 @@
                         <fa-icon [icon]="faTrashAlt" />
                     </button>
                 }
-                <button id="feedback-save" type="submit" [disabled]="feedback.credits === undefined" class="btn btn-primary btn-sm" (click)="updateFeedback()">
+                <button
+                    id="feedback-save"
+                    type="submit"
+                    [disabled]="feedback.credits === undefined || (userStoryOptions().length > 0 && feedback.userStoryExerciseId === undefined)"
+                    class="btn btn-primary btn-sm"
+                    (click)="updateFeedback()"
+                >
                     <fa-icon [icon]="faSave" />&nbsp;<span jhiTranslate="entity.action.save"></span>
                 </button>
             </div>
@@ -109,6 +129,9 @@
                     </h5>
                 </div>
                 <div class="col-10 ps-0 flex-grow-1 flex-shrink-1">
+                    @if (userStoryTitleOf(feedback); as userStoryTitle) {
+                        <span class="badge bg-secondary me-1" id="feedback-user-story-badge-{{ codeLine() }}">{{ userStoryTitle }}</span>
+                    }
                     @if (Feedback.isNonGradedFeedbackSuggestion(feedback)) {
                         <h6 class="d-inline mb-1" jhiTranslate="artemisApp.assessment.detail.feedback"></h6>
                         <p [innerHTML]="buildFeedbackTextForCodeEditor(feedback)" class="mt-1 mb-0"></p>

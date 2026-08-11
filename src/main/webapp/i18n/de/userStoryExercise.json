@@ -6,6 +6,11 @@
                 "createLabel": "Neue User Story erstellen",
                 "editLabel": "User Story bearbeiten"
             },
+            "assessment": {
+                "title": "Bewertung",
+                "inheritedHint": "Die Bewertungseinstellungen werden einmal für den gesamten Meilenstein festgelegt und gelten für alle seine User Stories, da eine Abgabe für alle gemeinsam bewertet wird.",
+                "editOnMilestone": "Am Meilenstein bearbeiten."
+            },
             "problemStatementHint": "Alle Termine und Repositories werden vom Meilenstein übernommen. Sie können Testfälle aus dem Test-Repository des Meilensteins referenzieren, z. B. [task][BubbleSort implementieren](testBubbleSort,testBubbleSortHidden)."
         }
     }

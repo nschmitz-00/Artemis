@@ -17,8 +17,8 @@ import de.tum.cit.aet.artemis.programming.repository.UserStoryExerciseRepository
  * Creates, updates, and deletes {@link UserStoryExercise}s belonging to a {@link MilestoneExercise}.
  * <p>
  * Unlike {@link MilestoneExerciseService}, this performs no repository/build-plan provisioning at all - a UserStoryExercise
- * only ever persists its own title, short name, max points, and problem statement; every repository- and date-related field
- * is delegated to the parent Milestone (see {@link UserStoryExercise}).
+ * only ever persists its own title, short name, max points, and problem statement; every repository-, date-, and
+ * assessment-related field is delegated to the parent Milestone (see {@link UserStoryExercise}).
  */
 @Profile(Constants.PROFILE_CORE)
 @Lazy
@@ -61,6 +61,7 @@ public class UserStoryExerciseService {
         // these (all repo/build state is delegated to the parent Milestone, see UserStoryExercise), so they must be
         // cleared or Hibernate rejects the save with a TransientPropertyValueException on flush.
         clearOwnedProgrammingExerciseAssociations(userStoryExercise);
+        clearInheritedAssessmentSettings(userStoryExercise);
         // Every ProgrammingExercise row needs a non-null project key (see ProgrammingExercise#generateAndSetProjectKey); this
         // UserStoryExercise's own key is never actually used to look up a repository (all repo access is delegated to the
         // Milestone, see UserStoryExercise#getProjectKey), it merely satisfies the NOT NULL constraint on the shared column.
@@ -126,6 +127,24 @@ public class UserStoryExerciseService {
         MilestoneExercise milestoneExercise = milestoneExerciseRepository.findWithUserStoryExercisesByIdElseThrow(milestoneExerciseId);
         milestoneExercise.recalculateDerivedPoints();
         milestoneExerciseRepository.save(milestoneExercise);
+    }
+
+    /**
+     * Resets the assessment configuration columns of a UserStoryExercise row. Every one of them is read from the parent
+     * Milestone instead (see {@link UserStoryExercise}), so a value stored here would never be honoured - and would show up
+     * as a contradicting value in the database, in an export, or for anyone reading the row directly.
+     *
+     * @param userStoryExercise the UserStoryExercise about to be persisted
+     */
+    private void clearInheritedAssessmentSettings(UserStoryExercise userStoryExercise) {
+        userStoryExercise.setAssessmentType(null);
+        userStoryExercise.setAssessmentDueDate(null);
+        userStoryExercise.setAllowComplaintsForAutomaticAssessments(false);
+        userStoryExercise.setAllowFeedbackRequests(false);
+        userStoryExercise.setFeedbackSuggestionModule(null);
+        userStoryExercise.setSecondCorrectionEnabled(false);
+        userStoryExercise.setPresentationScoreEnabled(false);
+        userStoryExercise.setGradingInstructions(null);
     }
 
     private void clearOwnedProgrammingExerciseAssociations(UserStoryExercise userStoryExercise) {

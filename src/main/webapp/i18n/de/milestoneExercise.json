@@ -6,6 +6,21 @@
                 "createLabel": "Neue Meilenstein-Aufgabe erstellen",
                 "editLabel": "Meilenstein-Aufgabe bearbeiten"
             },
+            "detail": {
+                "title": "Meilenstein-Aufgabe"
+            },
+            "assessment": {
+                "title": "User-Story-Bewertung",
+                "hint": "Alle User Stories werden aus dieser einen Abgabe bewertet. Schreibe das Feedback jeder User Story in ihren eigenen Abschnitt - es wird im Ergebnis dieser User Story gespeichert.",
+                "loading": "Die User Stories dieser Abgabe werden geladen...",
+                "automaticPoints": "Automatisch",
+                "manualPoints": "Manuell",
+                "totalPoints": "Gesamt",
+                "userStoryOfFeedback": "User Story, für die dieser Kommentar gilt",
+                "selectUserStory": "User Story auswählen...",
+                "unassignedInlineFeedback": "{{ count }} Kommentar(e) im Code sind noch keiner User Story zugeordnet und würden keine Punkte ergeben. Ordne sie vor der Abgabe zu.",
+                "inlineFeedbackCount": "{{ count }} Kommentar(e) im Code sind dieser User Story zugeordnet."
+            },
             "problemStatementHint": "Diese Beschreibung wird Studierenden angezeigt, wenn sie den Meilenstein öffnen. Sie wird als Markdown gerendert.",
             "grading": {
                 "totalPoints": "(Summe der {{ count }} User Stories unten)",

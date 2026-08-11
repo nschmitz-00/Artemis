@@ -49,6 +49,8 @@ import { ProgrammingAssessmentRepoExportButtonComponent } from '../repo-export/e
 import { AssessmentInstructionsComponent } from 'app/assessment/manage/assessment-instructions/assessment-instructions/assessment-instructions.component';
 import { FeedbackSuggestionsBannerComponent } from 'app/assessment/manage/feedback-suggestions-banner/feedback-suggestions-banner.component';
 import { ProgrammingExerciseExplanationVideoComponent } from 'app/programming/shared/explanation-video/programming-exercise-explanation-video.component';
+import { MilestoneUserStoryAssessmentComponent } from 'app/programming/manage/assess/milestone/milestone-user-story-assessment.component';
+import { MilestoneAssessmentStateService } from 'app/programming/manage/assess/milestone/milestone-assessment-state.service';
 
 @Component({
     selector: 'jhi-code-editor-tutor-assessment',
@@ -67,7 +69,11 @@ import { ProgrammingExerciseExplanationVideoComponent } from 'app/programming/sh
         UnreferencedFeedbackComponent,
         FeedbackSuggestionsBannerComponent,
         ProgrammingExerciseExplanationVideoComponent,
+        MilestoneUserStoryAssessmentComponent,
     ],
+    // Provided here rather than in root so that the whole assessment page - including the inline feedback widgets inside the
+    // code editor - shares one state for the milestone being assessed
+    providers: [MilestoneAssessmentStateService],
 })
 export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDestroy {
     private manualResultService = inject(ProgrammingAssessmentManualResultService);
@@ -85,6 +91,7 @@ export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDe
     private dialogService = inject(DialogService);
     private translateService = inject(TranslateService);
     private athenaService = inject(AthenaService);
+    protected readonly milestoneAssessmentState = inject(MilestoneAssessmentStateService);
 
     readonly codeEditorContainer = viewChild<CodeEditorContainerComponent>(CodeEditorContainerComponent);
     ButtonSize = ButtonSize;
@@ -165,6 +172,13 @@ export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDe
     readonly hasAutomaticFeedback = computed(() => this.automaticFeedback().length > 0 || this.feedbackSuggestions().length > 0);
 
     readonly isFeedbackSuggestionsEnabled = computed(() => Boolean(this.exercise()?.feedbackSuggestionModule));
+
+    /**
+     * A milestone submission is not assessed as one exercise: its user stories are the graded units, and all of them are
+     * graded from this single submission. The feedback panel is therefore replaced by one section per user story
+     * (see MilestoneUserStoryAssessmentComponent).
+     */
+    readonly isMilestoneAssessment = computed(() => this.exercise()?.type === ExerciseType.MILESTONE);
 
     constructor() {
         this.translateService.get('artemisApp.assessment.messages.confirmCancel').subscribe((text) => (this.cancelConfirmationText = text));
@@ -313,6 +327,9 @@ export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDe
         this.handleFeedback();
         this.getComplaint();
         this.calculateTotalScore();
+        if (this.isMilestoneAssessment()) {
+            this.loadUserStoryAssessments();
+        }
         // Only load suggestions for new assessments, they don't make sense later.
         // The assessment is new if it only contains automatic feedback.
         if ((this.manualResult()?.feedbacks?.length ?? 0) === this.automaticFeedback().length) {
@@ -444,7 +461,10 @@ export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDe
      */
     private handleSaveOrSubmit(submit: boolean | undefined, translationKey: string) {
         this.avoidCircularStructure();
-        this.manualResultService.saveAssessment(this.participation().id!, this.manualResult()!, submit).subscribe({
+        // For a milestone the points belong to its user stories, so their results are written first; the milestone's own
+        // result is still saved afterwards, since that is what holds the assessment lock of this submission.
+        const userStoryAssessments = this.isMilestoneAssessment() ? this.milestoneAssessmentState.saveOrSubmit(!!submit) : of([]);
+        userStoryAssessments.pipe(switchMap(() => this.manualResultService.saveAssessment(this.participation().id!, this.manualResult()!, submit))).subscribe({
             next: (response) => this.handleSaveOrSubmitSuccessWithAlert(response, translationKey),
             error: (error: HttpErrorResponse) => this.onError(`error.${error?.error?.errorKey}`),
         });
@@ -593,12 +613,32 @@ export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDe
     }
 
     /**
+     * Loads the user stories of the milestone submission being assessed. Their feedback is what carries the points, so the
+     * inline feedback of the code editor is taken from them as well (see {@link milestoneInlineFeedback}).
+     */
+    private loadUserStoryAssessments(): void {
+        this.milestoneAssessmentState.load(this.exercise().id!, this.participation().id!).subscribe({
+            error: (error: HttpErrorResponse) => this.onError(error.message),
+        });
+    }
+
+    /**
+     * The inline feedback shown in the code editor while a milestone is assessed. It lives on the results of the user
+     * stories rather than on the milestone's own result, because that is where the points of a milestone belong.
+     */
+    readonly milestoneInlineFeedback = computed(() => (this.isMilestoneAssessment() ? this.milestoneAssessmentState.referencedFeedback() : undefined));
+
+    /**
      * Updates the referenced feedbacks, which are the inline feedbacks added directly in the code.
      * @param feedbacks Inline feedbacks directly in the code
      */
     onUpdateFeedback(feedbacks: Feedback[]) {
         // Filter out other feedback than manual feedback
         this.referencedFeedback = feedbacks.filter((feedbackElement) => feedbackElement.reference != undefined && feedbackElement.type === FeedbackType.MANUAL);
+        if (this.isMilestoneAssessment()) {
+            // Each of them carries the user story it was written for, which is what decides the result it ends up on
+            this.milestoneAssessmentState.setReferencedFeedback(this.referencedFeedback);
+        }
         this.validateFeedback();
         this.hasPendingChanges = true;
     }
@@ -642,6 +682,11 @@ export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDe
      */
     validateFeedback(): void {
         this.calculateTotalScore();
+        if (this.isMilestoneAssessment()) {
+            // Inline feedback that names no user story would score nowhere, so it blocks the assessment until it is assigned
+            this.assessmentsAreValid.set(this.milestoneAssessmentState.allReferencedFeedbackAssigned());
+            return;
+        }
         if (this.exercise().allowComplaintsForAutomaticAssessments) {
             // We don't need manual feedback here
             this.assessmentsAreValid.set(true);
@@ -731,6 +776,12 @@ export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDe
     }
 
     private setFeedbacksForManualResult() {
+        if (this.isMilestoneAssessment()) {
+            // The manual feedback of a milestone submission is stored on the results of its user stories, which are what
+            // carries the points - keeping a copy here would pay every deduction and bonus out a second time
+            this.manualResult()!.feedbacks = [...this.automaticFeedback()];
+            return;
+        }
         this.manualResult()!.feedbacks = [...this.referencedFeedback, ...this.unreferencedFeedback(), ...this.automaticFeedback()];
     }
 

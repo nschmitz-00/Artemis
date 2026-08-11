@@ -50,6 +50,21 @@ export const routes: Routes = [
         canActivate: [UserRouteAccessService],
     },
     {
+        // Declared after the more specific milestone routes above so that e.g. 'milestone-exercises/new' still wins.
+        // A MilestoneExercise is a ProgrammingExercise (see MilestoneExercise.java), so it is resolved and rendered by
+        // the regular programming exercise detail page instead of a duplicated milestone-specific one.
+        path: 'milestone-exercises/:exerciseId',
+        loadComponent: () => import('app/programming/manage/detail/programming-exercise-detail.component').then((m) => m.ProgrammingExerciseDetailComponent),
+        resolve: {
+            programmingExercise: ProgrammingExerciseResolve,
+        },
+        data: {
+            authorities: IS_AT_LEAST_TUTOR,
+            pageTitle: 'artemisApp.milestoneExercise.home.title',
+        },
+        canActivate: [UserRouteAccessService],
+    },
+    {
         path: 'programming-exercises/new',
         loadComponent: () => import('app/programming/manage/update/programming-exercise-update.component').then((m) => m.ProgrammingExerciseUpdateComponent),
         resolve: {

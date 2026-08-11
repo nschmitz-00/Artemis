@@ -108,6 +108,9 @@ describe('MilestoneExercise Management Component', () => {
 
     const checkboxFor = (id: number): HTMLInputElement | null => fixture.nativeElement.querySelector(`#select-milestone-exercise-${id}`);
 
+    /** The href the router renders for the title link of the given milestone exercise, or undefined if the title is plain text. */
+    const titleHref = (id: number): string | undefined => fixture.nativeElement.querySelector(`#milestone-exercise-${id}-title a`)?.getAttribute('href') ?? undefined;
+
     it('should load the milestone exercises of the course on init', () => {
         initWithCourse();
 
@@ -273,10 +276,21 @@ describe('MilestoneExercise Management Component', () => {
             expect(fixture.nativeElement.querySelector(`#milestone-exercise-${milestoneExercise.id}-title`).textContent.trim()).toBe(milestoneExercise.title);
         });
 
-        it('should render the title as plain text, since a milestone has no read-only detail page', () => {
+        it('should link the title to the read-only detail page, which is tutor-level as well', () => {
             initAsTutor();
 
-            expect(fixture.nativeElement.querySelector(`#milestone-exercise-${milestoneExercise.id}-title a`)).toBeNull();
+            expect(titleHref(milestoneExercise.id!)).toBe(`/course-management/${course.id}/milestone-exercises/${milestoneExercise.id}`);
+        });
+
+        it('should render the title as plain text for users below tutor', () => {
+            const withoutRights = asTutorOnly(milestoneExercise);
+            withoutRights.isAtLeastTutor = false;
+            vi.spyOn(milestoneExerciseService, 'findAllForCourse').mockReturnValue(of(new HttpResponse({ body: [withoutRights] })));
+
+            initWithCourse();
+
+            expect(titleHref(milestoneExercise.id!)).toBeUndefined();
+            expect(fixture.nativeElement.querySelector(`#milestone-exercise-${milestoneExercise.id}-title`).textContent.trim()).toBe(milestoneExercise.title);
         });
 
         it('should not offer the edit, add user story, or delete actions', () => {

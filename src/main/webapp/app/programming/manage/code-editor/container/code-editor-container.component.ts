@@ -90,6 +90,12 @@ export class CodeEditorContainerComponent implements ComponentCanDeactivate, OnD
     highlightFileChanges = input<boolean>(false);
     allowHiddenFiles = input<boolean>(false);
     feedbackSuggestions = input<Feedback[]>([]);
+    /**
+     * Inline feedback to render instead of the one stored on the submission's result. Set while a milestone submission is
+     * assessed: its manual feedback lives on the results of its user stories rather than on the submission's own result
+     * (see MilestoneAssessmentStateService).
+     */
+    inlineFeedbackOverride = input<Feedback[] | undefined>(undefined);
     readOnlyManualFeedback = input<boolean>(false);
     highlightDifferences = input<boolean>(false);
     disableAutoSave = input<boolean>(false);
@@ -458,9 +464,16 @@ export class CodeEditorContainerComponent implements ComponentCanDeactivate, OnD
      * Returns the feedbacks for the current submission or an empty array if no feedbacks are available.
      */
     feedbackForSubmission(): Feedback[] {
+        if (!this.showInlineFeedback()) {
+            return [];
+        }
+        const inlineFeedbackOverride = this.inlineFeedbackOverride();
+        if (inlineFeedbackOverride) {
+            return inlineFeedbackOverride;
+        }
         const submission = this.participation()?.submissions?.[0];
         const result = submission?.results?.[0];
-        return this.showInlineFeedback() && result?.feedbacks ? result.feedbacks : [];
+        return result?.feedbacks ?? [];
     }
 
     /**

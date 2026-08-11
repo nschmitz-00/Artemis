@@ -1,5 +1,5 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 
@@ -17,11 +17,23 @@ import { MarkdownEditorMonacoComponent } from 'app/editor/markdown-editor/monaco
 import { FormFooterComponent } from 'app/shared-ui/form/form-footer/form-footer.component';
 import { InputTextModule } from 'primeng/inputtext';
 import { InputNumberModule } from 'primeng/inputnumber';
+import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pipe';
+import { ArtemisDatePipe } from 'app/foundation/pipes/artemis-date.pipe';
 
 @Component({
     selector: 'jhi-user-story-exercise-update',
     templateUrl: './user-story-exercise-update.component.html',
-    imports: [TranslateDirective, FormsModule, MarkdownEditorMonacoComponent, FormFooterComponent, InputTextModule, InputNumberModule],
+    imports: [
+        TranslateDirective,
+        FormsModule,
+        RouterLink,
+        MarkdownEditorMonacoComponent,
+        FormFooterComponent,
+        InputTextModule,
+        InputNumberModule,
+        ArtemisTranslatePipe,
+        ArtemisDatePipe,
+    ],
 })
 export class UserStoryExerciseUpdateComponent implements OnInit {
     private readonly milestoneExerciseService = inject(MilestoneExerciseService);
@@ -100,7 +112,8 @@ export class UserStoryExerciseUpdateComponent implements OnInit {
         void this.router.navigate(this.milestoneRoute());
     }
 
-    private milestoneRoute(): (string | number)[] {
+    /** Also used by the template, which links to the milestone form as the place where the assessment settings are edited. */
+    protected milestoneRoute(): (string | number)[] {
         return ['/course-management', this.milestoneExercise().course!.id!, 'milestone-exercises', this.milestoneExercise().id!, 'edit'];
     }
 }

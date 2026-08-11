@@ -9,6 +9,10 @@ import { StructuredGradingCriterionService } from 'app/exercise/structured-gradi
 import { MockTranslateService } from 'test/helpers/mocks/service/mock-translate.service';
 import { NgbTooltipModule } from '@ng-bootstrap/ng-bootstrap';
 import { By } from '@angular/platform-browser';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { MilestoneAssessmentStateService } from 'app/programming/manage/assess/milestone/milestone-assessment-state.service';
+import { deepClone } from 'app/foundation/util/deep-clone.util';
 
 describe('CodeEditorTutorAssessmentInlineFeedbackComponent', () => {
     let comp: CodeEditorTutorAssessmentInlineFeedbackComponent;
@@ -182,5 +186,70 @@ describe('CodeEditorTutorAssessmentInlineFeedbackComponent', () => {
         expect(headerElement.attributes['jhiTranslate'].value).toBe('artemisApp.assessment.detail.tutorComment');
         const paragraphElement = fixture.debugElement.query(By.css('.col-10 p')).nativeElement;
         expect(paragraphElement.innerHTML).toContain(comp.buildFeedbackTextForCodeEditor(comp.currentFeedback()));
+    });
+
+    // While a milestone is assessed, the points belong to its user stories, so a comment has to name the one it is for.
+    describe('User story assignment during a milestone assessment', () => {
+        let milestoneAssessmentState: MilestoneAssessmentStateService;
+
+        const setUpWithUserStories = (userStories: { userStoryExerciseId: number; title: string }[]) => {
+            TestBed.resetTestingModule();
+            TestBed.configureTestingModule({
+                imports: [CodeEditorTutorAssessmentInlineFeedbackComponent, MockModule(NgbTooltipModule)],
+                providers: [
+                    { provide: TranslateService, useClass: MockTranslateService },
+                    MockProvider(StructuredGradingCriterionService),
+                    MilestoneAssessmentStateService,
+                    provideHttpClient(),
+                    provideHttpClientTesting(),
+                ],
+            });
+            milestoneAssessmentState = TestBed.inject(MilestoneAssessmentStateService);
+            milestoneAssessmentState.userStories.set(userStories.map((userStory) => ({ ...userStory, participationId: 1 })));
+
+            fixture = TestBed.createComponent(CodeEditorTutorAssessmentInlineFeedbackComponent);
+            comp = fixture.componentInstance;
+            fixture.componentRef.setInput('feedback', undefined);
+            fixture.componentRef.setInput('readOnly', false);
+            fixture.componentRef.setInput('selectedFile', fileName);
+            fixture.componentRef.setInput('codeLine', codeLine);
+            fixture.detectChanges();
+        };
+
+        it('should offer the user stories of the milestone being assessed', () => {
+            setUpWithUserStories([
+                { userStoryExerciseId: 7, title: 'Story 1' },
+                { userStoryExerciseId: 8, title: 'Story 2' },
+            ]);
+
+            const options = fixture.debugElement.queryAll(By.css('#feedback-user-story option'));
+            // One option per user story plus the empty "select a user story" entry
+            expect(options).toHaveLength(3);
+        });
+
+        it('should not allow saving a comment that names no user story', () => {
+            setUpWithUserStories([{ userStoryExerciseId: 7, title: 'Story 1' }]);
+            // Replaced rather than mutated so the signal notifies and the template re-renders
+            const withCredits = deepClone(comp.currentFeedback());
+            withCredits.credits = 2;
+            comp.currentFeedback.set(withCredits);
+            fixture.detectChanges();
+
+            const saveButton = fixture.debugElement.query(By.css('#feedback-save')).nativeElement;
+            expect(saveButton.disabled).toBe(true);
+
+            const withUserStory = deepClone(comp.currentFeedback());
+            withUserStory.userStoryExerciseId = 7;
+            comp.currentFeedback.set(withUserStory);
+            fixture.detectChanges();
+
+            expect(saveButton.disabled).toBe(false);
+        });
+
+        it('should offer no user story selector outside a milestone assessment', () => {
+            fixture.detectChanges();
+
+            expect(fixture.debugElement.query(By.css('#feedback-user-story'))).toBeNull();
+        });
     });
 });

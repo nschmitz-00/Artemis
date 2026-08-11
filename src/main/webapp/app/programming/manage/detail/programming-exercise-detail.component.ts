@@ -146,8 +146,18 @@ export class ProgrammingExerciseDetailComponent implements OnInit, OnDestroy {
     templateFileContentByPath?: Map<string, string>;
     solutionFileContentByPath?: Map<string, string>;
     readonly isExamExercise = signal<boolean>(false);
+    /**
+     * A MilestoneExercise is a ProgrammingExercise (see MilestoneExercise.java) and therefore shares this detail page,
+     * but it is created and edited through its own routes and endpoints, so the edit link has to point elsewhere.
+     */
+    readonly isMilestoneExercise = signal<boolean>(false);
     supportsAuxiliaryRepositories = false; // default value
     readonly baseResource = signal<string>(undefined!);
+    /**
+     * Base route of the update form of this exercise. Identical to {@link baseResource} except for milestone exercises,
+     * whose edit form lives under `milestone-exercises` instead of `programming-exercises`.
+     */
+    readonly editBaseResource = signal<string>(undefined!);
     readonly shortBaseResource = signal<string>(undefined!);
     readonly teamBaseResource = signal<string>(undefined!);
     // Signal-backed so the child ProgrammingTestStatusDetailComponent re-renders when the participation
@@ -254,6 +264,7 @@ export class ProgrammingExerciseDetailComponent implements OnInit, OnDestroy {
         this.programmingExerciseBuildConfig = programmingExercise.buildConfig;
         const exerciseId = this.programmingExercise().id!;
         this.isExamExercise.set(!!this.programmingExercise().exerciseGroup);
+        this.isMilestoneExercise.set(this.programmingExercise().type === ExerciseType.MILESTONE);
         // Course exercises: TAs and above can access; Exam exercises: only instructors (for exam confidentiality)
         this.canAccessParticipationsAndScores.set((this.programmingExercise()?.isAtLeastTutor && !this.isExamExercise()) || !!this.programmingExercise()?.isAtLeastInstructor);
         this.courseId = this.isExamExercise() ? this.programmingExercise().exerciseGroup!.exam!.course!.id! : this.programmingExercise().course!.id!;
@@ -275,6 +286,11 @@ export class ProgrammingExerciseDetailComponent implements OnInit, OnDestroy {
                     `/exercise-groups/${this.programmingExercise().exerciseGroup?.id}/exercises/${exerciseId}/`,
             );
         }
+
+        // Milestone exercises only exist as course exercises, so the exam variant always keeps the programming exercise route
+        this.editBaseResource.set(
+            this.isMilestoneExercise() && !this.isExamExercise() ? `/course-management/${this.courseId}/milestone-exercises/${exerciseId}/` : this.baseResource(),
+        );
 
         this.templateAndSolutionParticipationSubscription = this.programmingExerciseService
             .findWithTemplateAndSolutionParticipationAndLatestResults(programmingExercise.id!)

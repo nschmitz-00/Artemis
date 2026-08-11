@@ -64,6 +64,7 @@
                 [isProblemStatementVisible]="false"
                 [editable]="false"
                 [participation]="participation()"
+                [inlineFeedbackOverride]="milestoneInlineFeedback()"
                 [feedbackSuggestions]="feedbackSuggestions()"
                 [showEditorInstructions]="showEditorInstructions"
                 [isTutorAssessment]="true"
@@ -138,7 +139,12 @@
         </ng-template>
         <ng-template #editorBottom>
             <div class="row mt-3">
-                @if (manualResult()?.id; as resultId) {
+                @if (isMilestoneAssessment() && participation()) {
+                    <!-- The points of a milestone belong to its user stories, so the feedback is written per user story
+                         instead of once for the submission as a whole. What is assessed comes from the shared state this
+                         page loads (see MilestoneAssessmentStateService). -->
+                    <jhi-milestone-user-story-assessment [readOnly]="readOnly()" />
+                } @else if (manualResult()?.id; as resultId) {
                     <jhi-unreferenced-feedback
                         [(feedbacks)]="unreferencedFeedback"
                         [feedbackSuggestions]="unreferencedFeedbackSuggestions()"

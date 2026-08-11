@@ -1,4 +1,5 @@
-import { Component, ElementRef, inject, input, linkedSignal, output, viewChild } from '@angular/core';
+import { Component, ElementRef, computed, inject, input, linkedSignal, output, viewChild } from '@angular/core';
+import { MilestoneAssessmentStateService } from 'app/programming/manage/assess/milestone/milestone-assessment-state.service';
 import { Feedback, FeedbackType, buildFeedbackTextForReview } from 'app/assessment/shared/entities/feedback.model';
 import { FeedbackSuggestionBadgeComponent } from 'app/exercise/feedback/feedback-suggestion-badge/feedback-suggestion-badge.component';
 import { ButtonSize } from 'app/shared-ui/components/buttons/button/button.component';
@@ -54,6 +55,16 @@ export class CodeEditorTutorAssessmentInlineFeedbackComponent {
     // Needed for the outer editor to access the DOM node of this component
     public elementRef = inject(ElementRef);
 
+    /**
+     * Only present while a milestone submission is being assessed, which is when a comment has to say which user story it is
+     * for: the points of a milestone belong to its user stories, so untagged feedback would score nowhere. The service is
+     * provided by the assessment page (see MilestoneAssessmentStateService), so it is absent for every other exercise.
+     */
+    private readonly milestoneAssessmentState = inject(MilestoneAssessmentStateService, { optional: true });
+
+    /** The user stories this feedback can be written for; empty unless a milestone is being assessed. */
+    protected readonly userStoryOptions = computed(() => this.milestoneAssessmentState?.userStories() ?? []);
+
     readonly feedback = input<Feedback>();
 
     /**
@@ -91,6 +102,15 @@ export class CodeEditorTutorAssessmentInlineFeedbackComponent {
 
     private dialogErrorSource = new Subject<string>();
     dialogError$ = this.dialogErrorSource.asObservable();
+
+    /**
+     * The title of the user story a feedback was written for, or undefined outside a milestone assessment. Used to show on a
+     * saved comment which user story it scores in.
+     * @param feedback the feedback to look up
+     */
+    protected userStoryTitleOf(feedback: Feedback): string | undefined {
+        return this.userStoryOptions().find((userStory) => userStory.userStoryExerciseId === feedback.userStoryExerciseId)?.title;
+    }
 
     /**
      * Updates the current feedback and sets props and emits the feedback to parent component

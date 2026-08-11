@@ -13,11 +13,13 @@ import org.jspecify.annotations.Nullable;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import de.tum.cit.aet.artemis.assessment.domain.AssessmentType;
 import de.tum.cit.aet.artemis.exercise.domain.ExerciseType;
+import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
 
 /**
  * A UserStoryExercise belongs to exactly one {@link MilestoneExercise}. It has its own title, short name,
- * max points, and problem statement, but inherits all dates and repositories from its parent Milestone.
+ * max points, and problem statement, but inherits all dates, repositories, and assessment settings from its parent Milestone.
  * <p>
  * It extends {@link ProgrammingExercise} (rather than {@link de.tum.cit.aet.artemis.exercise.domain.Exercise} directly) so that
  * it can participate unchanged in the existing programming-exercise participation/grading/CI pipeline (which is typed against
@@ -92,6 +94,59 @@ public class UserStoryExercise extends ProgrammingExercise {
     @Nullable
     public ZonedDateTime getExampleSolutionPublicationDate() {
         return milestoneExercise != null ? milestoneExercise.getExampleSolutionPublicationDate() : null;
+    }
+
+    // --- Assessment settings are configured once on the parent Milestone and inherited by all of its user stories. ---
+    //
+    // Rationale: a Milestone's user stories are graded from one and the same submission (a single push produces one Result per
+    // user story, see LocalCIResultProcessingService), so per-user-story assessment settings could not be honoured anyway - one
+    // build cannot be simultaneously automatically and semi-automatically assessed, nor be past one user story's assessment due
+    // date but not another's.
+    //
+    // Note that {@link #getAssessmentDueDate()} is part of this group as well; it is declared with the other dates above.
+    //
+    // Structured grading criteria (Exercise#getGradingCriteria) are deliberately NOT delegated yet: they are only consumed by
+    // manual assessment, they are a cascading collection rather than a scalar, and the assessment code fetches them by exercise
+    // id. They follow once manual assessment of user stories exists.
+
+    @Override
+    public AssessmentType getAssessmentType() {
+        return milestoneExercise != null ? milestoneExercise.getAssessmentType() : super.getAssessmentType();
+    }
+
+    @Override
+    public boolean getAllowComplaintsForAutomaticAssessments() {
+        return milestoneExercise != null ? milestoneExercise.getAllowComplaintsForAutomaticAssessments() : super.getAllowComplaintsForAutomaticAssessments();
+    }
+
+    @Override
+    public boolean getAllowFeedbackRequests() {
+        return milestoneExercise != null ? milestoneExercise.getAllowFeedbackRequests() : super.getAllowFeedbackRequests();
+    }
+
+    @Override
+    public String getFeedbackSuggestionModule() {
+        return milestoneExercise != null ? milestoneExercise.getFeedbackSuggestionModule() : super.getFeedbackSuggestionModule();
+    }
+
+    @Override
+    public boolean getSecondCorrectionEnabled() {
+        return milestoneExercise != null ? milestoneExercise.getSecondCorrectionEnabled() : super.getSecondCorrectionEnabled();
+    }
+
+    @Override
+    public Boolean getPresentationScoreEnabled() {
+        return milestoneExercise != null ? milestoneExercise.getPresentationScoreEnabled() : super.getPresentationScoreEnabled();
+    }
+
+    @Override
+    public IncludedInOverallScore getIncludedInOverallScore() {
+        return milestoneExercise != null ? milestoneExercise.getIncludedInOverallScore() : super.getIncludedInOverallScore();
+    }
+
+    @Override
+    public String getGradingInstructions() {
+        return milestoneExercise != null ? milestoneExercise.getGradingInstructions() : super.getGradingInstructions();
     }
 
     // --- Repositories and build configuration are inherited from the parent Milestone; this row owns none of its own. ---

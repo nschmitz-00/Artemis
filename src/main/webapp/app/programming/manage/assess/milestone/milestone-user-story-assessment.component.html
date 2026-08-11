@@ -1,0 +1,57 @@
+<div class="card" id="milestone-user-story-assessment">
+    <div class="card-body">
+        <h4 jhiTranslate="artemisApp.milestoneExercise.assessment.title"></h4>
+        <p class="text-muted small" jhiTranslate="artemisApp.milestoneExercise.assessment.hint"></p>
+
+        @if (milestoneAssessmentState.isLoading()) {
+            <p class="text-muted" jhiTranslate="artemisApp.milestoneExercise.assessment.loading"></p>
+        } @else if (milestoneAssessmentState.userStories().length === 0) {
+            <p class="text-muted" jhiTranslate="artemisApp.milestoneExercise.userStories.noUserStories"></p>
+        } @else {
+            @if (!milestoneAssessmentState.allReferencedFeedbackAssigned()) {
+                <!-- Feedback that belongs to no user story scores no points anywhere, so it must not pass unnoticed -->
+                <div class="alert alert-warning" id="unassigned-inline-feedback-warning">
+                    {{
+                        'artemisApp.milestoneExercise.assessment.unassignedInlineFeedback'
+                            | artemisTranslate: { count: milestoneAssessmentState.unassignedReferencedFeedback().length }
+                    }}
+                </div>
+            }
+
+            @for (userStory of milestoneAssessmentState.userStories(); track userStory.userStoryExerciseId) {
+                <section class="mb-4" id="user-story-assessment-{{ userStory.userStoryExerciseId }}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">{{ userStory.title }}</h5>
+                        <span class="small" id="user-story-points-{{ userStory.userStoryExerciseId }}">
+                            <span class="text-muted-color">{{ 'artemisApp.milestoneExercise.assessment.automaticPoints' | artemisTranslate }}:</span>
+                            {{ milestoneAssessmentState.automaticPoints(userStory.userStoryExerciseId) }}
+                            <span class="text-muted-color ms-2">{{ 'artemisApp.milestoneExercise.assessment.manualPoints' | artemisTranslate }}:</span>
+                            {{ milestoneAssessmentState.manualPoints(userStory.userStoryExerciseId) }}
+                            <span class="ms-2">
+                                <strong>
+                                    {{ 'artemisApp.milestoneExercise.assessment.totalPoints' | artemisTranslate }}:
+                                    {{ milestoneAssessmentState.totalPoints(userStory.userStoryExerciseId) }}
+                                </strong>
+                                / {{ userStory.maxPoints ?? 0 }}
+                            </span>
+                        </span>
+                    </div>
+                    @if (milestoneAssessmentState.referencedFeedbackOf(userStory.userStoryExerciseId).length > 0) {
+                        <p class="small text-muted-color mb-1" id="user-story-inline-feedback-count-{{ userStory.userStoryExerciseId }}">
+                            {{
+                                'artemisApp.milestoneExercise.assessment.inlineFeedbackCount'
+                                    | artemisTranslate: { count: milestoneAssessmentState.referencedFeedbackOf(userStory.userStoryExerciseId).length }
+                            }}
+                        </p>
+                    }
+                    <jhi-unreferenced-feedback
+                        [feedbacks]="milestoneAssessmentState.unreferencedFeedbackOf(userStory.userStoryExerciseId)"
+                        (feedbacksChange)="onUnreferencedFeedbacksChange(userStory.userStoryExerciseId, $event)"
+                        [readOnly]="readOnly()"
+                        [resultId]="userStory.latestResult?.id ?? 0"
+                    />
+                </section>
+            }
+        }
+    </div>
+</div>
