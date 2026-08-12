@@ -2,6 +2,8 @@ package de.tum.cit.aet.artemis.programming;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.ZonedDateTime;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,7 +13,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 
 import de.tum.cit.aet.artemis.assessment.domain.AssessmentType;
 import de.tum.cit.aet.artemis.assessment.domain.Result;
-import de.tum.cit.aet.artemis.assessment.repository.ResultRepository;
+import de.tum.cit.aet.artemis.assessment.test_repository.ResultTestRepository;
 import de.tum.cit.aet.artemis.exercise.domain.Submission;
 import de.tum.cit.aet.artemis.exercise.util.ExerciseUtilService;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
@@ -33,7 +35,7 @@ class ProgrammingExerciseExplanationVideoIntegrationTest extends AbstractProgram
     private final MockMultipartFile wrongExtensionFile = new MockMultipartFile("file", "explanation.txt", "text/plain", "not a video".getBytes());
 
     @Autowired
-    private ResultRepository resultRepository;
+    private ResultTestRepository resultRepository;
 
     @BeforeEach
     void initTestCase() {
@@ -115,7 +117,11 @@ class ProgrammingExerciseExplanationVideoIntegrationTest extends AbstractProgram
     @Test
     @WithMockUser(username = TEST_PREFIX + "student1")
     void uploadExplanationVideo_reRatesPreviouslyGatedAutomaticResult() throws Exception {
-        Submission submission = participationUtilService.addSubmission(participation, new ProgrammingSubmission());
+        // The submission date has to be set: re-rating compares it against the due date, and every ProgrammingSubmission the
+        // build pipeline creates carries one (a missing one made the upload fail with a 500 instead of re-rating the result).
+        ProgrammingSubmission programmingSubmission = new ProgrammingSubmission();
+        programmingSubmission.setSubmissionDate(ZonedDateTime.now().minusHours(1));
+        Submission submission = participationUtilService.addSubmission(participation, programmingSubmission);
         // Simulate the grading gate having withheld this automatic result because no video was present yet (rated = false).
         Submission submissionWithResult = participationUtilService.addResultToSubmission(submission, AssessmentType.AUTOMATIC, null, 100D, false);
         Result result = submissionWithResult.getFirstResult();

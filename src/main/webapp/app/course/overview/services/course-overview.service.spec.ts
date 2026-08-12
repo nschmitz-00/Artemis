@@ -19,6 +19,8 @@ import dayjs from 'dayjs/esm';
 import { ConversationDTO, ConversationType } from 'app/communication/shared/entities/conversation/conversation.model';
 import { TutorialGroup } from 'app/tutorialgroup/shared/entities/tutorial-group.model';
 import { QuizExercise } from 'app/quiz/shared/entities/quiz-exercise.model';
+import { MilestoneExercise } from 'app/programming/shared/entities/milestone-exercise.model';
+import { UserStoryExercise } from 'app/programming/shared/entities/user-story-exercise.model';
 import { GroupChatDTO } from 'app/communication/shared/entities/conversation/group-chat.model';
 import { OneToOneChatDTO } from 'app/communication/shared/entities/conversation/one-to-one-chat.model';
 
@@ -178,6 +180,54 @@ describe('CourseOverviewService', () => {
         expect(sortedExercises[0].id).toBe(futureExercise.id);
         expect(sortedExercises[1].id).toBe(dueSoonExercise.id);
         expect(sortedExercises[2].id).toBe(pastExercise.id);
+    });
+
+    describe('milestone exercises', () => {
+        // A user story inherits its milestone's due date, so the plain due-date/title sort interleaves it with unrelated
+        // exercises - but the sidebar renders it indented under its milestone, so it has to actually follow it.
+        const milestoneDueDate = dayjs().add(3, 'days');
+
+        const createMilestone = (id: number, title: string): Exercise => {
+            const milestone = new MilestoneExercise(course, undefined);
+            milestone.id = id;
+            milestone.title = title;
+            milestone.dueDate = milestoneDueDate;
+            return milestone;
+        };
+
+        const createUserStory = (id: number, title: string, milestone: Exercise): Exercise => {
+            const userStory = new UserStoryExercise(course, undefined);
+            userStory.id = id;
+            userStory.title = title;
+            userStory.dueDate = milestoneDueDate;
+            userStory.milestoneExercise = milestone as MilestoneExercise;
+            return userStory;
+        };
+
+        it('should list every user story directly below its milestone', () => {
+            const zebraMilestone = createMilestone(10, 'Zebra Milestone');
+            const alphaStory = createUserStory(11, 'Alpha Story', zebraMilestone);
+            const betaStory = createUserStory(12, 'Beta Story', zebraMilestone);
+
+            const sortedExercises = courseOverviewService.sortExercises([alphaStory, zebraMilestone, betaStory]);
+
+            expect(sortedExercises.map((exercise) => exercise.id)).toEqual([zebraMilestone.id, alphaStory.id, betaStory.id]);
+        });
+
+        it('should keep a user story whose milestone is not listed', () => {
+            const orphanStory = createUserStory(21, 'Orphan Story', createMilestone(20, 'Unlisted Milestone'));
+
+            const sortedExercises = courseOverviewService.sortExercises([orphanStory, pastExercise]);
+
+            expect(sortedExercises.map((exercise) => exercise.id)).toContain(orphanStory.id);
+        });
+
+        it('should indent user stories in the sidebar, but not their milestone', () => {
+            const milestone = createMilestone(30, 'Milestone');
+
+            expect(courseOverviewService.mapExerciseToSidebarCardElement(milestone).indentLevel).toBe(0);
+            expect(courseOverviewService.mapExerciseToSidebarCardElement(createUserStory(31, 'Story', milestone)).indentLevel).toBe(1);
+        });
     });
 
     it('should group lectures by start date and map to sidebar card elements', () => {

@@ -132,6 +132,24 @@ describe('ExerciseSplitPanelComponent', () => {
         });
     });
 
+    describe('progress panel for milestone exercises', () => {
+        // A Milestone is graded through its user stories, so the single result on its own participation says nothing about
+        // which user story paid out - the progress panel is that breakdown, and only a Milestone has one.
+        it('should show the progress panel for a milestone exercise', () => {
+            fixture.componentRef.setInput('exercise', { id: 1, type: ExerciseType.MILESTONE } as Exercise);
+            fixture.detectChanges();
+
+            expect(component.showMilestoneProgress()).toBeTruthy();
+        });
+
+        it.each([ExerciseType.USER_STORY, ExerciseType.PROGRAMMING, ExerciseType.TEXT])('should not show the progress panel for %s exercises', (type) => {
+            fixture.componentRef.setInput('exercise', { id: 1, type } as Exercise);
+            fixture.detectChanges();
+
+            expect(component.showMilestoneProgress()).toBeFalsy();
+        });
+    });
+
     describe('communication panel for user story exercises', () => {
         // Only the parent Milestone owns a channel (UserStoryExerciseService never creates one), so discussion about a
         // user story has to target the Milestone. DiscussionSectionComponent resolves the channel from the exercise it

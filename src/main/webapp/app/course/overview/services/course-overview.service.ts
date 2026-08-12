@@ -16,6 +16,7 @@ import { ParticipationService } from 'app/exercise/participation/participation.s
 import { Exercise, ExerciseType, getIcon } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { StudentParticipation } from 'app/exercise/shared/entities/participation/student-participation.model';
 import { Lecture } from 'app/lecture/shared/entities/lecture.model';
+import { UserStoryExercise } from 'app/programming/shared/entities/user-story-exercise.model';
 import { AccordionGroups, ChannelGroupCategory, SidebarCardElement, TimeGroupCategory } from 'app/foundation/types/sidebar';
 import { TutorialGroup } from 'app/tutorialgroup/shared/entities/tutorial-group.model';
 import dayjs, { Dayjs } from 'dayjs/esm';
@@ -610,12 +611,56 @@ export class CourseOverviewService {
     }
 
     sortExercises(exercises: Exercise[]): Exercise[] {
-        return exercises?.sort((a, b) => {
+        const sortedExercises = exercises?.sort((a, b) => {
             const dueDateA = getExerciseDueDate(a, this.studentParticipation(a))?.valueOf() ?? 0;
             const dueDateB = getExerciseDueDate(b, this.studentParticipation(b))?.valueOf() ?? 0;
             // If Due Date is identical or undefined sort by title
             return dueDateB - dueDateA !== 0 ? dueDateB - dueDateA : this.sortByTitle(a, b);
         });
+        return this.nestUserStoriesUnderMilestones(sortedExercises);
+    }
+
+    /**
+     * Moves every UserStoryExercise directly below the MilestoneExercise it belongs to, keeping the order the sort above
+     * produced everywhere else.
+     *
+     * A user story inherits its milestone's due date (see UserStoryExercise.java, server), so the sort already puts the two in
+     * the same time group - but within that group they are ordered by title, which does not put a milestone next to its own
+     * children. Since the sidebar renders user stories indented under their milestone, they have to actually follow it.
+     *
+     * @param sortedExercises the exercises in due-date/title order
+     * @returns the same exercises with each user story placed after its milestone
+     */
+    private nestUserStoriesUnderMilestones(sortedExercises: Exercise[]): Exercise[] {
+        const milestoneIds = new Set(sortedExercises?.filter((exercise) => exercise.type === ExerciseType.MILESTONE).map((exercise) => exercise.id));
+        const userStoriesByMilestoneId = new Map<number, Exercise[]>();
+        for (const exercise of sortedExercises ?? []) {
+            const milestoneId = exercise.type === ExerciseType.USER_STORY ? (exercise as UserStoryExercise).milestoneExercise?.id : undefined;
+            // A user story whose milestone is not in the list (e.g. not released to this student) stays where it is rather than
+            // disappearing from the sidebar
+            if (milestoneId === undefined || !milestoneIds.has(milestoneId)) {
+                continue;
+            }
+            const siblings = userStoriesByMilestoneId.get(milestoneId) ?? [];
+            siblings.push(exercise);
+            userStoriesByMilestoneId.set(milestoneId, siblings);
+        }
+        if (!userStoriesByMilestoneId.size) {
+            return sortedExercises;
+        }
+
+        const nestedUserStories = new Set([...userStoriesByMilestoneId.values()].flat());
+        const nestedExercises: Exercise[] = [];
+        for (const exercise of sortedExercises) {
+            if (nestedUserStories.has(exercise)) {
+                continue;
+            }
+            nestedExercises.push(exercise);
+            if (exercise.type === ExerciseType.MILESTONE && exercise.id !== undefined) {
+                nestedExercises.push(...(userStoriesByMilestoneId.get(exercise.id) ?? []));
+            }
+        }
+        return nestedExercises;
     }
 
     studentParticipation(exercise: Exercise): StudentParticipation | undefined {

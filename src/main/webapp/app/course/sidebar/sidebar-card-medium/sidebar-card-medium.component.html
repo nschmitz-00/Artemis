@@ -8,7 +8,9 @@
         <jhi-sidebar-card-item [groupKey]="groupKey()" [sidebarType]="sidebarType()" [sidebarItem]="sidebarItem()" />
     </div>
 } @else {
-    <div class="item-border rounded-3 col-12">
+    <!-- Indented as a whole (not just its content) so that the coloured left border moves with it and the card reads as a
+         child of the one above - a UserStoryExercise below its MilestoneExercise, see SidebarCardElement#indentLevel -->
+    <div class="item-border rounded-3 col-12" [style.marginLeft.rem]="indent()" [style.width]="indent() ? 'calc(100% - ' + indent() + 'rem)' : null">
         <div
             id="test-sidebar-card-medium"
             class="pointer rounded-3 col-12 px-1 py-2 border-start border-5 highlight-card bg-module hover-effect"

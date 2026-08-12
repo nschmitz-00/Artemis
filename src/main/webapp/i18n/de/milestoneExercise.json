@@ -21,6 +21,22 @@
                 "unassignedInlineFeedback": "{{ count }} Kommentar(e) im Code sind noch keiner User Story zugeordnet und würden keine Punkte ergeben. Ordne sie vor der Abgabe zu.",
                 "inlineFeedbackCount": "{{ count }} Kommentar(e) im Code sind dieser User Story zugeordnet."
             },
+            "progress": {
+                "title": "Fortschritt",
+                "loading": "Dein Fortschritt in diesem Meilenstein wird geladen...",
+                "loadingFailed": "Dein Fortschritt in diesem Meilenstein konnte nicht geladen werden.",
+                "storiesCompleted": "{{ completed }} von {{ total }} User Stories abgeschlossen",
+                "userStory": "User Story",
+                "statusColumn": "Status",
+                "lastResult": "Letztes Ergebnis",
+                "bonusPoints": "(+{{ bonusPoints }} Bonus)",
+                "manualAssessmentPending": "Dieser Meilenstein wird manuell bewertet. Deine Punkte können sich noch ändern, sobald die Bewertung veröffentlicht ist.",
+                "status": {
+                    "NOT_STARTED": "Nicht begonnen",
+                    "IN_PROGRESS": "In Bearbeitung",
+                    "COMPLETED": "Abgeschlossen"
+                }
+            },
             "problemStatementHint": "Diese Beschreibung wird Studierenden angezeigt, wenn sie den Meilenstein öffnen. Sie wird als Markdown gerendert.",
             "grading": {
                 "totalPoints": "(Summe der {{ count }} User Stories unten)",

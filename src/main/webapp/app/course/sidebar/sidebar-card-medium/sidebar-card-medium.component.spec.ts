@@ -65,6 +65,25 @@ describe('SidebarCardMediumComponent', () => {
         expect(classes).toContain('border-danger');
     });
 
+    // A user story is shown as a child of its milestone (SidebarCardElement#indentLevel). The whole card moves, so the coloured
+    // left border moves with it, and its width shrinks by the same amount - a bare margin would push it out of the sidebar.
+    it('should not indent a top-level card', () => {
+        const card: HTMLElement = fixture.nativeElement.querySelector('#test-sidebar-card-medium').parentElement;
+
+        expect(card.style.marginLeft).toBe('');
+        expect(card.style.width).toBe('');
+    });
+
+    it('should indent a nested card and take the indentation off its width', () => {
+        fixture.componentRef.setInput('sidebarItem', { ...component.sidebarItem(), indentLevel: 1 });
+        fixture.changeDetectorRef.detectChanges();
+
+        const card: HTMLElement = fixture.nativeElement.querySelector('#test-sidebar-card-medium').parentElement;
+
+        expect(card.style.marginLeft).toBe('1.25rem');
+        expect(card.style.width).toBe('calc(100% - 1.25rem)');
+    });
+
     it('should store target subroute and refresh on click when previously an item was selected', async () => {
         vi.spyOn(component, 'storeTargetComponentSubRoute');
         vi.spyOn(component, 'refreshChildComponent');

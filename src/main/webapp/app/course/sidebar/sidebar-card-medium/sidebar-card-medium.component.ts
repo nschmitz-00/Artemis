@@ -1,4 +1,4 @@
-import { Component, inject, input, output } from '@angular/core';
+import { Component, computed, inject, input, output } from '@angular/core';
 import { DifficultyLevel } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { SidebarEventService } from '../service/sidebar-event.service';
 import { ActivatedRoute, Router, RouterLink, RouterLinkActive } from '@angular/router';
@@ -25,6 +25,19 @@ export class SidebarCardMediumComponent {
     readonly pageChange = output<string | number>();
     /** Key used for grouping or categorizing sidebar items */
     readonly groupKey = input<string>();
+
+    /** How far a nested card (a user story below its milestone, see SidebarCardElement#indentLevel) is inset, in rem. */
+    private static readonly INDENT_PER_LEVEL_REM = 1.25;
+
+    /**
+     * The inset of this card, as a rem value, or undefined for a top-level card. The card is a `col-12`, i.e. exactly as wide
+     * as the sidebar, so the same amount has to come off its width - a bare margin would push its right edge out of the
+     * sidebar instead of narrowing the card.
+     */
+    protected readonly indent = computed(() => {
+        const indentLevel = this.sidebarItem()?.indentLevel;
+        return indentLevel ? indentLevel * SidebarCardMediumComponent.INDENT_PER_LEVEL_REM : undefined;
+    });
 
     onNonExamCardClicked() {
         this.storeTargetComponentSubRoute();

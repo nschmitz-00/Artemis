@@ -21,6 +21,22 @@
                 "unassignedInlineFeedback": "{{ count }} inline comment(s) are not assigned to a user story yet and would score no points. Assign them before submitting.",
                 "inlineFeedbackCount": "{{ count }} inline comment(s) in the code are assigned to this user story."
             },
+            "progress": {
+                "title": "Progress",
+                "loading": "Loading your progress on this milestone...",
+                "loadingFailed": "Your progress on this milestone could not be loaded.",
+                "storiesCompleted": "{{ completed }} of {{ total }} user stories completed",
+                "userStory": "User Story",
+                "statusColumn": "Status",
+                "lastResult": "Last result",
+                "bonusPoints": "(+{{ bonusPoints }} bonus)",
+                "manualAssessmentPending": "This milestone is assessed manually. Your points can still change once the assessment has been published.",
+                "status": {
+                    "NOT_STARTED": "Not started",
+                    "IN_PROGRESS": "In progress",
+                    "COMPLETED": "Completed"
+                }
+            },
             "problemStatementHint": "This description is shown to students when they open the milestone. It is rendered as Markdown.",
             "grading": {
                 "totalPoints": "(sum of the {{ count }} user stories below)",

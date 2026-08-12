@@ -10,7 +10,6 @@ import { TranslateDirective } from 'app/foundation/language/translate.directive'
 import { FaIconComponent } from '@fortawesome/angular-fontawesome';
 import { faPencilAlt, faPlus, faTrash } from '@fortawesome/free-solid-svg-icons';
 import { DeleteButtonDirective } from 'app/shared-ui/delete-dialog/directive/delete-button.directive';
-import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pipe';
 
 /**
  * Lists the UserStoryExercise children of a MilestoneExercise, with add/edit/remove actions - this is the in-page
@@ -20,7 +19,7 @@ import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pip
 @Component({
     selector: 'jhi-milestone-user-stories',
     templateUrl: './milestone-user-stories.component.html',
-    imports: [TranslateDirective, FaIconComponent, RouterLink, DeleteButtonDirective, ArtemisTranslatePipe],
+    imports: [TranslateDirective, FaIconComponent, RouterLink, DeleteButtonDirective],
 })
 export class MilestoneUserStoriesComponent {
     private readonly userStoryExerciseService = inject(UserStoryExerciseService);

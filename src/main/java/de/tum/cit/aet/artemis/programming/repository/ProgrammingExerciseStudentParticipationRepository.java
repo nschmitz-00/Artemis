@@ -55,6 +55,31 @@ public interface ProgrammingExerciseStudentParticipationRepository extends Artem
             @Param("repositoryUri") String repositoryUri, @Param("studentId") long studentId);
 
     /**
+     * Finds the {@link ProgrammingExerciseStudentParticipation}s a student has in the {@code UserStoryExercise}s of the given
+     * MilestoneExercise, with their submissions and results fetched, so the student's progress over all user stories can be
+     * computed in a single query.
+     * <p>
+     * Unlike {@link #findAllUserStorySiblingsByMilestoneIdAndRepositoryUriAndStudentId} this is not scoped by repository uri:
+     * the progress overview reports on everything the student has worked on in this Milestone, not only on the one submission
+     * that is currently being assessed.
+     *
+     * @param milestoneExerciseId the id of the MilestoneExercise whose user story participations should be found
+     * @param studentId           the id of the student whose progress is reported
+     * @return the student's user story participations, including their submissions and results
+     */
+    @Query("""
+            SELECT DISTINCT p
+            FROM ProgrammingExerciseStudentParticipation p
+                JOIN UserStoryExercise us ON us.id = p.exercise.id
+                LEFT JOIN FETCH p.submissions s
+                LEFT JOIN FETCH s.results r
+            WHERE us.milestoneExercise.id = :milestoneExerciseId
+                AND p.student.id = :studentId
+            """)
+    List<ProgrammingExerciseStudentParticipation> findAllUserStoryParticipationsWithSubmissionsAndResultsByMilestoneIdAndStudentId(
+            @Param("milestoneExerciseId") long milestoneExerciseId, @Param("studentId") long studentId);
+
+    /**
      * Loads a {@link ProgrammingExerciseStudentParticipation} by id with all related submissions and results in one query (avoiding N+1 issues via {@code LEFT JOIN FETCH}).
      *
      * <p>

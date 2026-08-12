@@ -78,6 +78,12 @@
         </ng-template>
     }
 
+    @if (showMilestoneProgress()) {
+        <ng-template jhiPanel [label]="'artemisApp.milestoneExercise.progress.title'" [icon]="faListCheck">
+            <jhi-milestone-progress [milestoneExerciseId]="exercise().id!" />
+        </ng-template>
+    }
+
     @if (showIris()) {
         <ng-template #irisLogoTpl>
             <jhi-iris-logo [size]="IrisLogoSize.TEXT" />

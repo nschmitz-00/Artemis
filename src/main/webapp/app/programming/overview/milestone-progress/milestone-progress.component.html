@@ -1,0 +1,75 @@
+<div class="d-flex flex-column gap-3 p-3" id="milestone-progress">
+    <h4 class="mb-0" jhiTranslate="artemisApp.milestoneExercise.progress.title"></h4>
+
+    @if (isLoading()) {
+        <p class="text-muted-color mb-0" jhiTranslate="artemisApp.milestoneExercise.progress.loading"></p>
+    } @else if (hasFailed()) {
+        <p-message severity="warn" [text]="'artemisApp.milestoneExercise.progress.loadingFailed' | artemisTranslate" />
+    } @else if (progress(); as milestoneProgress) {
+        @if (milestoneProgress.totalUserStories === 0) {
+            <p class="text-muted-color mb-0" jhiTranslate="artemisApp.milestoneExercise.userStories.noUserStories"></p>
+        } @else {
+            <div class="d-flex flex-column gap-1">
+                <div class="d-flex justify-content-between align-items-baseline">
+                    <span id="milestone-progress-stories">
+                        {{
+                            'artemisApp.milestoneExercise.progress.storiesCompleted'
+                                | artemisTranslate: { completed: milestoneProgress.completedUserStories, total: milestoneProgress.totalUserStories }
+                        }}
+                    </span>
+                    <span id="milestone-progress-points">
+                        <strong>{{ milestoneProgress.achievedPoints }}</strong> / {{ milestoneProgress.maxPoints }}
+                        <span jhiTranslate="artemisApp.exercise.points"></span>
+                    </span>
+                </div>
+                <p-progressbar id="milestone-progress-bar" [value]="milestoneProgress.completionPercentage" [showValue]="true" [style]="{ height: '1.25rem' }" />
+            </div>
+
+            @if (milestoneProgress.manualAssessmentPending) {
+                <p-message severity="info" [text]="'artemisApp.milestoneExercise.progress.manualAssessmentPending' | artemisTranslate" />
+            }
+
+            <p-table [value]="userStories()" styleClass="p-datatable-sm" [tableStyle]="{ 'min-width': '100%' }">
+                <ng-template #header>
+                    <tr>
+                        <th jhiTranslate="artemisApp.milestoneExercise.progress.userStory"></th>
+                        <th jhiTranslate="artemisApp.milestoneExercise.progress.statusColumn"></th>
+                        <th class="text-end" jhiTranslate="artemisApp.exercise.points"></th>
+                        <th jhiTranslate="artemisApp.milestoneExercise.progress.lastResult"></th>
+                    </tr>
+                </ng-template>
+                <ng-template #body let-userStory>
+                    <tr id="milestone-progress-user-story-{{ userStory.userStoryExerciseId }}">
+                        <td>
+                            <span>{{ userStory.title }}</span>
+                            @if (userStory.shortName) {
+                                <span class="text-muted-color ms-1 small">({{ userStory.shortName }})</span>
+                            }
+                        </td>
+                        <td>
+                            <p-tag [severity]="statusSeverity(userStory.status)" [value]="statusTranslationKey(userStory.status) | artemisTranslate" />
+                        </td>
+                        <td class="text-end" id="milestone-progress-user-story-{{ userStory.userStoryExerciseId }}-points">
+                            <strong>{{ userStory.achievedPoints }}</strong> / {{ userStory.maxPoints }}
+                            @if (userStory.bonusPoints) {
+                                <span class="text-muted-color ms-1 small">{{
+                                    'artemisApp.milestoneExercise.progress.bonusPoints' | artemisTranslate: { bonusPoints: userStory.bonusPoints }
+                                }}</span>
+                            }
+                            @if (userStory.status !== UserStoryProgressStatus.NOT_STARTED) {
+                                <span class="text-muted-color ms-1 small">({{ userStory.score }}%)</span>
+                            }
+                        </td>
+                        <td>
+                            @if (userStory.latestResultCompletionDate) {
+                                {{ userStory.latestResultCompletionDate | artemisDate }}
+                            } @else {
+                                <span class="text-muted-color">-</span>
+                            }
+                        </td>
+                    </tr>
+                </ng-template>
+            </p-table>
+        }
+    }
+</div>

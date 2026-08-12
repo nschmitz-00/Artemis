@@ -30,9 +30,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 
 import de.tum.cit.aet.artemis.account.domain.User;
 import de.tum.cit.aet.artemis.account.repository.UserRepository;
+import de.tum.cit.aet.artemis.core.exception.AccessForbiddenException;
 import de.tum.cit.aet.artemis.core.exception.BadRequestAlertException;
 import de.tum.cit.aet.artemis.core.security.Role;
 import de.tum.cit.aet.artemis.core.security.annotations.EnforceAtLeastEditor;
+import de.tum.cit.aet.artemis.core.security.annotations.EnforceAtLeastStudent;
 import de.tum.cit.aet.artemis.core.security.annotations.EnforceAtLeastTutor;
 import de.tum.cit.aet.artemis.core.service.AuthorizationCheckService;
 import de.tum.cit.aet.artemis.core.service.feature.Feature;
@@ -43,11 +45,13 @@ import de.tum.cit.aet.artemis.course.repository.CourseRepository;
 import de.tum.cit.aet.artemis.course.service.CourseService;
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.dto.MilestoneExerciseUserStoryCountDTO;
+import de.tum.cit.aet.artemis.programming.dto.MilestoneProgressDTO;
 import de.tum.cit.aet.artemis.programming.dto.MilestoneTestCaseCoverageDTO;
 import de.tum.cit.aet.artemis.programming.dto.UpdateProgrammingExerciseDTO;
 import de.tum.cit.aet.artemis.programming.exception.ContinuousIntegrationException;
 import de.tum.cit.aet.artemis.programming.repository.MilestoneExerciseRepository;
 import de.tum.cit.aet.artemis.programming.service.MilestoneExerciseService;
+import de.tum.cit.aet.artemis.programming.service.MilestoneProgressService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseTaskService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseUpdateDtoService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseValidationService;
@@ -81,6 +85,8 @@ public class MilestoneExerciseResource {
 
     private final MilestoneExerciseService milestoneExerciseService;
 
+    private final MilestoneProgressService milestoneProgressService;
+
     private final MilestoneExerciseRepository milestoneExerciseRepository;
 
     private final CourseRepository courseRepository;
@@ -93,12 +99,13 @@ public class MilestoneExerciseResource {
 
     public MilestoneExerciseResource(CourseService courseService, AuthorizationCheckService authCheckService,
             ProgrammingExerciseValidationService programmingExerciseValidationService, MilestoneExerciseService milestoneExerciseService,
-            MilestoneExerciseRepository milestoneExerciseRepository, CourseRepository courseRepository, UserRepository userRepository,
-            ProgrammingExerciseUpdateDtoService programmingExerciseUpdateDtoService, ProgrammingExerciseTaskService programmingExerciseTaskService) {
+            MilestoneProgressService milestoneProgressService, MilestoneExerciseRepository milestoneExerciseRepository, CourseRepository courseRepository,
+            UserRepository userRepository, ProgrammingExerciseUpdateDtoService programmingExerciseUpdateDtoService, ProgrammingExerciseTaskService programmingExerciseTaskService) {
         this.courseService = courseService;
         this.authCheckService = authCheckService;
         this.programmingExerciseValidationService = programmingExerciseValidationService;
         this.milestoneExerciseService = milestoneExerciseService;
+        this.milestoneProgressService = milestoneProgressService;
         this.milestoneExerciseRepository = milestoneExerciseRepository;
         this.courseRepository = courseRepository;
         this.userRepository = userRepository;
@@ -220,6 +227,32 @@ public class MilestoneExerciseResource {
         User user = userRepository.getUserWithGroupsAndAuthorities();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.EDITOR, milestoneExercise, user);
         return ResponseEntity.ok(milestoneExerciseService.analyseTestCaseCoverage(exerciseId));
+    }
+
+    /**
+     * GET /milestone-exercises/{exerciseId}/progress : Gets the requesting student's story-by-story progress on a Milestone -
+     * per user story its status and the points earned on it, plus the aggregate over all of them.
+     * <p>
+     * Student-level, and always reports on the requesting user: a Milestone carries no points of its own, so this is the only
+     * place a student can see what their pushes have paid out per user story (see {@link MilestoneProgressService}). Tutors and
+     * above get their own progress here as well - the tutor-facing view of a student's user stories is
+     * {@link MilestoneAssessmentResource#getUserStoryAssessments}.
+     *
+     * @param exerciseId the id of the MilestoneExercise to report on
+     * @return the ResponseEntity with status 200 (OK) and the requesting student's progress on the Milestone
+     */
+    @GetMapping("milestone-exercises/{exerciseId}/progress")
+    @EnforceAtLeastStudent
+    public ResponseEntity<MilestoneProgressDTO> getMilestoneProgress(@PathVariable long exerciseId) {
+        log.debug("REST request to get the progress of the current user on MilestoneExercise : {}", exerciseId);
+        MilestoneExercise milestoneExercise = milestoneExerciseRepository.findWithUserStoryExercisesByIdElseThrow(exerciseId);
+        User user = userRepository.getUserWithGroupsAndAuthorities();
+        authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.STUDENT, milestoneExercise, user);
+        // Students must not learn anything about an exercise that has not been released to them yet; tutors and above legitimately see it early
+        if (!milestoneExercise.isVisibleToStudents() && !authCheckService.isAtLeastTeachingAssistantForExercise(milestoneExercise, user)) {
+            throw new AccessForbiddenException("The milestone exercise has not been released yet");
+        }
+        return ResponseEntity.ok(milestoneProgressService.getProgressForStudent(milestoneExercise, user.getId()));
     }
 
     /**

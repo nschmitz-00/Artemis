@@ -6,7 +6,7 @@ import { deepClone } from 'app/foundation/util/deep-clone.util';
 import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
 import { StudentParticipation } from 'app/exercise/shared/entities/participation/student-participation.model';
 import { ProgrammingExerciseStudentParticipation } from 'app/exercise/shared/entities/participation/programming-exercise-student-participation.model';
-import { faAlignLeft, faComment, faGear, faGraduationCap } from '@fortawesome/free-solid-svg-icons';
+import { faAlignLeft, faComment, faGear, faGraduationCap, faListCheck } from '@fortawesome/free-solid-svg-icons';
 import { ProblemStatementComponent } from 'app/course/overview/exercise-details/problem-statement/problem-statement.component';
 import { TextEditorComponent } from 'app/text/overview/text-editor/text-editor.component';
 import { CodeEditorStudentContainerComponent } from 'app/programming/overview/code-editor-student-container/code-editor-student-container.component';
@@ -41,6 +41,7 @@ import { ExampleSolutionInfo } from 'app/exercise/services/exercise.service';
 import { DiscussionSectionComponent } from 'app/communication/shared/discussion-section/discussion-section.component';
 import { AccountService } from 'app/core/auth/account.service';
 import { LLMSelectionDecision } from 'app/account/user/shared/dto/updateLLMSelectionDecision.dto';
+import { MilestoneProgressComponent } from 'app/programming/overview/milestone-progress/milestone-progress.component';
 
 @Component({
     selector: 'jhi-exercise-split-panel',
@@ -66,6 +67,7 @@ import { LLMSelectionDecision } from 'app/account/user/shared/dto/updateLLMSelec
         DiscussionSectionComponent,
         PanelModule,
         ProgrammingExerciseExplanationVideoComponent,
+        MilestoneProgressComponent,
     ],
 })
 export class ExerciseSplitPanelComponent {
@@ -99,6 +101,7 @@ export class ExerciseSplitPanelComponent {
     protected readonly faComment = faComment;
     protected readonly faGraduationCap = faGraduationCap;
     protected readonly faAlignLeft = faAlignLeft;
+    protected readonly faListCheck = faListCheck;
     protected readonly getIcon = getIcon;
     protected readonly ExerciseType = ExerciseType;
     protected readonly AssessmentType = AssessmentType;
@@ -154,6 +157,13 @@ export class ExerciseSplitPanelComponent {
         discussionTarget.course = exercise.course;
         return discussionTarget;
     });
+
+    /**
+     * A Milestone is the only exercise whose points live entirely in its children: the student pushes once and every user story
+     * is graded from that push separately, so the single result on the Milestone participation says nothing about which user
+     * story paid out. The progress panel is that breakdown, and it therefore only exists for Milestones.
+     */
+    readonly showMilestoneProgress = computed(() => this.exercise().type === ExerciseType.MILESTONE && !!this.exercise().id);
 
     readonly showDiscussion = computed(() => {
         const course = this.discussionExercise()?.course;
