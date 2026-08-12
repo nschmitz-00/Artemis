@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, OnDestroy, OnInit, ViewEncapsulation, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, ViewEncapsulation, computed, inject, signal } from '@angular/core';
 import { SafeHtml } from '@angular/platform-browser';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FaIconComponent } from '@fortawesome/angular-fontawesome';
@@ -55,6 +55,7 @@ import { FeatureToggleDirective } from 'app/foundation/feature-toggle/feature-to
 import { FeatureToggle } from 'app/foundation/feature-toggle/feature-toggle.service';
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
 import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pipe';
+import { MilestoneExercise } from 'app/programming/shared/entities/milestone-exercise.model';
 import { AlertService, AlertType } from 'app/foundation/service/alert.service';
 import { EventManager } from 'app/foundation/service/event-manager.service';
 import { ArtemisMarkdownService } from 'app/foundation/service/markdown.service';
@@ -151,6 +152,12 @@ export class ProgrammingExerciseDetailComponent implements OnInit, OnDestroy {
      * but it is created and edited through its own routes and endpoints, so the edit link has to point elsewhere.
      */
     readonly isMilestoneExercise = signal<boolean>(false);
+
+    /**
+     * The milestone whose repositories this one works on, or undefined if it owns them (and for every other exercise type).
+     * See MilestoneExercise#getRepositorySourceMilestone (server).
+     */
+    readonly repositorySourceMilestone = computed(() => (this.programmingExercise() as MilestoneExercise | undefined)?.repositorySourceMilestone);
     supportsAuxiliaryRepositories = false; // default value
     readonly baseResource = signal<string>(undefined!);
     /**

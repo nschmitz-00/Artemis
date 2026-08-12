@@ -55,6 +55,63 @@ public interface ProgrammingExerciseStudentParticipationRepository extends Artem
             @Param("repositoryUri") String repositoryUri, @Param("studentId") long studentId);
 
     /**
+     * Finds the graded {@link ProgrammingExerciseStudentParticipation}s a student has in the MilestoneExercises that work on
+     * the repositories of the given Milestone - the owner itself and every Milestone created to reuse them.
+     * <p>
+     * All of them are on one and the same student repository, so this is what tells a Milestone being started that the student
+     * already has that repository and must keep working in it rather than get a fresh copy of the template.
+     * Practice participations are excluded: practice mode deliberately creates a repository of its own.
+     *
+     * @param repositoryOwnerMilestoneId the id of the MilestoneExercise that owns the repositories
+     * @param studentId                  the id of the student
+     * @return the student's participations in the Milestones sharing those repositories, empty if they have started none of them
+     */
+    @Query("""
+            SELECT p
+            FROM ProgrammingExerciseStudentParticipation p
+                JOIN MilestoneExercise m ON m.id = p.exercise.id
+            WHERE (m.id = :repositoryOwnerMilestoneId OR m.repositorySourceMilestone.id = :repositoryOwnerMilestoneId)
+                AND p.student.id = :studentId
+                AND p.testRun = FALSE
+            """)
+    List<ProgrammingExerciseStudentParticipation> findAllMilestoneParticipationsSharingRepositoryByOwnerIdAndStudentId(
+            @Param("repositoryOwnerMilestoneId") long repositoryOwnerMilestoneId, @Param("studentId") long studentId);
+
+    /**
+     * Finds every graded {@link ProgrammingExerciseStudentParticipation} a student has on one repository.
+     * <p>
+     * One repository is shared by a MilestoneExercise, all of its UserStoryExercises, and - when a Milestone was created to
+     * reuse another's repositories - the whole chain of those with their user stories. A single push therefore has to be
+     * authenticated, authorized and graded for all of them, which is what this returns. Scoped by repository uri, so it stays a
+     * small indexed lookup and returns just the one participation for an ordinary programming exercise.
+     *
+     * @param repositoryUri the repository being pushed to or cloned
+     * @param studentId     the id of the student
+     * @return the student's participations on that repository
+     */
+    List<ProgrammingExerciseStudentParticipation> findAllByRepositoryUriAndStudentId(String repositoryUri, long studentId);
+
+    /**
+     * Finds the MilestoneExercise participations on one repository, with their exercise fetched so its dates can be read.
+     * <p>
+     * More than one only exists when Milestones were created to reuse another Milestone's repositories: the student works on
+     * one repository across all of them. Which of those Milestones a push belongs to cannot be read off the repository URI -
+     * that only ever names the Milestone owning the repositories - so it is decided from their due dates instead (see
+     * {@code ProgrammingExerciseParticipationService#fetchParticipationByRepository}).
+     *
+     * @param repositoryUri the repository being accessed
+     * @return the Milestone participations on that repository, each with its exercise initialized
+     */
+    @Query("""
+            SELECT p
+            FROM ProgrammingExerciseStudentParticipation p
+                LEFT JOIN FETCH p.exercise e
+            WHERE p.repositoryUri = :repositoryUri
+                AND TYPE(e) = MilestoneExercise
+            """)
+    List<ProgrammingExerciseStudentParticipation> findAllMilestoneParticipationsWithExerciseByRepositoryUri(@Param("repositoryUri") String repositoryUri);
+
+    /**
      * Finds the {@link ProgrammingExerciseStudentParticipation}s a student has in the {@code UserStoryExercise}s of the given
      * MilestoneExercise, with their submissions and results fetched, so the student's progress over all user stories can be
      * computed in a single query.

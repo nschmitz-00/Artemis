@@ -34,6 +34,7 @@ import de.tum.cit.aet.artemis.localvc.service.GitService;
 import de.tum.cit.aet.artemis.localvc.service.LocalVCRepositoryUri;
 import de.tum.cit.aet.artemis.localvc.service.vcs.VersionControlService;
 import de.tum.cit.aet.artemis.programming.domain.AuxiliaryRepository;
+import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingLanguage;
 import de.tum.cit.aet.artemis.programming.domain.ProjectType;
@@ -73,12 +74,15 @@ public class ProgrammingExerciseRepositoryService {
 
     private final Optional<VersionControlService> versionControlService;
 
+    private final UriService uriService;
+
     public ProgrammingExerciseRepositoryService(GitService gitService, UserRepository userRepository, ResourceLoaderService resourceLoaderService,
-            Optional<VersionControlService> versionControlService) {
+            Optional<VersionControlService> versionControlService, UriService uriService) {
         this.gitService = gitService;
         this.userRepository = userRepository;
         this.resourceLoaderService = resourceLoaderService;
         this.versionControlService = versionControlService;
+        this.uriService = uriService;
     }
 
     /**
@@ -119,6 +123,37 @@ public class ProgrammingExerciseRepositoryService {
 
         if (emptyRepositories) {
             clearRepositoriesForAiGeneration(exerciseResources.repository, solutionResources.repository, testResources.repository, exerciseCreator);
+        }
+    }
+
+    /**
+     * Sets up the test repository only, for an exercise that reuses another exercise's template repository.
+     * <p>
+     * The template repository belongs to the source exercise and already carries the codebase students work on, so writing the
+     * language template into it would overwrite the very thing that is being shared. The solution repository is not touched
+     * either: it was created as a copy of the source's in
+     * {@link #createRepositoriesForExerciseReusingTemplate(ProgrammingExercise, ProgrammingExercise)} and therefore already has
+     * content, which is exactly the point - this exercise's reference solution continues the source's.
+     *
+     * @param programmingExercise the programming exercise that should be set up
+     * @param exerciseCreator     the User that performed the action (used as Git commit author)
+     * @throws GitAPIException If committing, or pushing to the repo throws an exception.
+     */
+    void setupTestRepositoryOnly(final ProgrammingExercise programmingExercise, final User exerciseCreator) throws GitAPIException {
+        if (programmingExercise == null) {
+            throw new IllegalArgumentException("ProgrammingExercise must not be null");
+        }
+        if (exerciseCreator == null) {
+            throw new IllegalArgumentException("Exercise creator must not be null");
+        }
+        final RepositoryResources testResources = getRepositoryResources(programmingExercise, RepositoryType.TESTS);
+        try {
+            setupTestTemplateAndPush(testResources, programmingExercise, exerciseCreator);
+        }
+        catch (Exception ex) {
+            // Same fallback as setupRepositories: at least push an empty commit, so the repository can be used by the build plans
+            log.warn("An exception occurred while setting up the test repository", ex);
+            gitService.commitAndPush(testResources.repository, "Empty Setup by Artemis", true, exerciseCreator);
         }
     }
 
@@ -321,6 +356,51 @@ public class ProgrammingExerciseRepositoryService {
 
         // Create auxiliary repositories
         createAndInitializeAuxiliaryRepositories(projectKey, programmingExercise);
+    }
+
+    /**
+     * Creates the repositories of a new exercise that works on the template repository of an existing one.
+     * <p>
+     * Everything but the template repository is created as usual - the exercise poses a different problem on the same codebase,
+     * so it needs test cases and a reference solution of its own. Only what carries the codebase is shared: the template
+     * repository (and, through it, the student repositories that are forked from it, which stay in the source's project).
+     * <p>
+     * The solution repository is created as a copy of the source's rather than empty, so the reference solution continues where
+     * the source's left off and the instructor only adds what this exercise introduces.
+     *
+     * @param programmingExercise A new programming exercise.
+     * @param repositorySource    The exercise whose template repository the new exercise works on.
+     * @throws GitAPIException Thrown in case creating a repository fails.
+     */
+    void createRepositoriesForExerciseReusingTemplate(final ProgrammingExercise programmingExercise, final ProgrammingExercise repositorySource) throws GitAPIException {
+        final String projectKey = programmingExercise.getProjectKey();
+        VersionControlService versionControl = versionControlService.orElseThrow();
+        versionControl.createProjectForExercise(programmingExercise);
+        // No template repository: the source owns it, and creating an empty one here would leave a repository nothing points at
+        versionControl.createRepository(projectKey, programmingExercise.generateRepositoryName(RepositoryType.TESTS));
+        copySolutionRepositoryFrom(programmingExercise, repositorySource);
+
+        createAndInitializeAuxiliaryRepositories(projectKey, programmingExercise);
+    }
+
+    /**
+     * Creates the solution repository of the new exercise as a copy of the source exercise's solution repository. Without
+     * history, exactly like forking a student repository from the template
+     * ({@code ParticipationService#copyRepository}): what carries over is the content, not the source's commits.
+     *
+     * @param programmingExercise the new exercise whose solution repository should be created
+     * @param repositorySource    the exercise whose solution repository is copied, with its build config loaded
+     */
+    private void copySolutionRepositoryFrom(final ProgrammingExercise programmingExercise, final ProgrammingExercise repositorySource) {
+        if (repositorySource.getSolutionRepositoryUri() == null) {
+            throw new IllegalArgumentException("The exercise whose repositories should be reused has no solution repository");
+        }
+        // The naming conventions were not always followed, so the slug is read off the uri rather than generated - same reason
+        // ParticipationService#copyRepository does it
+        final String sourceRepositorySlug = uriService.getRepositorySlugFromRepositoryUri(repositorySource.getVcsSolutionRepositoryUri());
+        final String sourceBranch = repositorySource.getBuildConfig() != null ? repositorySource.getBuildConfig().getBranch() : null;
+        versionControlService.orElseThrow().copyRepositoryWithoutHistory(repositorySource.getProjectKey(), sourceRepositorySlug, sourceBranch, programmingExercise.getProjectKey(),
+                RepositoryType.SOLUTION.getName(), null);
     }
 
     /**
@@ -828,7 +908,9 @@ public class ProgrammingExerciseRepositoryService {
      * @param programmingExercise The programming exercise for which the repositories should be deleted.
      */
     void deleteRepositories(final ProgrammingExercise programmingExercise) {
-        if (programmingExercise.getTemplateRepositoryUri() != null) {
+        // A MilestoneExercise created on another Milestone's template repository owns everything below but not that one: it
+        // carries the codebase of the whole chain, and the student repositories forked from it live in the source's project
+        if (programmingExercise.getTemplateRepositoryUri() != null && !reusesAnotherExercisesTemplateRepository(programmingExercise)) {
             final var templateRepositoryUriAsUrl = programmingExercise.getVcsTemplateRepositoryUri();
             versionControlService.orElseThrow().deleteRepository(templateRepositoryUriAsUrl);
         }
@@ -865,7 +947,8 @@ public class ProgrammingExerciseRepositoryService {
      * @param programmingExercise The exercise for which the local repository copies should be deleted.
      */
     void deleteLocalRepoCopies(final ProgrammingExercise programmingExercise) {
-        if (programmingExercise.getTemplateRepositoryUri() != null) {
+        // The shared template repository stays in use by the exercise that owns it, so its local copy must not be dropped either
+        if (programmingExercise.getTemplateRepositoryUri() != null && !reusesAnotherExercisesTemplateRepository(programmingExercise)) {
             final var templateRepositoryUriAsUrl = programmingExercise.getVcsTemplateRepositoryUri();
             gitService.deleteLocalRepository(templateRepositoryUriAsUrl);
         }
@@ -877,6 +960,16 @@ public class ProgrammingExerciseRepositoryService {
             final var testRepositoryUriAsUrl = programmingExercise.getVcsTestRepositoryUri();
             gitService.deleteLocalRepository(testRepositoryUriAsUrl);
         }
+    }
+
+    /**
+     * Whether the given exercise works on the template repository of another exercise and therefore must not delete or clear it.
+     *
+     * @param programmingExercise the exercise being deleted
+     * @return true for a MilestoneExercise created on another Milestone's repositories
+     */
+    private static boolean reusesAnotherExercisesTemplateRepository(final ProgrammingExercise programmingExercise) {
+        return programmingExercise instanceof MilestoneExercise milestoneExercise && milestoneExercise.reusesRepositoriesOfAnotherMilestone();
     }
 
     /**

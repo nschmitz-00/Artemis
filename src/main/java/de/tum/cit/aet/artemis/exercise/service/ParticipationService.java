@@ -285,10 +285,81 @@ public class ParticipationService {
      * @return started participation
      */
     private StudentParticipation startProgrammingExercise(ProgrammingExercise exercise, ProgrammingExerciseStudentParticipation participation) {
-        // Step 1a) create the student repository (based on the template repository)
-        participation = copyRepository(exercise, exercise.getVcsTemplateRepositoryUri(), participation);
+        // Step 1a) create the student repository (based on the template repository), unless the student already has the
+        // repository this Milestone works on and simply continues in it
+        Optional<ProgrammingExerciseStudentParticipation> sharedRepositoryParticipation = findParticipationOnSharedMilestoneRepository(exercise, participation);
+        if (sharedRepositoryParticipation.isPresent()) {
+            participation = adoptSharedMilestoneRepository(participation, sharedRepositoryParticipation.get());
+        }
+        else {
+            // The repositories live in the project of the Milestone that owns them, so a Milestone reusing another's creates the
+            // student repository there as well - that is where every later Milestone of the chain will look for it.
+            ProgrammingExercise repositoryOwner = repositoryOwnerOf(exercise);
+            participation = copyRepository(repositoryOwner, repositoryOwner.getVcsTemplateRepositoryUri(), participation);
+        }
 
         return startProgrammingParticipation(participation);
+    }
+
+    /**
+     * The exercise that owns the repositories the given exercise works on - itself, unless it is a MilestoneExercise created to
+     * reuse another Milestone's repositories.
+     *
+     * @param exercise the exercise being started
+     * @return the repository-owning exercise, never null
+     */
+    private ProgrammingExercise repositoryOwnerOf(ProgrammingExercise exercise) {
+        if (exercise instanceof MilestoneExercise milestoneExercise && milestoneExercise.reusesRepositoriesOfAnotherMilestone()) {
+            // Reloaded rather than dereferenced: the association is eager, but the source is only populated with the fields the
+            // exercise-fetching query asked for, and the template participation carrying the repository uri is not among them
+            return programmingExerciseRepository.findByIdWithTemplateParticipationElseThrow(milestoneExercise.getRepositorySourceMilestone().getId());
+        }
+        return exercise;
+    }
+
+    /**
+     * Finds the participation whose repository a Milestone being started should continue in.
+     * <p>
+     * A Milestone created to reuse another Milestone's repositories shares one student repository with it and with every other
+     * Milestone on those repositories: the student works on one continuously growing codebase across all of them, so starting a
+     * later Milestone must not fork the template again and throw their work away.
+     * <p>
+     * Individual participations only. A Milestone is assessed per student (see {@code MilestoneAssessmentService}), and team
+     * participations are not part of the sharing, so a team falls back to the regular copy.
+     *
+     * @param exercise      the exercise being started
+     * @param participation the participation being started
+     * @return the participation whose repository to continue in, or empty if the student has none yet
+     */
+    private Optional<ProgrammingExerciseStudentParticipation> findParticipationOnSharedMilestoneRepository(ProgrammingExercise exercise,
+            ProgrammingExerciseStudentParticipation participation) {
+        if (!(exercise instanceof MilestoneExercise milestoneExercise) || participation.isPracticeMode()) {
+            return Optional.empty();
+        }
+        Optional<User> student = participation.getStudent();
+        if (student.isEmpty()) {
+            return Optional.empty();
+        }
+        long repositoryOwnerId = milestoneExercise.getRepositoryOwner().getId();
+        return programmingExerciseStudentParticipationRepository.findAllMilestoneParticipationsSharingRepositoryByOwnerIdAndStudentId(repositoryOwnerId, student.get().getId())
+                .stream().filter(existing -> !existing.getId().equals(participation.getId())).filter(existing -> existing.getRepositoryUri() != null).findFirst();
+    }
+
+    /**
+     * Points a Milestone participation at the repository the student already works in, instead of at a copy of the template.
+     * Mirrors what {@code #cascadeStartToUserStoryExercises} does for the user stories of one Milestone, one level up.
+     *
+     * @param participation       the participation being started
+     * @param sharedParticipation the student's existing participation on the shared repository
+     * @return the participation, pointing at the shared repository
+     */
+    private ProgrammingExerciseStudentParticipation adoptSharedMilestoneRepository(ProgrammingExerciseStudentParticipation participation,
+            ProgrammingExerciseStudentParticipation sharedParticipation) {
+        participation.setRepositoryUri(sharedParticipation.getRepositoryUri());
+        participation.setBranch(sharedParticipation.getBranch());
+        participation.setBuildPlanId(sharedParticipation.getBuildPlanId());
+        participation.setInitializationState(InitializationState.REPO_COPIED);
+        return programmingExerciseStudentParticipationRepository.saveAndFlush(participation);
     }
 
     /**

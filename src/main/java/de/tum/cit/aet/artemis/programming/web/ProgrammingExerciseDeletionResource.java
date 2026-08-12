@@ -2,7 +2,9 @@ package de.tum.cit.aet.artemis.programming.web;
 
 import static de.tum.cit.aet.artemis.core.config.Constants.PROFILE_CORE;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,9 +36,11 @@ import de.tum.cit.aet.artemis.exercise.service.ExerciseDeletionService;
 import de.tum.cit.aet.artemis.exercise.service.ExerciseService;
 import de.tum.cit.aet.artemis.exercise.service.ExerciseVersionService;
 import de.tum.cit.aet.artemis.localci.service.ci.ContinuousIntegrationService;
+import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
 import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 import de.tum.cit.aet.artemis.programming.dto.ProgrammingExerciseResetOptionsDTO;
+import de.tum.cit.aet.artemis.programming.repository.MilestoneExerciseRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseRepository;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseDeletionService;
 
@@ -72,9 +76,13 @@ public class ProgrammingExerciseDeletionResource {
 
     private final ExerciseVersionService exerciseVersionService;
 
+    private final MilestoneExerciseRepository milestoneExerciseRepository;
+
     public ProgrammingExerciseDeletionResource(ProgrammingExerciseRepository programmingExerciseRepository, UserRepository userRepository,
             AuthorizationCheckService authCheckService, Optional<ContinuousIntegrationService> continuousIntegrationService, ExerciseService exerciseService,
-            ExerciseDeletionService exerciseDeletionService, ProgrammingExerciseDeletionService programmingExerciseDeletionService, ExerciseVersionService exerciseVersionService) {
+            ExerciseDeletionService exerciseDeletionService, ProgrammingExerciseDeletionService programmingExerciseDeletionService, ExerciseVersionService exerciseVersionService,
+            MilestoneExerciseRepository milestoneExerciseRepository) {
+        this.milestoneExerciseRepository = milestoneExerciseRepository;
         this.programmingExerciseRepository = programmingExerciseRepository;
         this.userRepository = userRepository;
         this.authCheckService = authCheckService;
@@ -107,6 +115,19 @@ public class ProgrammingExerciseDeletionResource {
             throw new BadRequestAlertException("A UserStoryExercise cannot be deleted via this endpoint; use the dedicated UserStoryExercise deletion endpoint instead",
                     ENTITY_NAME, "userStoryExerciseDeletionNotSupported");
         }
+        // A MilestoneExercise whose repositories other Milestones were created to work on cannot go: deleting it would take the
+        // template, solution, test and every student repository of the whole chain with it. The Milestones using them have to be
+        // deleted first, which the message names. Course deletion is unaffected - it deletes everything anyway and goes through
+        // ProgrammingExerciseDeletionService, which unlinks instead of refusing.
+        if (programmingExercise instanceof MilestoneExercise milestoneExercise) {
+            List<MilestoneExercise> milestonesUsingItsRepositories = milestoneExerciseRepository.findAllByRepositorySourceMilestoneId(milestoneExercise.getId());
+            if (!milestonesUsingItsRepositories.isEmpty()) {
+                String titles = milestonesUsingItsRepositories.stream().map(MilestoneExercise::getTitle).collect(Collectors.joining(", "));
+                throw new BadRequestAlertException("The repositories of this milestone exercise are still used by: " + titles + ". Delete those milestone exercises first.",
+                        ENTITY_NAME, "milestoneExerciseRepositoriesStillUsed");
+            }
+        }
+
         User user = userRepository.getUserWithGroupsAndAuthorities();
         authCheckService.checkHasAtLeastRoleForExerciseElseThrow(Role.INSTRUCTOR, programmingExercise, user);
         exerciseService.logDeletion(programmingExercise, programmingExercise.getCourseViaExerciseGroupOrCourseMember(), user);

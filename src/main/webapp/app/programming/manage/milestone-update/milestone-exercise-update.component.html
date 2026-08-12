@@ -41,14 +41,66 @@
             </div>
         </section>
 
+        @if (isCreate()) {
+            <hr />
+            <!-- Only offered while creating: which repositories a milestone works on decides where the code students push to
+                 lives, and that cannot be moved once they have started. -->
+            <section id="milestone-repositories">
+                <h3 jhiTranslate="artemisApp.milestoneExercise.repositories.title"></h3>
+                <p class="text-muted small" jhiTranslate="artemisApp.milestoneExercise.repositories.hint"></p>
+                <div class="d-flex flex-column gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <p-radiobutton
+                            inputId="milestone-repositories-new"
+                            name="milestoneRepositories"
+                            [value]="undefined"
+                            [ngModel]="repositorySourceMilestoneId()"
+                            (ngModelChange)="onRepositorySourceChange(undefined)"
+                        />
+                        <label for="milestone-repositories-new" jhiTranslate="artemisApp.milestoneExercise.repositories.createNew"></label>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <p-radiobutton
+                            inputId="milestone-repositories-reuse"
+                            name="milestoneRepositories"
+                            [value]="repositorySourceCandidates()[0]?.id"
+                            [disabled]="repositorySourceCandidates().length === 0"
+                            [ngModel]="repositorySourceMilestoneId()"
+                            (ngModelChange)="onRepositorySourceChange(repositorySourceCandidates()[0]?.id)"
+                        />
+                        <label for="milestone-repositories-reuse" jhiTranslate="artemisApp.milestoneExercise.repositories.reuseExisting"></label>
+                    </div>
+                    @if (repositorySourceCandidates().length === 0) {
+                        <p class="text-muted-color small mb-0" jhiTranslate="artemisApp.milestoneExercise.repositories.noCandidates"></p>
+                    } @else if (reusesExistingRepositories()) {
+                        <div class="col-md-6">
+                            <label for="milestone-repository-source" jhiTranslate="artemisApp.milestoneExercise.repositories.sourceMilestone"></label>
+                            <p-select
+                                inputId="milestone-repository-source"
+                                styleClass="w-100"
+                                optionLabel="title"
+                                optionValue="id"
+                                name="repositorySourceMilestone"
+                                [options]="repositorySourceCandidates()"
+                                [ngModel]="repositorySourceMilestoneId()"
+                                (ngModelChange)="onRepositorySourceChange($event)"
+                            />
+                            <p class="text-muted-color small mt-2 mb-0" jhiTranslate="artemisApp.milestoneExercise.repositories.reuseConsequences"></p>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+
         <hr />
         <!-- The same section the plain programming exercise form renders: a milestone owns the three repositories and the build
              plan exactly like any programming exercise, so language, project type, package name, static code analysis, sequential
-             test runs, the online IDE image and the custom build plan all apply here unchanged. -->
+             test runs, the online IDE image and the custom build plan all apply here unchanged. When it works on another
+             milestone's repositories, the fields describing that shared codebase are taken over from it and therefore hidden. -->
         <jhi-programming-exercise-language
             [programmingExercise]="milestoneExercise()"
             [programmingExerciseCreationConfig]="getCreationConfig()"
-            [isEditFieldDisplayedRecord]="isEditFieldDisplayedRecord"
+            [isEditFieldDisplayedRecord]="languageFieldsDisplayedRecord()"
         />
 
         <hr />

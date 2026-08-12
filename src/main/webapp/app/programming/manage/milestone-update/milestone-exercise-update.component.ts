@@ -34,6 +34,8 @@ import { ProgrammingExerciseEditableInstructionComponent } from 'app/programming
 import { MarkdownEditorHeight } from 'app/editor/markdown-editor/monaco/markdown-editor-monaco.component';
 import { FormFooterComponent } from 'app/shared-ui/form/form-footer/form-footer.component';
 import { InputTextModule } from 'primeng/inputtext';
+import { RadioButtonModule } from 'primeng/radiobutton';
+import { SelectModule } from 'primeng/select';
 import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pipe';
 import { BuildPhasesTemplateService } from 'app/programming/shared/services/build-phases-template.service';
 import { ExerciseEditorSyncService } from 'app/exercise/synchronization/services/exercise-editor-sync.service';
@@ -54,6 +56,8 @@ import { ExerciseEditorSyncService } from 'app/exercise/synchronization/services
         ProgrammingExerciseLanguageComponent,
         FormFooterComponent,
         InputTextModule,
+        RadioButtonModule,
+        SelectModule,
         ArtemisTranslatePipe,
     ],
     // The timeline inside the grading section injects this and it is not provided in root, so - exactly like
@@ -105,6 +109,27 @@ export class MilestoneExerciseUpdateComponent implements OnInit, OnDestroy {
     }));
 
     /**
+     * The language section renders everything except the fields that describe the shared codebase when this milestone is
+     * created on another milestone's repositories: language, project type, package name and static code analysis are taken over
+     * from that milestone on the server (one repository cannot be two languages), so offering them here would only let the form
+     * disagree with what is saved. What stays editable is what is genuinely per-milestone - how students may work on the
+     * repository (offline IDE, online editor, online IDE) and the build script.
+     */
+    protected readonly languageFieldsDisplayedRecord = computed(() =>
+        this.reusesExistingRepositories()
+            ? {
+                  ...this.isEditFieldDisplayedRecord,
+                  [ProgrammingExerciseInputField.PROGRAMMING_LANGUAGE]: false,
+                  [ProgrammingExerciseInputField.PROJECT_TYPE]: false,
+                  [ProgrammingExerciseInputField.WITH_EXEMPLARY_DEPENDENCY]: false,
+                  [ProgrammingExerciseInputField.PACKAGE_NAME]: false,
+                  [ProgrammingExerciseInputField.ENABLE_STATIC_CODE_ANALYSIS]: false,
+                  [ProgrammingExerciseInputField.SEQUENTIAL_TEST_RUNS]: false,
+              }
+            : this.isEditFieldDisplayedRecord,
+    );
+
+    /**
      * Required by the grading section, which offers to reset a test case's visibility on import. A milestone is never imported,
      * so this stays at its defaults.
      */
@@ -127,6 +152,20 @@ export class MilestoneExerciseUpdateComponent implements OnInit, OnDestroy {
     isSaving = signal(false);
     isCreate = signal(false);
     existingCategories = signal<ExerciseCategory[]>([]);
+
+    /**
+     * The milestones of the course whose repositories a new milestone may be created on. Only those that own their repositories
+     * are offered: the server flattens a pick to the owner anyway, so listing the linked ones separately would just present the
+     * same repositories under several names. Loaded on the create form only.
+     */
+    protected readonly repositorySourceCandidates = signal<MilestoneExercise[]>([]);
+
+    /** The milestone whose repositories the new milestone should work on, or undefined to provision new ones. */
+    protected readonly repositorySourceMilestoneId = signal<number | undefined>(undefined);
+
+    protected readonly reusesExistingRepositories = computed(() => this.repositorySourceMilestoneId() !== undefined);
+
+    protected readonly repositorySourceMilestone = computed(() => this.repositorySourceCandidates().find((candidate) => candidate.id === this.repositorySourceMilestoneId()));
 
     protected supportedLanguages: string[] = [];
     protected customBuildPlansSupported = '';
@@ -165,7 +204,44 @@ export class MilestoneExerciseUpdateComponent implements OnInit, OnDestroy {
                 // A new milestone starts on the course default, the same way a new programming exercise does
                 this.onProgrammingLanguageChange(res.body!.defaultProgrammingLanguage ?? ProgrammingLanguage.JAVA);
             });
+            this.loadRepositorySourceCandidates(Number(courseIdParam));
         }
+    }
+
+    /**
+     * Loads the milestones of the course whose repositories this new milestone could be created on. Stays silent on failure:
+     * reusing repositories is an option on the form, so a failed request must not keep the milestone from being created at all.
+     */
+    private loadRepositorySourceCandidates(courseId: number): void {
+        this.milestoneExerciseService.findAllForCourse(courseId).subscribe({
+            next: (res) => this.repositorySourceCandidates.set((res.body ?? []).filter((candidate) => !candidate.repositorySourceMilestone)),
+            error: () => this.repositorySourceCandidates.set([]),
+        });
+    }
+
+    /**
+     * Takes over the codebase settings of the milestone whose repositories will be reused, or clears the choice again. The
+     * server enforces the same takeover - one repository cannot be two languages - so the form shows what will be saved rather
+     * than letting the fields disagree with it.
+     *
+     * @param repositorySourceMilestoneId of the chosen milestone, or undefined to provision new repositories
+     */
+    protected onRepositorySourceChange(repositorySourceMilestoneId: number | undefined): void {
+        this.repositorySourceMilestoneId.set(repositorySourceMilestoneId);
+        const repositorySource = this.repositorySourceMilestone();
+        if (!repositorySource) {
+            return;
+        }
+        this.milestoneExercise.update((milestoneExercise) => {
+            milestoneExercise.programmingLanguage = repositorySource.programmingLanguage;
+            milestoneExercise.projectType = repositorySource.projectType;
+            milestoneExercise.packageName = repositorySource.packageName;
+            milestoneExercise.staticCodeAnalysisEnabled = repositorySource.staticCodeAnalysisEnabled;
+            milestoneExercise.maxStaticCodeAnalysisPenalty = repositorySource.maxStaticCodeAnalysisPenalty;
+            return milestoneExercise;
+        });
+        this.languageState.adoptFrom(this.milestoneExercise());
+        this.languageState.refreshLanguageFeatures(this.milestoneExercise().programmingLanguage!);
     }
 
     ngOnDestroy(): void {
@@ -289,7 +365,7 @@ export class MilestoneExerciseUpdateComponent implements OnInit, OnDestroy {
 
         const saveObservable = this.milestoneExercise().id
             ? this.milestoneExerciseService.update(this.milestoneExercise())
-            : this.milestoneExerciseService.create(this.milestoneExercise());
+            : this.milestoneExerciseService.create(this.milestoneExercise(), this.repositorySourceMilestoneId());
 
         saveObservable.subscribe({
             next: () => {

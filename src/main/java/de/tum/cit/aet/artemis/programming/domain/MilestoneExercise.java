@@ -9,10 +9,13 @@ import jakarta.persistence.CascadeType;
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Transient;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -46,6 +49,27 @@ public class MilestoneExercise extends ProgrammingExercise {
     private List<UserStoryExercise> userStoryExercises = new ArrayList<>();
 
     /**
+     * The MilestoneExercise whose repositories this Milestone uses instead of owning any of its own, or null if it owns them.
+     * <p>
+     * Chosen once, at creation, and never changed afterwards: it decides where the template/solution/test repositories - and
+     * every student's repository - live, which cannot be moved once students have pushed to them. A course that runs several
+     * Milestones over one continuously growing codebase links them all to the first one.
+     * <p>
+     * Always a Milestone that owns its repositories, never itself a linked one: MilestoneExerciseService flattens the choice to
+     * its {@link #getRepositoryOwner()}. "Every Milestone sharing this repository" therefore stays a single query over this
+     * column, and nothing has to walk a chain.
+     * <p>
+     * EAGER for the same reason UserStoryExercise#milestoneExercise is (see there): the generic exercise-fetching queries
+     * across the codebase have no reason to join-fetch it, and a LAZY proxy dereferenced after the session closed throws
+     * mid-serialization. "userStoryExercises", "course" and "exerciseGroup" have to be cut from the serialized source for the
+     * same cycle reason as above; "repositorySourceMilestone" itself is cut because the source never has one.
+     */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "repository_source_milestone_id")
+    @JsonIgnoreProperties(value = { "userStoryExercises", "course", "exerciseGroup", "repositorySourceMilestone" }, allowSetters = true)
+    private MilestoneExercise repositorySourceMilestone;
+
+    /**
      * How many UserStoryExercises belong to this Milestone. Derived and never persisted; it exists so the course exercise
      * list can show the number without fetching every child (see MilestoneExerciseResource#getMilestoneExercisesForCourse).
      * Only populated by that list endpoint - endpoints that fetch the children themselves leave it null, since
@@ -70,6 +94,36 @@ public class MilestoneExercise extends ProgrammingExercise {
     @Override
     public ExerciseType getExerciseType() {
         return ExerciseType.MILESTONE;
+    }
+
+    public MilestoneExercise getRepositorySourceMilestone() {
+        return repositorySourceMilestone;
+    }
+
+    public void setRepositorySourceMilestone(MilestoneExercise repositorySourceMilestone) {
+        this.repositorySourceMilestone = repositorySourceMilestone;
+    }
+
+    /**
+     * The Milestone that owns the repositories this Milestone works on - itself, unless it was created to reuse another
+     * Milestone's repositories.
+     *
+     * @return the repository-owning Milestone, never null
+     */
+    @JsonIgnore
+    public MilestoneExercise getRepositoryOwner() {
+        return repositorySourceMilestone != null ? repositorySourceMilestone : this;
+    }
+
+    /**
+     * Whether this Milestone works on repositories another Milestone owns, and therefore must neither provision nor delete
+     * any.
+     *
+     * @return true if this Milestone reuses another Milestone's repositories
+     */
+    @JsonIgnore
+    public boolean reusesRepositoriesOfAnotherMilestone() {
+        return repositorySourceMilestone != null;
     }
 
     public List<UserStoryExercise> getUserStoryExercises() {

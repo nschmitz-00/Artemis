@@ -251,10 +251,15 @@ public class LocalCIResultProcessingService {
                 boolean testsExpected = buildJob.buildConfig().areTestsExpected();
                 result = programmingExerciseGradingService.processNewProgrammingExerciseResult(participation, buildResult, testsExpected);
 
-                // A single push to a Milestone's shared repository triggers exactly one CI build (queued against the Milestone's
-                // own participation); fan that single result out into one additional Result per UserStoryExercise sibling
-                // participation, reusing the grading pipeline unmodified for each (it self-scopes to each UserStory's own test
-                // cases, see ProgrammingExerciseGradingService#findActiveTestCasesScopedToExercise).
+                // A single push to a Milestone's repository triggers exactly one CI build (queued against the participation of the
+                // Milestone the student is currently working on); fan that single result out into one additional Result per
+                // UserStoryExercise sibling participation, reusing the grading pipeline unmodified for each (it self-scopes to
+                // each UserStory's own test cases, see ProgrammingExerciseGradingService#findActiveTestCasesScopedToExercise).
+                //
+                // Deliberately only this Milestone's user stories, even though Milestones created on its template repository
+                // share the student's repository: every Milestone has a test repository of its own, so the build result only
+                // contains the tests of the Milestone it was queued for. Handing it to another Milestone's participations would
+                // report all of its tests as missing and reset the student's score there to zero.
                 if (participation.getProgrammingExercise() instanceof MilestoneExercise milestoneExercise
                         && participation instanceof ProgrammingExerciseStudentParticipation milestoneParticipation) {
                     milestoneParticipation.getStudent().ifPresent(student -> {

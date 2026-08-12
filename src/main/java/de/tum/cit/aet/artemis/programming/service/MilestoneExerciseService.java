@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.jspecify.annotations.Nullable;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import de.tum.cit.aet.artemis.core.config.Constants;
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
+import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseBuildConfig;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseTestCase;
 import de.tum.cit.aet.artemis.programming.dto.MilestoneTestCaseCoverageDTO;
 import de.tum.cit.aet.artemis.programming.dto.MilestoneTestCaseIssueDTO;
@@ -61,11 +63,68 @@ public class MilestoneExerciseService {
      * @throws IOException     if the exercise template files could not be read
      */
     public MilestoneExercise createMilestoneExercise(MilestoneExercise milestoneExercise) throws GitAPIException, IOException {
+        return createMilestoneExercise(milestoneExercise, null);
+    }
+
+    /**
+     * Sets up a new MilestoneExercise that works on the template repository of an existing Milestone instead of getting one of
+     * its own.
+     * <p>
+     * This is how a course runs several Milestones over one continuously growing codebase. Shared is what carries that
+     * codebase: the template repository, and through it every student's repository, in which they keep working across all
+     * Milestones of the chain (see {@code ParticipationService#startExercise}). Not shared are the test and solution
+     * repositories - consecutive Milestones pose different problems, so each one is graded by its own tests and documented by
+     * its own reference solution. The new solution repository is created as a copy of the picked Milestone's, so it continues
+     * where that one left off.
+     * <p>
+     * Two different Milestones are involved, deliberately. {@code repositorySource} is the one the instructor picked: its
+     * solution repository is copied and its codebase settings are taken over. The stored link, however, is flattened to that
+     * Milestone's {@link MilestoneExercise#getRepositoryOwner()} - the Milestone that actually owns the template repository -
+     * so a Milestone never points at another linked one and "every Milestone on this repository" stays a single query.
+     *
+     * @param milestoneExercise the MilestoneExercise to set up (with no UserStoryExercise children yet)
+     * @param repositorySource  the Milestone whose template repository should be used and whose solution is copied, or null to
+     *                              provision new repositories
+     * @return the persisted MilestoneExercise
+     * @throws GitAPIException if the repositories could not be set up
+     * @throws IOException     if the exercise template files could not be read
+     */
+    public MilestoneExercise createMilestoneExercise(MilestoneExercise milestoneExercise, @Nullable MilestoneExercise repositorySource) throws GitAPIException, IOException {
         // Both point totals are derived from the (currently empty) UserStoryExercise children, never client-settable.
         milestoneExercise.setMaxPoints(0.0);
         milestoneExercise.setBonusPoints(0.0);
-        ProgrammingExercise created = programmingExerciseCreationUpdateService.createProgrammingExercise(milestoneExercise, false);
-        return (MilestoneExercise) created;
+
+        if (repositorySource == null) {
+            milestoneExercise.setRepositorySourceMilestone(null);
+            return (MilestoneExercise) programmingExerciseCreationUpdateService.createProgrammingExercise(milestoneExercise, false);
+        }
+
+        milestoneExercise.setRepositorySourceMilestone(repositorySource.getRepositoryOwner());
+        adoptCodebaseSettings(milestoneExercise, repositorySource);
+        return (MilestoneExercise) programmingExerciseCreationUpdateService.createProgrammingExerciseReusingRepositories(milestoneExercise, repositorySource);
+    }
+
+    /**
+     * Takes over everything about the shared codebase from the Milestone this one continues, overwriting whatever the client
+     * sent. Both work on the same template repository and the same student repositories, so a differing language, project type
+     * or package name could only ever produce builds that do not match the code.
+     *
+     * @param milestoneExercise the Milestone being created
+     * @param repositorySource  the Milestone whose codebase is continued, with its build config loaded
+     */
+    private void adoptCodebaseSettings(MilestoneExercise milestoneExercise, MilestoneExercise repositorySource) {
+        milestoneExercise.setProgrammingLanguage(repositorySource.getProgrammingLanguage());
+        milestoneExercise.setProjectType(repositorySource.getProjectType());
+        milestoneExercise.setPackageName(repositorySource.getPackageName());
+        milestoneExercise.setStaticCodeAnalysisEnabled(repositorySource.isStaticCodeAnalysisEnabled());
+        milestoneExercise.setMaxStaticCodeAnalysisPenalty(repositorySource.getMaxStaticCodeAnalysisPenalty());
+
+        // A build config of its own, carrying the source's values as a starting point: the config is a per-exercise 1:1
+        // association, and this Milestone builds its own test repository, so the instructor may well adjust it afterwards
+        ProgrammingExerciseBuildConfig sourceBuildConfig = repositorySource.getBuildConfig();
+        if (sourceBuildConfig != null) {
+            milestoneExercise.setBuildConfig(new ProgrammingExerciseBuildConfig(sourceBuildConfig));
+        }
     }
 
     /**

@@ -29,6 +29,17 @@ public interface MilestoneExerciseRepository extends ArtemisJpaRepository<Milest
     Optional<MilestoneExercise> findWithUserStoryExercisesById(long exerciseId);
 
     /**
+     * Finds the MilestoneExercises that were created to work on the repositories of the given Milestone.
+     * <p>
+     * They hold no repositories of their own, so the Milestone they point at can neither be deleted nor have its repositories
+     * removed while they exist.
+     *
+     * @param repositorySourceMilestoneId the id of the MilestoneExercise that owns the repositories
+     * @return the MilestoneExercises using those repositories, empty if the Milestone shares them with nobody
+     */
+    List<MilestoneExercise> findAllByRepositorySourceMilestoneId(long repositorySourceMilestoneId);
+
+    /**
      * Loads everything {@link de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseUpdateDtoService} touches, so the
      * update endpoint can apply the incoming DTO onto a fully populated entity. Mirrors
      * ProgrammingExerciseRepository#findForUpdateById, plus the Milestone's own children.

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- Lets a MilestoneExercise ("MS") work on the repositories of another MilestoneExercise instead of owning any of its own,
+         so a course can run several Milestones over one continuously growing codebase. Null for a Milestone that owns its
+         repositories, and never points at a Milestone that is itself linked (the value is always flattened to the owner).
+         ON DELETE RESTRICT backs the service-level rule that a Milestone whose repositories others still use cannot be deleted. -->
+    <changeSet id="20260812120000-01-add-repository-source-milestone-id-column" author="niklas.oelde">
+        <addColumn tableName="exercise">
+            <column name="repository_source_milestone_id" type="bigint"/>
+        </addColumn>
+        <addForeignKeyConstraint baseColumnNames="repository_source_milestone_id" baseTableName="exercise" constraintName="fk_exercise_repository_source_milestone_id"
+            referencedColumnNames="id" referencedTableName="exercise" onDelete="RESTRICT" onUpdate="RESTRICT"/>
+        <createIndex indexName="idx_exercise_repository_source_milestone_id" tableName="exercise">
+            <column name="repository_source_milestone_id"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

@@ -6,7 +6,9 @@ import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.time.ZonedDateTime;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -35,9 +37,11 @@ import de.tum.cit.aet.artemis.exercise.domain.participation.Participation;
 import de.tum.cit.aet.artemis.exercise.repository.ParticipationRepository;
 import de.tum.cit.aet.artemis.exercise.repository.SubmissionRepository;
 import de.tum.cit.aet.artemis.exercise.repository.TeamRepository;
+import de.tum.cit.aet.artemis.exercise.service.ExerciseDateService;
 import de.tum.cit.aet.artemis.localvc.service.GitService;
 import de.tum.cit.aet.artemis.localvc.service.LocalVCRepositoryUri;
 import de.tum.cit.aet.artemis.localvc.service.vcs.VersionControlService;
+import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseParticipation;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParticipation;
@@ -57,6 +61,9 @@ import de.tum.cit.aet.artemis.programming.repository.TemplateProgrammingExercise
 public class ProgrammingExerciseParticipationService {
 
     private static final Logger log = LoggerFactory.getLogger(ProgrammingExerciseParticipationService.class);
+
+    /** Sorts a Milestone without a due date behind every dated one when picking the Milestone a repository access belongs to. */
+    private static final int UNDATED_MILESTONE_SORTS_LAST_YEARS = 100;
 
     private final ProgrammingExerciseStudentParticipationRepository studentParticipationRepository;
 
@@ -285,11 +292,13 @@ public class ProgrammingExerciseParticipationService {
             return solutionParticipationRepository.findWithEagerResultsAndSubmissionsByProgrammingExerciseIdElseThrow(exercise.getId());
         }
         if (repositoryTypeOrUserName.equals(RepositoryType.TEMPLATE.toString())) {
-            return templateParticipationRepository.findWithSubmissionsByRepositoryUriElseThrow(repositoryURL);
+            // Scoped by exercise: a MilestoneExercise created on another Milestone's template repository has a template
+            // participation on that same uri, so the uri alone matches several participations
+            return templateParticipationRepository.findWithSubmissionsByRepositoryUriAndProgrammingExerciseIdElseThrow(repositoryURL, exercise.getId());
         }
         // Scoped by exercise: a MilestoneExercise shares its repository with all its UserStoryExercises, so the uri alone matches several participations
-        return studentParticipationRepository.findWithSubmissionsByRepositoryUriAndExerciseIdElseThrow(repositoryURL, exercise.getId());
-
+        return studentParticipationRepository.findWithSubmissionsByRepositoryUriAndExerciseIdElseThrow(repositoryURL,
+                resolveMilestoneExerciseIdForRepository(exercise, repositoryURL));
     }
 
     public ProgrammingExerciseParticipation retrieveSolutionParticipation(Exercise exercise) {
@@ -311,11 +320,46 @@ public class ProgrammingExerciseParticipationService {
             return solutionParticipationRepository.findWithEagerResultsAndSubmissionsByProgrammingExerciseIdElseThrow(exercise.getId());
         }
         if (repositoryTypeOrUserName.equals(RepositoryType.TEMPLATE.toString())) {
-            return templateParticipationRepository.findByRepositoryUriElseThrow(repositoryURL);
+            // Scoped by exercise: a MilestoneExercise created on another Milestone's template repository has a template
+            // participation on that same uri, so the uri alone matches several participations
+            return templateParticipationRepository.findByRepositoryUriAndProgrammingExerciseIdElseThrow(repositoryURL, exercise.getId());
         }
 
         // Scoped by exercise: a MilestoneExercise shares its repository with all its UserStoryExercises, so the uri alone matches several participations
-        return studentParticipationRepository.findByRepositoryUriAndExerciseIdElseThrow(repositoryURL, exercise.getId());
+        return studentParticipationRepository.findByRepositoryUriAndExerciseIdElseThrow(repositoryURL, resolveMilestoneExerciseIdForRepository(exercise, repositoryURL));
+    }
+
+    /**
+     * Decides which Milestone a repository access belongs to when several of them share the repository.
+     * <p>
+     * A repository URI carries the project key of the Milestone that owns the repositories, so it always resolves to that one
+     * Milestone (see {@code LocalVCServletService}) - even long after its due date, while the student is working on a later
+     * Milestone that reuses those repositories. Taking the owner's participation would then hand the whole chain to
+     * {@code RepositoryAccessService}, which refuses a push once the due date has passed, and would attribute the build to the
+     * wrong Milestone. The Milestone whose submission window is currently open is picked instead - the one with the earliest
+     * due date still in the future - falling back to the resolved exercise when none is open, so a late push is rejected with
+     * the same message as before.
+     *
+     * @param exercise      the exercise the repository URI resolved to
+     * @param repositoryUrl the repository being accessed
+     * @return the id of the exercise the participation should be looked up for
+     */
+    private long resolveMilestoneExerciseIdForRepository(ProgrammingExercise exercise, String repositoryUrl) {
+        if (!(exercise instanceof MilestoneExercise)) {
+            return exercise.getId();
+        }
+        List<ProgrammingExerciseStudentParticipation> milestoneParticipations = studentParticipationRepository
+                .findAllMilestoneParticipationsWithExerciseByRepositoryUri(repositoryUrl);
+        if (milestoneParticipations.size() <= 1) {
+            // The overwhelmingly common case: a Milestone that owns its repositories and shares them with nobody
+            return exercise.getId();
+        }
+        ZonedDateTime now = ZonedDateTime.now();
+        return milestoneParticipations.stream().map(participation -> Map.entry(participation, ExerciseDateService.getDueDate(participation)))
+                // A Milestone without a due date never closes, so it is always a candidate and sorts behind every dated one
+                .filter(entry -> entry.getValue().isEmpty() || now.isBefore(entry.getValue().get()))
+                .min(Comparator.comparing(entry -> entry.getValue().orElse(ZonedDateTime.now().plusYears(UNDATED_MILESTONE_SORTS_LAST_YEARS))))
+                .map(entry -> entry.getKey().getExercise().getId()).orElseGet(exercise::getId);
     }
 
     /**

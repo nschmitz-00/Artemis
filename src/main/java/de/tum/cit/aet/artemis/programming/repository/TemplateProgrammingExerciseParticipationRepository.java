@@ -57,6 +57,24 @@ public interface TemplateProgrammingExerciseParticipationRepository
         return getValueElseThrow(findByRepositoryUri(repositoryUri));
     }
 
+    // Scoped by exercise: a MilestoneExercise created on another Milestone's template repository has a template participation
+    // of its own pointing at that same repository uri, so the uri alone matches several participations and the lookups above
+    // would fail with a non-unique result. The uri resolves to the Milestone that owns the repository, which is what these
+    // return.
+
+    @EntityGraph(type = LOAD, attributePaths = { "submissions" })
+    Optional<TemplateProgrammingExerciseParticipation> findWithSubmissionsByRepositoryUriAndProgrammingExerciseId(String repositoryUri, long programmingExerciseId);
+
+    default TemplateProgrammingExerciseParticipation findWithSubmissionsByRepositoryUriAndProgrammingExerciseIdElseThrow(String repositoryUri, long programmingExerciseId) {
+        return getValueElseThrow(findWithSubmissionsByRepositoryUriAndProgrammingExerciseId(repositoryUri, programmingExerciseId));
+    }
+
+    Optional<TemplateProgrammingExerciseParticipation> findByRepositoryUriAndProgrammingExerciseId(String repositoryUri, long programmingExerciseId);
+
+    default TemplateProgrammingExerciseParticipation findByRepositoryUriAndProgrammingExerciseIdElseThrow(String repositoryUri, long programmingExerciseId) {
+        return getValueElseThrow(findByRepositoryUriAndProgrammingExerciseId(repositoryUri, programmingExerciseId));
+    }
+
     @EntityGraph(type = LOAD, attributePaths = { "submissions", "submissions.results", "submissions.results.feedbacks", "submissions.results.feedbacks.testCase" })
     Optional<TemplateProgrammingExerciseParticipation> findWithEagerResultsAndFeedbacksAndTestCasesAndSubmissionsByProgrammingExerciseId(long exerciseId);
 

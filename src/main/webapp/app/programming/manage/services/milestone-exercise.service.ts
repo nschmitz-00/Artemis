@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpResponse } from '@angular/common/http';
+import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
@@ -25,12 +25,20 @@ export class MilestoneExerciseService {
 
     /**
      * Sets up a new MilestoneExercise, including its three repositories and build plan.
+     *
+     * With a repositorySourceMilestoneId the new milestone works on the repositories of that existing milestone instead of
+     * getting any of its own, which is how a course runs several milestones over one continuously growing codebase. Sent as a
+     * query parameter rather than in the body: the link is a real association on the server, and an entity in the payload
+     * would be a detached one the creation path must not persist.
+     *
      * @param milestoneExercise which should be set up
+     * @param repositorySourceMilestoneId of the milestone whose repositories should be reused, or undefined to create new ones
      */
-    create(milestoneExercise: MilestoneExercise): Observable<EntityResponseType> {
+    create(milestoneExercise: MilestoneExercise, repositorySourceMilestoneId?: number): Observable<EntityResponseType> {
         const copy = this.convertDataFromClient(milestoneExercise);
+        const options = repositorySourceMilestoneId ? { params: new HttpParams().set('repositorySourceMilestoneId', repositorySourceMilestoneId) } : {};
         return this.http
-            .post<MilestoneExercise>(`${this.resourceUrl}/setup`, copy, { observe: 'response' })
+            .post<MilestoneExercise>(`${this.resourceUrl}/setup`, copy, { ...options, observe: 'response' })
             .pipe(map((res: EntityResponseType) => this.processEntityResponse(res)));
     }
 

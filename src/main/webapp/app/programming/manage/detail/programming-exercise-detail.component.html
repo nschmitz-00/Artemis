@@ -9,6 +9,13 @@
                     </h2>
                     <jhi-documentation-button [type]="documentationType" />
                 </div>
+                <!-- A milestone created on another milestone's repositories owns none of its own: naming that milestone here is the
+                     only place the shared codebase is visible, and it is what an instructor has to delete last. -->
+                @if (repositorySourceMilestone(); as repositorySource) {
+                    <p class="text-muted-color mb-0" id="milestone-repository-source">
+                        {{ 'artemisApp.milestoneExercise.repositories.sharedWith' | artemisTranslate: { title: repositorySource.title } }}
+                    </p>
+                }
                 <hr />
                 <div class="button-header">
                     <div class="d-flex flex-wrap gap-2">

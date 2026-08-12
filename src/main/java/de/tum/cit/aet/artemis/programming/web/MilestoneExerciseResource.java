@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -115,22 +116,33 @@ public class MilestoneExerciseResource {
 
     /**
      * POST /milestone-exercises/setup : Sets up a new MilestoneExercise, including its three repositories and build plan.
+     * <p>
+     * With {@code repositorySourceMilestoneId} the new Milestone works on the repositories of that existing Milestone instead
+     * of getting any of its own - the way a course runs several Milestones over one continuously growing codebase. That choice
+     * exists only here, at creation: it decides where the repositories students push to live, which cannot be moved afterwards.
      *
-     * @param milestoneExercise the MilestoneExercise to set up
+     * @param milestoneExercise           the MilestoneExercise to set up
+     * @param repositorySourceMilestoneId the id of the Milestone whose repositories should be reused, or null to create new ones
      * @return the ResponseEntity with status 201 (Created) and the new MilestoneExercise, or 500 if repository/build-plan setup failed
      */
     @PostMapping("milestone-exercises/setup")
     @EnforceAtLeastEditor
     @FeatureToggle(Feature.ProgrammingExercises)
-    public ResponseEntity<MilestoneExercise> createMilestoneExercise(@RequestBody MilestoneExercise milestoneExercise) {
-        log.debug("REST request to setup MilestoneExercise : {}", milestoneExercise);
+    public ResponseEntity<MilestoneExercise> createMilestoneExercise(@RequestBody MilestoneExercise milestoneExercise,
+            @RequestParam(value = "repositorySourceMilestoneId", required = false) Long repositorySourceMilestoneId) {
+        log.debug("REST request to setup MilestoneExercise : {} (reusing the repositories of {})", milestoneExercise, repositorySourceMilestoneId);
         milestoneExercise.checkCourseAndExerciseGroupExclusivity(ENTITY_NAME);
         Course course = courseService.retrieveCourseOverExerciseGroupOrCourseId(milestoneExercise);
         authCheckService.checkHasAtLeastRoleInCourseElseThrow(Role.EDITOR, course, null);
         programmingExerciseValidationService.validateNewProgrammingExerciseSettings(milestoneExercise, course);
 
+        // Never taken from the request body: the link is a real association, so a client-deserialized MilestoneExercise in it
+        // would be a detached entity that the creation path would try to persist. It is identified by id and loaded here.
+        milestoneExercise.setRepositorySourceMilestone(null);
+        MilestoneExercise repositorySource = repositorySourceMilestoneId == null ? null : findRepositorySourceElseThrow(repositorySourceMilestoneId, course);
+
         try {
-            MilestoneExercise newMilestoneExercise = milestoneExerciseService.createMilestoneExercise(milestoneExercise);
+            MilestoneExercise newMilestoneExercise = milestoneExerciseService.createMilestoneExercise(milestoneExercise, repositorySource);
             return ResponseEntity.created(new URI("/api/programming/milestone-exercises/" + newMilestoneExercise.getId())).body(newMilestoneExercise);
         }
         catch (IOException | URISyntaxException | GitAPIException | ContinuousIntegrationException e) {
@@ -138,6 +150,28 @@ public class MilestoneExerciseResource {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .headers(HeaderUtil.createAlert(applicationName, "An error occurred while setting up the exercise: " + e.getMessage(), "errorMilestoneExercise")).body(null);
         }
+    }
+
+    /**
+     * Loads the Milestone whose repositories a new Milestone should work on, with everything the creation path reads off it
+     * (its participations carry the repository URIs, its build config the settings the new Milestone takes over).
+     *
+     * @param repositorySourceMilestoneId the id of the Milestone to reuse
+     * @param course                      the course the new Milestone is created in
+     * @return the source MilestoneExercise
+     */
+    private MilestoneExercise findRepositorySourceElseThrow(long repositorySourceMilestoneId, Course course) {
+        MilestoneExercise repositorySource = milestoneExerciseRepository
+                .findWithUserStoryExercisesAndTemplateAndSolutionParticipationAndBuildConfigById(repositorySourceMilestoneId)
+                .orElseThrow(() -> new BadRequestAlertException("The milestone exercise whose repositories should be reused does not exist", ENTITY_NAME,
+                        "repositorySourceMilestoneNotFound"));
+        // Same course only: the repositories are governed by that course's staff, and a cross-course link would let a Milestone
+        // hand access to another course's code to its own students
+        if (!course.getId().equals(repositorySource.getCourseViaExerciseGroupOrCourseMember().getId())) {
+            throw new BadRequestAlertException("The milestone exercise whose repositories should be reused belongs to a different course", ENTITY_NAME,
+                    "repositorySourceMilestoneOfOtherCourse");
+        }
+        return repositorySource;
     }
 
     /**
@@ -176,11 +210,15 @@ public class MilestoneExerciseResource {
         Set<Long> originalCompetencyIds = milestoneExercise.getCompetencyLinks().stream().map(link -> link.getCompetency().getId()).collect(Collectors.toSet());
         Double derivedMaxPoints = milestoneExercise.getMaxPoints();
         Double derivedBonusPoints = milestoneExercise.getBonusPoints();
+        MilestoneExercise repositorySourceMilestone = milestoneExercise.getRepositorySourceMilestone();
 
         programmingExerciseUpdateDtoService.applyTo(updateDTO, milestoneExercise);
         // Both point totals are derived from the UserStoryExercise children and must never be taken from the client.
         milestoneExercise.setMaxPoints(derivedMaxPoints);
         milestoneExercise.setBonusPoints(derivedBonusPoints);
+        // Which repositories this Milestone works on is fixed at creation: students have already pushed to them, so it cannot
+        // move afterwards. Restored here in case the DTO application cleared it.
+        milestoneExercise.setRepositorySourceMilestone(repositorySourceMilestone);
 
         MilestoneExercise updatedMilestoneExercise = milestoneExerciseService.updateMilestoneExercise(milestoneExercise, null, originalCompetencyIds);
         return ResponseEntity.ok(updatedMilestoneExercise);

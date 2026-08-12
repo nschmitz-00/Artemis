@@ -37,6 +37,16 @@
                     "COMPLETED": "Abgeschlossen"
                 }
             },
+            "repositories": {
+                "title": "Repositories",
+                "hint": "Entscheide jetzt einmalig, wo der Code dieses Meilensteins liegt. Das kann später nicht mehr geändert werden.",
+                "createNew": "Neue Repositories erstellen",
+                "reuseExisting": "Auf der Codebasis eines bestehenden Meilensteins aufbauen",
+                "sourceMilestone": "Meilenstein, dessen Codebasis fortgeführt wird",
+                "noCandidates": "In diesem Kurs gibt es noch keinen anderen Meilenstein, dessen Codebasis fortgeführt werden könnte.",
+                "reuseConsequences": "Dieser Meilenstein teilt sich das Template-Repository mit dem ausgewählten Meilenstein, und alle Studierenden arbeiten in ihrem bereits vorhandenen Repository weiter. Er erhält ein eigenes Test-Repository und wird damit von seinen eigenen Tests bewertet, sowie ein eigenes Solution-Repository, das als Kopie der Solution des ausgewählten Meilensteins startet. Programmiersprache, Projekttyp, Paketname und statische Code-Analyse werden von ihm übernommen.",
+                "sharedWith": "Führt die Codebasis von {{ title }} fort"
+            },
             "problemStatementHint": "Diese Beschreibung wird Studierenden angezeigt, wenn sie den Meilenstein öffnen. Sie wird als Markdown gerendert.",
             "grading": {
                 "totalPoints": "(Summe der {{ count }} User Stories unten)",

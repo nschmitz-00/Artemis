@@ -1,13 +1,14 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpResponse, provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 
 import { MilestoneExerciseUpdateComponent } from 'app/programming/manage/milestone-update/milestone-exercise-update.component';
 import { MilestoneExercise } from 'app/programming/shared/entities/milestone-exercise.model';
 import { UserStoryExercise } from 'app/programming/shared/entities/user-story-exercise.model';
+import { ProgrammingLanguage } from 'app/programming/shared/entities/programming-exercise.model';
 import { ProgrammingExerciseInputField } from 'app/programming/manage/update/programming-exercise-update.helper';
 import { MilestoneExerciseService } from 'app/programming/manage/services/milestone-exercise.service';
 import { CourseManagementService } from 'app/course/manage/services/course-management.service';
@@ -47,6 +48,9 @@ describe('MilestoneExerciseUpdate Component', () => {
     let comp: MilestoneExerciseUpdateComponent;
     let milestoneExerciseService: MilestoneExerciseService;
     let milestoneExercise: MilestoneExercise;
+
+    /** The milestones offered as a repository source on the create form; set per test before calling setUp. */
+    let repositorySourceCandidates: MilestoneExercise[] = [];
 
     const setUp = async (exerciseId?: string, userStoryExercises?: UserStoryExercise[]) => {
         milestoneExercise = new MilestoneExercise(course, undefined);
@@ -91,6 +95,7 @@ describe('MilestoneExerciseUpdate Component', () => {
         vi.spyOn(courseService, 'findAllCategoriesOfCourse').mockReturnValue(of(new HttpResponse({ body: [] })));
         vi.spyOn(TestBed.inject(ExerciseService), 'convertExerciseCategoriesAsStringFromServer').mockReturnValue([]);
         vi.spyOn(milestoneExerciseService, 'find').mockReturnValue(of(new HttpResponse({ body: milestoneExercise })));
+        vi.spyOn(milestoneExerciseService, 'findAllForCourse').mockReturnValue(of(new HttpResponse({ body: repositorySourceCandidates })));
 
         fixture.detectChanges();
     };
@@ -162,6 +167,113 @@ describe('MilestoneExerciseUpdate Component', () => {
             await setUp('2', []);
 
             expect(comp['userStoryProblemStatements']()).toHaveLength(0);
+        });
+    });
+
+    // Which repositories a milestone works on is decided once, at creation: it is where the code students push to lives, and
+    // that cannot be moved once they have started.
+    describe('repository source', () => {
+        const existingMilestone = (id: number, title: string): MilestoneExercise => {
+            const candidate = new MilestoneExercise(course, undefined);
+            candidate.id = id;
+            candidate.title = title;
+            candidate.programmingLanguage = ProgrammingLanguage.PYTHON;
+            candidate.packageName = 'de.tum.in.shared';
+            candidate.staticCodeAnalysisEnabled = true;
+            return candidate;
+        };
+
+        beforeEach(() => {
+            repositorySourceCandidates = [existingMilestone(7, 'Milestone 1')];
+        });
+
+        afterEach(() => {
+            repositorySourceCandidates = [];
+        });
+
+        it('should offer only milestones that own their repositories', async () => {
+            const linkedMilestone = existingMilestone(8, 'Milestone 2');
+            linkedMilestone.repositorySourceMilestone = repositorySourceCandidates[0];
+            repositorySourceCandidates = [...repositorySourceCandidates, linkedMilestone];
+            await setUp();
+
+            expect(comp['repositorySourceCandidates']().map((candidate) => candidate.id)).toEqual([7]);
+        });
+
+        it('should not offer a repository source when editing an existing milestone', async () => {
+            await setUp('2');
+
+            expect(comp['repositorySourceCandidates']()).toHaveLength(0);
+        });
+
+        it('should create new repositories by default', async () => {
+            await setUp();
+
+            expect(comp['reusesExistingRepositories']()).toBeFalsy();
+        });
+
+        it('should take over the codebase settings of the chosen milestone', async () => {
+            await setUp();
+
+            comp['onRepositorySourceChange'](7);
+
+            expect(comp['reusesExistingRepositories']()).toBeTruthy();
+            expect(comp.milestoneExercise().programmingLanguage).toBe(ProgrammingLanguage.PYTHON);
+            expect(comp.milestoneExercise().packageName).toBe('de.tum.in.shared');
+            expect(comp.milestoneExercise().staticCodeAnalysisEnabled).toBeTruthy();
+        });
+
+        it('should hide the fields describing the shared codebase once a source is chosen', async () => {
+            await setUp();
+
+            comp['onRepositorySourceChange'](7);
+            const record = comp['languageFieldsDisplayedRecord']();
+
+            expect(record[ProgrammingExerciseInputField.PROGRAMMING_LANGUAGE]).toBe(false);
+            expect(record[ProgrammingExerciseInputField.PACKAGE_NAME]).toBe(false);
+            expect(record[ProgrammingExerciseInputField.ENABLE_STATIC_CODE_ANALYSIS]).toBe(false);
+            // Still per-milestone: how students may work on the repository
+            expect(record[ProgrammingExerciseInputField.ALLOW_OFFLINE_IDE]).toBe(true);
+            expect(record[ProgrammingExerciseInputField.ALLOW_ONLINE_CODE_EDITOR]).toBe(true);
+        });
+
+        it('should show every language field again when the choice is taken back', async () => {
+            await setUp();
+
+            comp['onRepositorySourceChange'](7);
+            comp['onRepositorySourceChange'](undefined);
+
+            expect(comp['reusesExistingRepositories']()).toBeFalsy();
+            expect(comp['languageFieldsDisplayedRecord']()[ProgrammingExerciseInputField.PROGRAMMING_LANGUAGE]).toBe(true);
+        });
+
+        it('should send the chosen milestone when creating', async () => {
+            await setUp();
+            const create = vi.spyOn(milestoneExerciseService, 'create').mockReturnValue(of(new HttpResponse({ body: milestoneExercise })));
+
+            comp['onRepositorySourceChange'](7);
+            comp.save();
+
+            expect(create).toHaveBeenCalledOnce();
+            expect(create.mock.calls[0][1]).toBe(7);
+        });
+
+        it('should send no repository source when new repositories are created', async () => {
+            await setUp();
+            const create = vi.spyOn(milestoneExerciseService, 'create').mockReturnValue(of(new HttpResponse({ body: milestoneExercise })));
+
+            comp.save();
+
+            expect(create.mock.calls[0][1]).toBeUndefined();
+        });
+
+        it('should keep the form usable when the candidates cannot be loaded', async () => {
+            await setUp();
+            vi.spyOn(milestoneExerciseService, 'findAllForCourse').mockReturnValue(throwError(() => new Error('request failed')));
+            comp['loadRepositorySourceCandidates'](course.id!);
+
+            expect(comp['repositorySourceCandidates']()).toHaveLength(0);
+            expect(comp['reusesExistingRepositories']()).toBeFalsy();
         });
     });
 

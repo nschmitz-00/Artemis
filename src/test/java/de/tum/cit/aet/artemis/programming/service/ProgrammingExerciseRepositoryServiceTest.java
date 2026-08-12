@@ -50,7 +50,7 @@ class ProgrammingExerciseRepositoryServiceTest {
 
     @BeforeEach
     void setUp() {
-        programmingExerciseRepositoryService = new ProgrammingExerciseRepositoryService(gitService, userRepository, resourceLoaderService, Optional.empty());
+        programmingExerciseRepositoryService = new ProgrammingExerciseRepositoryService(gitService, userRepository, resourceLoaderService, Optional.empty(), new UriService());
     }
 
     @Test

@@ -51,6 +51,13 @@ export class MilestoneExercise extends ProgrammingExercise {
      */
     public numberOfUserStoryExercises?: number;
 
+    /**
+     * The MilestoneExercise whose repositories this Milestone works on instead of owning any of its own, or undefined if it
+     * owns them. Chosen once, at creation, and never editable afterwards - it decides where the repositories students push to
+     * live. Always a Milestone that owns its repositories, never itself a linked one. See MilestoneExercise.java (server).
+     */
+    public repositorySourceMilestone?: MilestoneExercise;
+
     constructor(course: Course | undefined, exerciseGroup: ExerciseGroup | undefined) {
         super(course, exerciseGroup);
         this.type = ExerciseType.MILESTONE;

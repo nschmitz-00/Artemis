@@ -167,6 +167,43 @@ public class ProgrammingExerciseCreationUpdateService {
      */
     public ProgrammingExercise createProgrammingExercise(ProgrammingExercise programmingExercise, boolean emptyRepositories, boolean skipRepositoryAndBuildTrigger)
             throws GitAPIException, IOException {
+        return createProgrammingExercise(programmingExercise, emptyRepositories, skipRepositoryAndBuildTrigger, null);
+    }
+
+    /**
+     * Sets up a new programming exercise that works on the template repository of an existing exercise instead of getting one
+     * of its own.
+     * <p>
+     * Only the template repository is shared - and, through it, the student repositories forked from it, which stay in the
+     * source's project. Test and solution repositories are created for the new exercise, because it poses a different problem
+     * on the same codebase: its own tests decide its grading, and its own reference solution continues the source's (the
+     * solution repository is created as a copy of the source's). Used by MilestoneExercises that continue on the codebase of an
+     * earlier Milestone (see {@code MilestoneExercise#getRepositorySourceMilestone}).
+     * <p>
+     * The source keeps owning the template repository - it is the exercise a push to it resolves to (repository URIs carry its
+     * project key), and the only one whose deletion may remove it.
+     *
+     * @param programmingExercise the exercise that should be set up
+     * @param repositorySource    the exercise whose template repository the new exercise works on, with its build config loaded
+     * @return the new set up exercise
+     * @throws GitAPIException if something during the communication with the remote Git repository went wrong
+     * @throws IOException     if the template files couldn't be read
+     */
+    public ProgrammingExercise createProgrammingExerciseReusingRepositories(ProgrammingExercise programmingExercise, ProgrammingExercise repositorySource)
+            throws GitAPIException, IOException {
+        if (repositorySource == null) {
+            throw new BadRequestAlertException("The exercise whose repositories should be reused must not be null", "ProgrammingExercise", "repositorySourceNull");
+        }
+        // Initial builds run as usual: the solution build against the new test repository is what discovers this exercise's own
+        // test cases
+        return createProgrammingExercise(programmingExercise, false, false, repositorySource);
+    }
+
+    /**
+     * @param repositorySource the exercise whose repositories the new exercise should work on, or null to provision new ones
+     */
+    private ProgrammingExercise createProgrammingExercise(ProgrammingExercise programmingExercise, boolean emptyRepositories, boolean skipRepositoryAndBuildTrigger,
+            @Nullable ProgrammingExercise repositorySource) throws GitAPIException, IOException {
         if (programmingExercise == null) {
             throw new BadRequestAlertException("ProgrammingExercise must not be null", "ProgrammingExercise", "programmingExerciseNull");
         }
@@ -201,10 +238,20 @@ public class ProgrammingExerciseCreationUpdateService {
         savedProgrammingExercise.generateAndSetProjectKey();
         savedProgrammingExercise.getBuildConfig().setBranch(defaultBranch);
 
-        programmingExerciseRepositoryService.createRepositoriesForNewExercise(savedProgrammingExercise);
+        if (repositorySource == null) {
+            programmingExerciseRepositoryService.createRepositoriesForNewExercise(savedProgrammingExercise);
+        }
+        else {
+            programmingExerciseRepositoryService.createRepositoriesForExerciseReusingTemplate(savedProgrammingExercise, repositorySource);
+        }
         initParticipations(savedProgrammingExercise);
 
+        // Runs unchanged for a reusing exercise as well: it owns its solution and test repositories and its build plans, all
+        // under its own project key. Only the template repository is the source's, which is applied afterwards.
         setURLsAndBuildPlanIDsForNewExercise(savedProgrammingExercise);
+        if (repositorySource != null) {
+            pointTemplateRepositoryAtRepositorySource(savedProgrammingExercise, repositorySource);
+        }
 
         connectBaseParticipationsToExerciseAndSave(savedProgrammingExercise);
 
@@ -221,7 +268,14 @@ public class ProgrammingExerciseCreationUpdateService {
         channelService.createExerciseChannel(savedProgrammingExercise, Optional.ofNullable(programmingExercise.getChannelName()));
 
         if (!skipRepositoryAndBuildTrigger) {
-            programmingExerciseRepositoryService.setupExerciseTemplate(savedProgrammingExercise, exerciseCreator, emptyRepositories);
+            if (repositorySource == null) {
+                programmingExerciseRepositoryService.setupExerciseTemplate(savedProgrammingExercise, exerciseCreator, emptyRepositories);
+            }
+            else {
+                // Only the test repository: the template repository belongs to the source and already carries the codebase, and
+                // the solution repository was created as a copy of the source's
+                programmingExerciseRepositoryService.setupTestRepositoryOnly(savedProgrammingExercise, exerciseCreator);
+            }
             savedProgrammingExercise = setupBuildPlansAndTriggerInitialBuilds(savedProgrammingExercise);
         }
 
@@ -319,6 +373,27 @@ public class ProgrammingExerciseCreationUpdateService {
         solutionParticipation.setBuildPlanId(solutionPlanId);
         solutionParticipation.setRepositoryUri(versionControl.getCloneRepositoryUri(projectKey, solutionRepoName).toString());
         programmingExercise.setTestRepositoryUri(versionControl.getCloneRepositoryUri(projectKey, testRepoName).toString());
+    }
+
+    /**
+     * Points the new exercise's template participation at the template repository the source exercise owns, replacing the uri
+     * {@link #setURLsAndBuildPlanIDsForNewExercise} derived from the new exercise's own project key. Everything else stays as
+     * derived - solution repository, test repository and both build plans belong to the new exercise.
+     * <p>
+     * The uri is copied rather than generated on purpose: the template repository lives in the source's project and keeps its
+     * key, which is what makes a push to it - and to every student repository forked from it - resolve to the source (see
+     * {@code LocalVCServletService}). The new exercise keeps a project key of its own so that key stays unique per exercise.
+     *
+     * @param programmingExercise the new exercise, with its template participation already initialized
+     * @param repositorySource    the exercise that owns the template repository
+     */
+    private void pointTemplateRepositoryAtRepositorySource(ProgrammingExercise programmingExercise, ProgrammingExercise repositorySource) {
+        var sourceTemplateParticipation = repositorySource.getTemplateParticipation();
+        if (sourceTemplateParticipation == null) {
+            throw new BadRequestAlertException("The exercise whose template repository should be reused has no template participation", "ProgrammingExercise",
+                    "repositorySourceWithoutTemplateParticipation");
+        }
+        programmingExercise.getTemplateParticipation().setRepositoryUri(sourceTemplateParticipation.getRepositoryUri());
     }
 
     private void setURLsForAuxiliaryRepositoriesOfExercise(ProgrammingExercise programmingExercise) {

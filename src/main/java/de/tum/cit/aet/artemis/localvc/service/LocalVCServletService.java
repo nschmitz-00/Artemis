@@ -16,8 +16,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
+import java.util.stream.Collectors;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -522,7 +524,7 @@ public class LocalVCServletService {
                     candidateParticipations = programmingExerciseParticipationService.findStudentParticipationsByExerciseAndStudentId(exercise, user.getLogin()).stream()
                             .filter(participation -> localVCRepositoryUri.toString().equals(participation.getRepositoryUri())).toList();
                 }
-                candidateParticipations = withUserStorySiblings(candidateParticipations, user, exercise, localVCRepositoryUri);
+                candidateParticipations = withParticipationsSharingRepository(candidateParticipations, user, exercise, localVCRepositoryUri);
 
                 for (ProgrammingExerciseStudentParticipation participation : candidateParticipations) {
                     var storedToken = participationVCSAccessTokenRepository.findByUserIdAndParticipationId(user.getId(), participation.getId());
@@ -540,13 +542,16 @@ public class LocalVCServletService {
     }
 
     /**
-     * Adds the student's UserStoryExercise participations on the same repository to the candidates whose token may authenticate.
+     * Adds every participation the student has on the same repository to the candidates whose token may authenticate.
      * <p>
-     * A MilestoneExercise shares one repository with all its UserStoryExercises: starting the Milestone also creates a sibling
-     * participation per UserStory, all carrying the same repository URI (see {@code ParticipationService#cascadeStartToUserStoryExercises}).
-     * The repository URI resolves to the Milestone alone (the UserStory rows have project keys of their own), so without this
-     * only the Milestone participation's token would ever be accepted - and a student handed a token from a UserStory page would
-     * get "Authentication failed" on a repository they are perfectly entitled to clone.
+     * One repository is shared by a MilestoneExercise, all of its UserStoryExercises, and - when Milestones were created to
+     * reuse another Milestone's repositories - every Milestone of that chain with its own user stories. Starting a Milestone
+     * creates one participation per exercise, all carrying the same repository URI (see
+     * {@code ParticipationService#cascadeStartToUserStoryExercises} and {@code ParticipationService#startProgrammingExercise}).
+     * The URI resolves to the repository-owning Milestone alone (the other rows have project keys of their own), so without
+     * this only that one participation's token would ever be accepted - and a student handed a token from a user story page,
+     * or from the Milestone they are currently working on, would get "Authentication failed" on a repository they are
+     * perfectly entitled to clone.
      *
      * @param participations       the participations found for the resolved exercise
      * @param user                 the user attempting authentication
@@ -554,18 +559,19 @@ public class LocalVCServletService {
      * @param localVCRepositoryUri the repository being accessed
      * @return the participations whose token is valid for this repository; unchanged for anything but a MilestoneExercise
      */
-    private List<ProgrammingExerciseStudentParticipation> withUserStorySiblings(List<ProgrammingExerciseStudentParticipation> participations, User user,
+    private List<ProgrammingExerciseStudentParticipation> withParticipationsSharingRepository(List<ProgrammingExerciseStudentParticipation> participations, User user,
             ProgrammingExercise exercise, LocalVCRepositoryUri localVCRepositoryUri) {
         if (!(exercise instanceof MilestoneExercise)) {
             return participations;
         }
-        List<ProgrammingExerciseStudentParticipation> siblings = programmingExerciseStudentParticipationRepository
-                .findAllUserStorySiblingsByMilestoneIdAndRepositoryUriAndStudentId(exercise.getId(), localVCRepositoryUri.toString(), user.getId());
-        if (siblings.isEmpty()) {
+        List<ProgrammingExerciseStudentParticipation> sharing = programmingExerciseStudentParticipationRepository
+                .findAllByRepositoryUriAndStudentId(localVCRepositoryUri.toString(), user.getId());
+        if (sharing.isEmpty()) {
             return participations;
         }
+        Set<Long> alreadyKnown = participations.stream().map(ProgrammingExerciseStudentParticipation::getId).collect(Collectors.toSet());
         List<ProgrammingExerciseStudentParticipation> allCandidates = new ArrayList<>(participations);
-        allCandidates.addAll(siblings);
+        sharing.stream().filter(participation -> !alreadyKnown.contains(participation.getId())).forEach(allCandidates::add);
         return allCandidates;
     }
 

@@ -16,10 +16,12 @@ import de.tum.cit.aet.artemis.core.service.messaging.InstanceMessageSendService;
 import de.tum.cit.aet.artemis.exercise.service.ParticipationDeletionService;
 import de.tum.cit.aet.artemis.localci.service.ci.ContinuousIntegrationService;
 import de.tum.cit.aet.artemis.localvc.service.RepositoryVcsAccessTokenService;
+import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseTask;
 import de.tum.cit.aet.artemis.programming.domain.SolutionProgrammingExerciseParticipation;
 import de.tum.cit.aet.artemis.programming.domain.TemplateProgrammingExerciseParticipation;
+import de.tum.cit.aet.artemis.programming.repository.MilestoneExerciseRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseTaskRepository;
 
@@ -44,10 +46,14 @@ public class ProgrammingExerciseDeletionService {
 
     private final RepositoryVcsAccessTokenService repositoryVcsAccessTokenService;
 
+    private final MilestoneExerciseRepository milestoneExerciseRepository;
+
     public ProgrammingExerciseDeletionService(ProgrammingExerciseRepositoryService programmingExerciseRepositoryService,
             ProgrammingExerciseRepository programmingExerciseRepository, ParticipationDeletionService participationDeletionService,
             Optional<ContinuousIntegrationService> continuousIntegrationService, InstanceMessageSendService instanceMessageSendService,
-            ProgrammingExerciseTaskRepository programmingExerciseTaskRepository, RepositoryVcsAccessTokenService repositoryVcsAccessTokenService) {
+            ProgrammingExerciseTaskRepository programmingExerciseTaskRepository, RepositoryVcsAccessTokenService repositoryVcsAccessTokenService,
+            MilestoneExerciseRepository milestoneExerciseRepository) {
+        this.milestoneExerciseRepository = milestoneExerciseRepository;
         this.programmingExerciseRepositoryService = programmingExerciseRepositoryService;
         this.programmingExerciseRepository = programmingExerciseRepository;
         this.participationDeletionService = participationDeletionService;
@@ -74,11 +80,20 @@ public class ProgrammingExerciseDeletionService {
         // id is used to cancel the scheduling. No interaction with the database is required.
         cancelScheduledOperations(programmingExercise.getId());
 
+        // A MilestoneExercise created on another Milestone's template repository owns its solution and test repositories, its
+        // project and its build plans, so all of those go as usual. Only the shared template repository - and the student
+        // repositories forked from it, which live in the source's project - are left alone; that exclusion sits inside
+        // ProgrammingExerciseRepositoryService#deleteRepositories, which knows the uris.
         if (deleteBaseReposBuildPlans) {
             deleteBuildPlans(programmingExercise);
             programmingExerciseRepositoryService.deleteRepositories(programmingExercise);
         }
         programmingExerciseRepositoryService.deleteLocalRepoCopies(programmingExercise);
+
+        // Deleting the Milestone others point at is refused by ProgrammingExerciseDeletionResource, where an instructor can act
+        // on the message. Here the link is only released so that bulk deletions - a whole course or exercise group, which delete
+        // every Milestone anyway and in no particular order - are not blocked by the foreign key.
+        unlinkMilestonesUsingRepositoriesOf(programmingExercise);
 
         SolutionProgrammingExerciseParticipation solutionProgrammingExerciseParticipation = programmingExercise.getSolutionParticipation();
         TemplateProgrammingExerciseParticipation templateProgrammingExerciseParticipation = programmingExercise.getTemplateParticipation();
@@ -96,6 +111,30 @@ public class ProgrammingExerciseDeletionService {
         repositoryVcsAccessTokenService.deleteByExerciseId(programmingExerciseId);
         // This will also delete the template & solution participation: we explicitly use deleteById to avoid potential Hibernate issues during deletion
         programmingExerciseRepository.deleteById(programmingExerciseId);
+    }
+
+    /**
+     * Releases the link of every MilestoneExercise that works on the repositories of the exercise being deleted, so the foreign
+     * key does not block the deletion.
+     * <p>
+     * Only reached for bulk deletions: a single deletion of a Milestone others still use is refused earlier, in
+     * {@code ProgrammingExerciseDeletionResource}. Those Milestones are being deleted in the same run, so the repositories they
+     * are left pointing at nowhere are on their way out as well.
+     *
+     * @param programmingExercise the exercise being deleted
+     */
+    private void unlinkMilestonesUsingRepositoriesOf(ProgrammingExercise programmingExercise) {
+        if (!(programmingExercise instanceof MilestoneExercise)) {
+            return;
+        }
+        List<MilestoneExercise> milestonesUsingItsRepositories = milestoneExerciseRepository.findAllByRepositorySourceMilestoneId(programmingExercise.getId());
+        if (milestonesUsingItsRepositories.isEmpty()) {
+            return;
+        }
+        log.warn("Deleting milestone exercise {} while {} other milestone exercises still work on its repositories; releasing their link", programmingExercise.getId(),
+                milestonesUsingItsRepositories.size());
+        milestonesUsingItsRepositories.forEach(milestone -> milestone.setRepositorySourceMilestone(null));
+        milestoneExerciseRepository.saveAll(milestonesUsingItsRepositories);
     }
 
     private void deleteBuildPlans(ProgrammingExercise programmingExercise) {
