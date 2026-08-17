@@ -1,4 +1,5 @@
 import { BaseEntity } from 'app/foundation/model/base-entity';
+import { deepClone } from 'app/foundation/util/deep-clone.util';
 import dayjs from 'dayjs/esm';
 import { StudentParticipation } from 'app/exercise/shared/entities/participation/student-participation.model';
 import { AssessmentType } from 'app/assessment/shared/entities/assessment-type.model';
@@ -380,6 +381,31 @@ export function hasDueDatePassed(exercise: Exercise): boolean {
  */
 export function getExerciseCompetencies(exercise: Exercise): CourseCompetency[] {
     return exercise.competencyLinks?.map((link) => link.competency).filter((competency): competency is CourseCompetency => competency != null) ?? [];
+}
+
+/**
+ * The exercise whose channel the Communication panel should show for the given exercise. A UserStoryExercise never
+ * gets a channel of its own - only its parent Milestone does, since UserStoryExerciseService deliberately does not
+ * call ChannelService#createExerciseChannel the way the Milestone creation path does - so discussion about a user
+ * story belongs in the Milestone's channel. Returns the exercise unchanged for every other type, and undefined when
+ * no channel can be resolved (which should hide the discussion panel).
+ *
+ * @param exercise the exercise to resolve the discussion channel target for
+ * @return the exercise whose channel to show, or undefined if none can be resolved
+ */
+export function resolveDiscussionExercise(exercise: Exercise): Exercise | undefined {
+    if (exercise.type !== ExerciseType.USER_STORY) {
+        return exercise;
+    }
+    const milestoneExercise = (exercise as Exercise & { milestoneExercise?: Exercise }).milestoneExercise;
+    if (!milestoneExercise) {
+        return undefined;
+    }
+    // The parent Milestone is serialized without its course (it is always the same course the user story is in), but
+    // DiscussionSectionComponent needs a course id as well as the exercise id to look the channel up.
+    const discussionTarget = deepClone(milestoneExercise);
+    discussionTarget.course = exercise.course;
+    return discussionTarget;
 }
 
 /**

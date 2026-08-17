@@ -462,12 +462,15 @@ export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDe
     private handleSaveOrSubmit(submit: boolean | undefined, translationKey: string) {
         this.avoidCircularStructure();
         // For a milestone the points belong to its user stories, so their results are written first; the milestone's own
-        // result is still saved afterwards, since that is what holds the assessment lock of this submission.
-        const userStoryAssessments = this.isMilestoneAssessment() ? this.milestoneAssessmentState.saveOrSubmit(!!submit) : of([]);
-        userStoryAssessments.pipe(switchMap(() => this.manualResultService.saveAssessment(this.participation().id!, this.manualResult()!, submit))).subscribe({
-            next: (response) => this.handleSaveOrSubmitSuccessWithAlert(response, translationKey),
-            error: (error: HttpErrorResponse) => this.onError(`error.${error?.error?.errorKey}`),
-        });
+        // result is still saved afterwards, since that is what holds the assessment lock of this submission. No-op when
+        // no milestone assessment is in progress.
+        this.milestoneAssessmentState
+            .saveOrSubmit(!!submit)
+            .pipe(switchMap(() => this.manualResultService.saveAssessment(this.participation().id!, this.manualResult()!, submit)))
+            .subscribe({
+                next: (response) => this.handleSaveOrSubmitSuccessWithAlert(response, translationKey),
+                error: (error: HttpErrorResponse) => this.onError(`error.${error?.error?.errorKey}`),
+            });
     }
 
     /**
@@ -682,9 +685,9 @@ export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDe
      */
     validateFeedback(): void {
         this.calculateTotalScore();
-        if (this.isMilestoneAssessment()) {
-            // Inline feedback that names no user story would score nowhere, so it blocks the assessment until it is assigned
-            this.assessmentsAreValid.set(this.milestoneAssessmentState.allReferencedFeedbackAssigned());
+        const milestoneValidation = this.milestoneAssessmentState.overrideValidation(this.isMilestoneAssessment());
+        if (milestoneValidation !== undefined) {
+            this.assessmentsAreValid.set(milestoneValidation);
             return;
         }
         if (this.exercise().allowComplaintsForAutomaticAssessments) {
@@ -776,13 +779,12 @@ export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDe
     }
 
     private setFeedbacksForManualResult() {
-        if (this.isMilestoneAssessment()) {
-            // The manual feedback of a milestone submission is stored on the results of its user stories, which are what
-            // carries the points - keeping a copy here would pay every deduction and bonus out a second time
-            this.manualResult()!.feedbacks = [...this.automaticFeedback()];
-            return;
-        }
-        this.manualResult()!.feedbacks = [...this.referencedFeedback, ...this.unreferencedFeedback(), ...this.automaticFeedback()];
+        this.manualResult()!.feedbacks = this.milestoneAssessmentState.feedbacksForManualResult(
+            this.isMilestoneAssessment(),
+            this.automaticFeedback(),
+            this.referencedFeedback,
+            this.unreferencedFeedback(),
+        );
     }
 
     private setAttributesForManualResult(totalScore: number) {

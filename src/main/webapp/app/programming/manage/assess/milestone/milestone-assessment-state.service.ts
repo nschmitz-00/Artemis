@@ -176,4 +176,27 @@ export class MilestoneAssessmentStateService {
     allReferencedFeedbackAssigned(): boolean {
         return this.unassignedReferencedFeedback().length === 0;
     }
+
+    /**
+     * Whether the assessment validity for the current submission should be overridden by the milestone-specific rule
+     * (every inline feedback must be assigned to a user story), instead of the caller's own validation.
+     * @param isMilestoneAssessment whether the exercise being assessed is a MilestoneExercise
+     * @return the override result, or undefined when the exercise is not a MilestoneExercise
+     */
+    overrideValidation(isMilestoneAssessment: boolean): boolean | undefined {
+        return isMilestoneAssessment ? this.allReferencedFeedbackAssigned() : undefined;
+    }
+
+    /**
+     * The feedback that belongs on the manual result being saved. For a milestone, the manual feedback is stored on the
+     * results of its user stories instead, which are what carries the points - keeping a copy here would pay every
+     * deduction and bonus out a second time, so only the automatic feedback is kept.
+     * @param isMilestoneAssessment whether the exercise being assessed is a MilestoneExercise
+     */
+    feedbacksForManualResult(isMilestoneAssessment: boolean, automaticFeedback: Feedback[], referencedFeedback: Feedback[], unreferencedFeedback: Feedback[]): Feedback[] {
+        if (isMilestoneAssessment) {
+            return [...automaticFeedback];
+        }
+        return [...referencedFeedback, ...unreferencedFeedback, ...automaticFeedback];
+    }
 }
