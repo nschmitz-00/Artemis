@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Course } from 'app/course/shared/entities/course.model';
 import { ActivatedRoute, Router, RouterOutlet } from '@angular/router';
 import { ProgrammingSubmissionService } from 'app/programming/shared/services/programming-submission.service';
-import { Exercise } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { Exercise, ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { CourseStorageService } from 'app/course/manage/services/course-storage.service';
 import { LtiService } from 'app/foundation/service/lti.service';
 import { NgStyle } from '@angular/common';
@@ -275,7 +275,10 @@ export class CourseExercisesComponent implements SidebarView {
     }
 
     processExercises(exercises: Exercise[]): void {
-        const sortedExercises = this.courseOverviewService.sortExercises(this.preserveSidebarParticipationSnapshots(exercises));
+        // MilestoneExercise instances only hold a milestone's shared config; they are never rendered as a normal
+        // exercise a student can open.
+        const visibleExercises = exercises.filter((exercise) => exercise.type !== ExerciseType.MILESTONE);
+        const sortedExercises = this.courseOverviewService.sortExercises(this.preserveSidebarParticipationSnapshots(visibleExercises));
         this._sortedExercises.set(sortedExercises);
         const { groupedData, ungroupedData } = this.courseOverviewService.buildGroupedExerciseData(sortedExercises, this._courseId());
         this._sidebarExercises.set(ungroupedData);

@@ -6,12 +6,20 @@ import dayjs from 'dayjs/esm';
 import { convertDateFromClient, convertDateFromServer } from 'app/foundation/util/date.utils';
 import { CourseExerciseGroup } from 'app/exercise/shared/entities/exercise/course-exercise-group.model';
 import { Exercise } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { ExerciseService } from 'app/exercise/services/exercise.service';
+import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
 import { deepClone } from 'app/foundation/util/deep-clone.util';
 
 /** Server representation of an exercise variant group (mirrors the backend {@code ExerciseVariantGroupDTO}). */
 export interface ExerciseVariantGroupDTO {
     id?: number;
     title?: string;
+    /** Shown in the "choose a variant" banner on the student group-detail page; falls back to a generic message when unset. */
+    description?: string;
+    /** `'variant'` or `'milestone'`, mirroring the server's `discriminator`. */
+    type?: 'variant' | 'milestone';
+    /** Only set when {@link type} is `'milestone'`. */
+    milestoneExerciseId?: number;
     maxPoints?: number;
     releaseDate?: dayjs.Dayjs;
     startDate?: dayjs.Dayjs;
@@ -25,6 +33,20 @@ export interface ExerciseVariantGroupDTO {
 export interface ExerciseProblemStatementDTO {
     exerciseId: number;
     problemStatement?: string;
+}
+
+/**
+ * Whether the requesting student has started a milestone group's anchor milestone exercise (mirrors the backend
+ * {@code MilestoneStatusDTO}). The milestone exercise itself is never shown to students, so this is the only way the
+ * group view can tell whether to offer "Start exercise" for it.
+ */
+export interface MilestoneStatusDTO {
+    milestoneExerciseId: number;
+    started: boolean;
+    /** Set only when {@link started} is `true`. */
+    participationId?: number;
+    /** The (shared) repository URI of that participation. Set only when {@link started} is `true`. */
+    repositoryUri?: string;
 }
 
 /** The date fields a group payload carries, as the client holds them. */
@@ -74,8 +96,41 @@ export class ExerciseVariantGroupService {
         return this.http.get<ExerciseProblemStatementDTO[]>(`${this.resourceUrl(courseId)}/${groupId}/problem-statements`);
     }
 
+    /** Whether the requesting student has started the group's anchor milestone exercise. */
+    getMilestoneStatus(courseId: number, groupId: number): Observable<MilestoneStatusDTO> {
+        return this.http.get<MilestoneStatusDTO>(`${this.resourceUrl(courseId)}/${groupId}/milestone-status`);
+    }
+
     createGroup(courseId: number, group: CreateExerciseVariantGroupDTO): Observable<ExerciseVariantGroupDTO> {
         return this.http.post<ExerciseVariantGroupDTO>(this.resourceUrl(courseId), this.convertDatesToClient(group)).pipe(map((created) => this.convertDatesFromServer(created)));
+    }
+
+    /**
+     * Creates a milestone exercise group: provisions a real `MilestoneExercise` (repositories, build plan, the works)
+     * and wires it as the new group's anchor in one request. `milestoneExercise.course` is ignored server-side and
+     * always taken from `courseId`.
+     */
+    createMilestoneGroup(courseId: number, milestoneExercise: ProgrammingExercise): Observable<ExerciseVariantGroupDTO> {
+        const copy = deepClone(milestoneExercise);
+        ExerciseService.stringifyExerciseCategories(copy);
+        return this.http
+            .post<ExerciseVariantGroupDTO>(`api/exercise/courses/${courseId}/milestone-exercise-groups`, copy)
+            .pipe(map((created) => this.convertDatesFromServer(created)));
+    }
+
+    /**
+     * Creates a user story exercise in the given milestone exercise group. Its Language/Version-Control settings,
+     * repositories and timeline are ignored server-side and always taken from the group's milestone exercise; only
+     * title/short name/problem statement/grading settings from `userStoryExercise` are used.
+     */
+    createUserStoryExercise(courseId: number, groupId: number, userStoryExercise: ProgrammingExercise): Observable<ProgrammingExercise> {
+        const copy = deepClone(userStoryExercise);
+        // `categories` arrives as ExerciseCategory objects from the form, but the server's Exercise#categories column
+        // is a Set<String> of JSON-encoded categories - every other create/update path stringifies them first (see
+        // ProgrammingExerciseService.automaticSetup); this endpoint sent the raw objects, which Jackson can't bind
+        // into a String and rejects with a 400 "Failed to read request".
+        ExerciseService.stringifyExerciseCategories(copy);
+        return this.http.post<ProgrammingExercise>(`${this.resourceUrl(courseId)}/${groupId}/user-story-exercises`, copy);
     }
 
     updateGroup(courseId: number, group: ExerciseVariantGroupDTO): Observable<ExerciseVariantGroupDTO> {
@@ -156,6 +211,9 @@ export function toCourseExerciseGroup(dto: ExerciseVariantGroupDTO, exercisesByI
     return {
         id: dto.id,
         title: dto.title,
+        description: dto.description,
+        type: dto.type,
+        milestoneExerciseId: dto.milestoneExerciseId,
         maxPoints: dto.maxPoints,
         releaseDate: dto.releaseDate,
         startDate: dto.startDate,

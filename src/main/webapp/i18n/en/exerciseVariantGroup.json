@@ -9,10 +9,21 @@
                     "heading": "Choose a variant to work on",
                     "body": "This group has {{ count }} variants. You can work on any or all of them.",
                     "cappedScore": " Your combined score for this group is capped at {{ maxPoints }} points."
-                }
+                },
+                "startMilestone": "Start exercise",
+                "milestoneStarted": "Started",
+                "instructorActions": "Instructor actions"
             },
             "edit": "Edit group",
             "delete": "Delete group",
+            "description": "Description",
+            "descriptionHint": "Shown to students instead of the default \"Choose a variant to work on\" message.",
+            "milestoneGroup": "Milestone group",
+            "milestoneGroupCreateLabel": "Create Milestone",
+            "milestoneGroupEditLabel": "Edit Milestone",
+            "milestoneGroupRequired": "Please select a milestone group.",
+            "userStoryCreateLabel": "Create User Story",
+            "userStoryEditLabel": "Edit User Story",
             "timelineLocked": {
                 "tooltip": "These dates are managed by the exercise group. Click to edit the group's timeline."
             },

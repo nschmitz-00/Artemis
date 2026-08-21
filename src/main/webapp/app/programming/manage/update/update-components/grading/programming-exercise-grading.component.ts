@@ -99,13 +99,25 @@ export class ProgrammingExerciseGradingComponent implements AfterViewInit, OnDes
         const maxScoreMissingAndOptional =
             programmingExercise.includedInOverallScore === IncludedInOverallScore.NOT_INCLUDED &&
             (programmingExercise.maxPoints === undefined || programmingExercise.maxPoints === null);
-        const maxScoreValidOrOptional = this.maxScoreField()?.valid || maxScoreMissingAndOptional;
+        // Points is hidden entirely for a MilestoneExercise (see MILESTONE_HIDDEN_FIELDS), so maxScoreField() is never
+        // rendered and stays undefined - the maxScoreMissingAndOptional fallback above still isn't enough on its own,
+        // since Exercise#validateScoreSettings() normalizes a null maxPoints to 0.0 server-side on create, and a
+        // re-loaded 0 no longer counts as "missing". Bypass validation entirely once the field isn't shown; there's
+        // no control left for the user to fix it with.
+        const maxScoreValidOrOptional = !this.isEditFieldDisplayedRecord().points || this.maxScoreField()?.valid || maxScoreMissingAndOptional;
         // Bonus points are only entered (and the field only rendered) when the exercise is INCLUDED_COMPLETELY,
         // so its validity must not block the form in the other modes (the field is hidden via [hidden]).
         const bonusPointsValidOrHidden = this.bonusPointsField()?.valid || programmingExercise.includedInOverallScore !== IncludedInOverallScore.INCLUDED_COMPLETELY;
         const maxPenaltyValidOrDisabled = this.maxPenaltyField()?.valid || !programmingExercise.staticCodeAnalysisEnabled;
         const scoreFieldsValid = maxScoreValidOrOptional && bonusPointsValidOrHidden && maxPenaltyValidOrDisabled;
-        const dependentComponentsValid = !this.submissionPolicyUpdateComponent()?.invalid && this.lifecycleComponent()?.formValid;
+        // `?? false` / `?? true`, not a bare `?.`: for a MilestoneExercise, Points/BonusPoints are hidden (see above),
+        // so nothing in this section ever re-fires calculateFormStatus() after the very first automatic call (from
+        // the timeline's own initial status emission in its constructor effect, before ngAfterViewInit's own
+        // subscriptions are even wired up). If either child's own validity hasn't resolved by then, `?.invalid`/
+        // `?.formValid` reads as `undefined`, and a bare `!undefined && undefined` permanently evaluates to `false`
+        // with no later re-computation to recover from it - unlike a normal programming exercise, where the always-
+        // visible Points field's own typing/blur naturally re-triggers this method once children have settled.
+        const dependentComponentsValid = !(this.submissionPolicyUpdateComponent()?.invalid ?? false) && (this.lifecycleComponent()?.formValid ?? true);
         const newFormValidValue = Boolean(scoreFieldsValid && dependentComponentsValid);
 
         this.formValidSignal.set(newFormValidValue);

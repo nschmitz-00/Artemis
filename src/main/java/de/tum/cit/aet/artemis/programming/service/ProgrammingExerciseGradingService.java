@@ -41,14 +41,17 @@ import de.tum.cit.aet.artemis.core.exception.EntityNotFoundException;
 import de.tum.cit.aet.artemis.core.util.RoundingUtil;
 import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.exercise.domain.Exercise;
+import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
 import de.tum.cit.aet.artemis.exercise.domain.SubmissionType;
 import de.tum.cit.aet.artemis.exercise.domain.participation.Participation;
 import de.tum.cit.aet.artemis.exercise.domain.participation.StudentParticipation;
+import de.tum.cit.aet.artemis.exercise.repository.ExerciseVariantGroupRepository;
 import de.tum.cit.aet.artemis.exercise.repository.StudentParticipationRepository;
 import de.tum.cit.aet.artemis.exercise.service.ExerciseDateService;
 import de.tum.cit.aet.artemis.localci.service.ProgrammingExerciseFeedbackCreationService;
 import de.tum.cit.aet.artemis.localci.service.ci.ContinuousIntegrationResultService;
 import de.tum.cit.aet.artemis.notification.service.notifications.GroupNotificationService;
+import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseParticipation;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParticipation;
@@ -114,6 +117,10 @@ public class ProgrammingExerciseGradingService {
 
     private final MavenCentralRateLimitNotificationService mavenCentralRateLimitNotificationService;
 
+    private final ExerciseVariantGroupRepository exerciseVariantGroupRepository;
+
+    private final UserStoryExerciseService userStoryExerciseService;
+
     public ProgrammingExerciseGradingService(StudentParticipationRepository studentParticipationRepository, ResultRepository resultRepository,
             Optional<ContinuousIntegrationResultService> continuousIntegrationResultService, ProgrammingExerciseTestCaseRepository testCaseRepository,
             TemplateProgrammingExerciseParticipationRepository templateProgrammingExerciseParticipationRepository, FeedbackService feedbackService,
@@ -121,7 +128,8 @@ public class ProgrammingExerciseGradingService {
             AuditEventRepository auditEventRepository, GroupNotificationService groupNotificationService, ResultService resultService, ExerciseDateService exerciseDateService,
             SubmissionPolicyService submissionPolicyService, ProgrammingExerciseRepository programmingExerciseRepository, BuildLogEntryService buildLogService,
             StaticCodeAnalysisCategoryRepository staticCodeAnalysisCategoryRepository, ProgrammingExerciseFeedbackCreationService feedbackCreationService,
-            MavenCentralRateLimitNotificationService mavenCentralRateLimitNotificationService) {
+            MavenCentralRateLimitNotificationService mavenCentralRateLimitNotificationService, ExerciseVariantGroupRepository exerciseVariantGroupRepository,
+            UserStoryExerciseService userStoryExerciseService) {
         this.studentParticipationRepository = studentParticipationRepository;
         this.continuousIntegrationResultService = continuousIntegrationResultService;
         this.resultRepository = resultRepository;
@@ -140,6 +148,8 @@ public class ProgrammingExerciseGradingService {
         this.feedbackCreationService = feedbackCreationService;
         this.feedbackService = feedbackService;
         this.mavenCentralRateLimitNotificationService = mavenCentralRateLimitNotificationService;
+        this.exerciseVariantGroupRepository = exerciseVariantGroupRepository;
+        this.userStoryExerciseService = userStoryExerciseService;
     }
 
     /**
@@ -184,6 +194,12 @@ public class ProgrammingExerciseGradingService {
             // When the result is from a solution participation, extract the feedback items (= test cases) and store them in our database.
             if (participation instanceof SolutionProgrammingExerciseParticipation) {
                 feedbackCreationService.extractTestCasesFromResultAndBroadcastUpdates(buildResult, exercise);
+                if (exercise instanceof MilestoneExercise milestoneExercise) {
+                    // The milestone's test suite just (potentially) changed: duplicate the new set onto every
+                    // UserStoryExercise sibling and re-derive which of them are relevant per sibling, so their
+                    // grading stays current without requiring an edit to each sibling itself.
+                    syncMilestoneGroupTestCases(milestoneExercise);
+                }
             }
 
             Result newResult = ciResultService.createResultFromBuildResult(buildResult, participation);
@@ -228,6 +244,18 @@ public class ProgrammingExerciseGradingService {
             log.error("Result for participation {} could not be created", participation.getId(), ex);
             return null;
         }
+    }
+
+    /**
+     * Propagates a {@link MilestoneExercise}'s just-(re)extracted test suite onto every {@code UserStoryExercise}
+     * member of its {@link MilestoneExerciseGroup} - a no-op if the milestone isn't grouped (should not normally
+     * happen, but a defensive check here is cheap and this is the one path that runs for every milestone build).
+     *
+     * @param milestoneExercise the milestone whose solution build just extracted (possibly changed) test cases
+     */
+    private void syncMilestoneGroupTestCases(MilestoneExercise milestoneExercise) {
+        exerciseVariantGroupRepository.findByMilestoneExerciseIdWithExercises(milestoneExercise.getId())
+                .ifPresent(milestoneGroup -> userStoryExerciseService.syncAllMembersTestCases(milestoneGroup, milestoneExercise));
     }
 
     /**

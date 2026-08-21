@@ -2,7 +2,7 @@ import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angula
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { Observable, Subject, catchError, forkJoin, map, of } from 'rxjs';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { TranslateService } from '@ngx-translate/core';
 import { QuizExerciseExportComponent } from 'app/quiz/manage/export/quiz-exercise-export.component';
 import { CourseManagementService } from 'app/course/manage/services/course-management.service';
@@ -147,6 +147,8 @@ export class CourseManagementExercisesComponent implements OnInit {
     readonly editSelectedData = signal<ProgrammingExercise[]>([]);
 
     readonly isGroup = computed(() => this.view() === 'group');
+    /** Whether the course has at least one milestone exercise group — gates the "Create user story" card. */
+    readonly hasMilestoneGroup = computed(() => this.groups().some((group) => group.type === 'milestone'));
     /** Deleting a group requires the same permission as deleting an exercise: instructor (or admin) on the course. */
     readonly canDeleteGroups = computed(() => this.course()?.isAtLeastInstructor ?? false);
     /** Ids of all rendered cards, so each group's exercise table is a connected CDK drop target for the others. */
@@ -183,6 +185,7 @@ export class CourseManagementExercisesComponent implements OnInit {
     readonly selectedProgrammingExercises = computed(() => this.selectedExercises().filter((exercise) => exercise.type === ExerciseType.PROGRAMMING) as ProgrammingExercise[]);
 
     private readonly route = inject(ActivatedRoute);
+    private readonly router = inject(Router);
     private readonly courseManagementService = inject(CourseManagementService);
     private readonly quizExerciseService = inject(QuizExerciseService);
     private readonly programmingExerciseService = inject(ProgrammingExerciseService);
@@ -237,7 +240,9 @@ export class CourseManagementExercisesComponent implements OnInit {
         this.courseManagementService.findWithExercises(courseId).subscribe({
             next: (response) => {
                 const loadedCourse = response.body;
-                const exercises = loadedCourse?.exercises ?? [];
+                // MilestoneExercise instances only hold a milestone's shared config; they are never rendered as a
+                // normal exercise row (the milestone group's card represents them instead).
+                const exercises = (loadedCourse?.exercises ?? []).filter((exercise) => exercise.type !== ExerciseType.MILESTONE);
                 exercises.forEach((exercise) => {
                     exercise.isAtLeastTutor = loadedCourse?.isAtLeastTutor;
                     exercise.isAtLeastEditor = loadedCourse?.isAtLeastEditor;
@@ -460,9 +465,18 @@ export class CourseManagementExercisesComponent implements OnInit {
 
     openGroupEditModal(id: number): void {
         const group = this.groups().find((g) => g.id === id);
-        if (group) {
-            this.openGroupEditDialog(group, false);
+        if (!group) {
+            return;
         }
+        // A milestone group is anchored by a full MilestoneExercise (language, VCS, build config, ...) - the small
+        // title/points/dates dialog below can't edit that. Route to the same full-page config layout as milestone
+        // create instead (see ProgrammingExerciseUpdateComponent.isMilestoneMode); a plain variant group has no
+        // backing exercise of its own, so it keeps the lightweight dialog.
+        if (group.type === 'milestone' && group.milestoneExerciseId !== undefined) {
+            void this.router.navigate(['/course-management', this.courseId(), 'milestone-exercise-groups', group.milestoneExerciseId, 'edit']);
+            return;
+        }
+        this.openGroupEditDialog(group, false);
     }
 
     /** Opens the group-edit modal. {@code isNew} selects the create vs. update path in {@link onGroupEditModalSave}. */

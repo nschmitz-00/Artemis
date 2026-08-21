@@ -67,6 +67,9 @@ public interface ExerciseRepository extends ArtemisJpaRepository<Exercise, Long>
      * @param userLogin         the requesting user's login for the LTI-launch check
      * @return the projected exercise details
      */
+    // MilestoneExercise is excluded unconditionally: it's the anchor a MilestoneExerciseGroup's user story exercises share
+    // repositories/build plan with, never something anyone works on directly, and its own javadoc says it must never be
+    // rendered - see MilestoneExercise.isVisibleToStudents(), the corresponding gate for direct per-exercise access.
     @Query("""
             SELECT NEW de.tum.cit.aet.artemis.exercise.dto.ExerciseForCourseOverviewDTO(
                 TYPE(exercise),
@@ -90,6 +93,10 @@ public interface ExerciseRepository extends ArtemisJpaRepository<Exercise, Long>
                 programmingExercise.buildAndTestStudentSubmissionsAfterDueDate,
                 variantGroup.id,
                 variantGroup.title,
+                CASE WHEN milestoneExercise.id IS NOT NULL THEN milestoneExercise.description ELSE variantGroup.description END,
+                CASE WHEN variantGroup.id IS NULL THEN NULL
+                     WHEN EXISTS (SELECT 1 FROM MilestoneExerciseGroup mg WHERE mg.id = variantGroup.id) THEN 'milestone'
+                     ELSE 'variant' END,
                 variantGroup.maxPoints,
                 variantGroup.releaseDate,
                 variantGroup.startDate,
@@ -99,7 +106,9 @@ public interface ExerciseRepository extends ArtemisJpaRepository<Exercise, Long>
             FROM Exercise exercise
                 LEFT JOIN ProgrammingExercise programmingExercise ON exercise.id = programmingExercise.id
                 LEFT JOIN exercise.exerciseVariantGroup variantGroup
+                LEFT JOIN TREAT(variantGroup AS MilestoneExerciseGroup).milestoneExercise milestoneExercise
             WHERE exercise.course.id = :courseId
+                AND TYPE(exercise) <> MilestoneExercise
                 AND (:includeUnreleased = TRUE OR exercise.releaseDate IS NULL OR exercise.releaseDate <= :calculationTime)
                 AND (:requireLtiLaunch = FALSE OR EXISTS (
                     SELECT launch
@@ -543,12 +552,22 @@ public interface ExerciseRepository extends ArtemisJpaRepository<Exercise, Long>
             """)
     Optional<Exercise> findByIdWithEagerExampleSubmissions(@Param("exerciseId") Long exerciseId);
 
+    // Also fetches a MilestoneExerciseGroup member's group.milestoneExercise (a LAZY @OneToOne) together with *its* own
+    // LAZY buildConfig/templateParticipation/solutionParticipation. GET .../exercises/{id}/details serializes the
+    // returned entity directly (ExerciseDetailsDTO wraps it as-is: a UserStoryExercise carries its group, and the group
+    // carries this anchor exercise), and spring.jpa.open-in-view is disabled, so any of these left unfetched here is an
+    // uninitialized proxy by the time Jackson walks the object graph. A no-op (plain left join) for any exercise that
+    // isn't in a milestone group.
     @Query("""
             SELECT DISTINCT e
             FROM Exercise e
                 LEFT JOIN FETCH e.categories
                 LEFT JOIN FETCH e.submissionPolicy
-                LEFT JOIN FETCH e.exerciseVariantGroup
+                LEFT JOIN FETCH e.exerciseVariantGroup evg
+                LEFT JOIN FETCH TREAT(evg AS MilestoneExerciseGroup).milestoneExercise me
+                LEFT JOIN FETCH me.buildConfig
+                LEFT JOIN FETCH me.templateParticipation
+                LEFT JOIN FETCH me.solutionParticipation
             WHERE e.id = :exerciseId
             """)
     Optional<Exercise> findByIdWithDetailsForStudent(@Param("exerciseId") Long exerciseId);

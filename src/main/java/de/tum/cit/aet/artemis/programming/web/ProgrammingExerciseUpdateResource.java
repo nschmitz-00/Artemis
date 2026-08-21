@@ -39,6 +39,7 @@ import de.tum.cit.aet.artemis.core.service.feature.Feature;
 import de.tum.cit.aet.artemis.core.service.feature.FeatureToggle;
 import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.course.service.CourseService;
+import de.tum.cit.aet.artemis.exercise.repository.ExerciseVariantGroupRepository;
 import de.tum.cit.aet.artemis.exercise.repository.ParticipationRepository;
 import de.tum.cit.aet.artemis.exercise.service.CompetencyExerciseLinkService;
 import de.tum.cit.aet.artemis.exercise.service.ExerciseService;
@@ -48,6 +49,7 @@ import de.tum.cit.aet.artemis.lecture.api.SlideApi;
 import de.tum.cit.aet.artemis.localci.service.AutomaticAfterDueDateService;
 import de.tum.cit.aet.artemis.plagiarism.domain.PlagiarismDetectionConfigHelper;
 import de.tum.cit.aet.artemis.programming.domain.AuxiliaryRepository;
+import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseBuildConfig;
 import de.tum.cit.aet.artemis.programming.dto.AuxiliaryRepositoryDTO;
@@ -58,6 +60,7 @@ import de.tum.cit.aet.artemis.programming.service.AuxiliaryRepositoryService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseCreationUpdateService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseRepositoryService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseValidationService;
+import de.tum.cit.aet.artemis.programming.service.UserStoryExerciseService;
 
 /**
  * REST controller for updating complete programming exercise entities.
@@ -106,12 +109,17 @@ public class ProgrammingExerciseUpdateResource {
 
     private final ExerciseVariantGroupService exerciseVariantGroupService;
 
+    private final ExerciseVariantGroupRepository exerciseVariantGroupRepository;
+
+    private final UserStoryExerciseService userStoryExerciseService;
+
     public ProgrammingExerciseUpdateResource(ProgrammingExerciseRepository programmingExerciseRepository, UserRepository userRepository, AuthorizationCheckService authCheckService,
             CourseService courseService, ExerciseService exerciseService, ProgrammingExerciseValidationService programmingExerciseValidationService,
             ProgrammingExerciseCreationUpdateService programmingExerciseCreationUpdateService, ProgrammingExerciseRepositoryService programmingExerciseRepositoryService,
             AuxiliaryRepositoryService auxiliaryRepositoryService, Optional<AthenaApi> athenaApi, ModuleFeatureService moduleFeatureService, Optional<SlideApi> slideApi,
             Optional<AutomaticAfterDueDateService> automaticAfterDueDateService, ExerciseVersionService exerciseVersionService, ParticipationRepository participationRepository,
-            CompetencyExerciseLinkService competencyExerciseLinkService, ExerciseVariantGroupService exerciseVariantGroupService) {
+            CompetencyExerciseLinkService competencyExerciseLinkService, ExerciseVariantGroupService exerciseVariantGroupService,
+            ExerciseVariantGroupRepository exerciseVariantGroupRepository, UserStoryExerciseService userStoryExerciseService) {
         this.programmingExerciseValidationService = programmingExerciseValidationService;
         this.programmingExerciseCreationUpdateService = programmingExerciseCreationUpdateService;
         this.programmingExerciseRepository = programmingExerciseRepository;
@@ -129,6 +137,8 @@ public class ProgrammingExerciseUpdateResource {
         this.participationRepository = participationRepository;
         this.competencyExerciseLinkService = competencyExerciseLinkService;
         this.exerciseVariantGroupService = exerciseVariantGroupService;
+        this.exerciseVariantGroupRepository = exerciseVariantGroupRepository;
+        this.userStoryExerciseService = userStoryExerciseService;
     }
 
     /**
@@ -318,6 +328,20 @@ public class ProgrammingExerciseUpdateResource {
         participationRepository.removeIndividualDueDatesIfBeforeDueDate(savedProgrammingExercise, originalDueDate);
         slideApi.ifPresent(api -> api.handleDueDateChange(originalDueDate, updatedProgrammingExercise));
         exerciseVersionService.createExerciseVersion(savedProgrammingExercise, user);
+
+        // Editing a MilestoneExercise is the only place a milestone group's Language/Version-Control/build settings are
+        // configured (see ProgrammingExerciseUpdateComponent.isMilestoneMode client-side); push the change onto every
+        // UserStoryExercise member so they don't silently drift from what the milestone form shows. A no-op for a
+        // milestone with no members yet, and for every other exercise type. Re-fetched fresh (rather than reusing
+        // savedProgrammingExercise) because the save above ran in its own session and did not eagerly load
+        // template/solution participations, so touching them here would otherwise throw LazyInitializationException.
+        if (savedProgrammingExercise instanceof MilestoneExercise) {
+            MilestoneExercise freshMilestoneExercise = (MilestoneExercise) programmingExerciseRepository
+                    .findByIdWithTemplateAndSolutionParticipationTeamAssignmentConfigCategoriesCompetenciesAndBuildConfigElseThrow(savedProgrammingExercise.getId());
+            exerciseVariantGroupRepository.findByMilestoneExerciseIdWithExercises(freshMilestoneExercise.getId())
+                    .ifPresent(milestoneGroup -> userStoryExerciseService.syncAllMembersConfig(milestoneGroup, freshMilestoneExercise));
+        }
+
         return ResponseEntity.ok(savedProgrammingExercise);
     }
 
@@ -379,6 +403,9 @@ public class ProgrammingExerciseUpdateResource {
 
         exercise.setFeedbackSuggestionModule(dto.feedbackSuggestionModule());
         exercise.setGradingInstructions(dto.gradingInstructions());
+        if (exercise instanceof MilestoneExercise milestoneExercise) {
+            milestoneExercise.setDescription(dto.description());
+        }
 
         // Update programming exercise specific fields
         if (dto.allowOnlineEditor() != null) {

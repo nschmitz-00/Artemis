@@ -3,12 +3,14 @@ import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { FaIconComponent } from '@fortawesome/angular-fontawesome';
-import { faCircleInfo, faLayerGroup } from '@fortawesome/free-solid-svg-icons';
-import { DifficultyLevel, Exercise, IncludedInOverallScore, getIcon } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { faCircleInfo, faLayerGroup, faPlayCircle, faWrench } from '@fortawesome/free-solid-svg-icons';
+import { finalize } from 'rxjs/operators';
+import { HttpErrorResponse } from '@angular/common/http';
+import { DifficultyLevel, Exercise, IncludedInOverallScore, getExerciseUrlSegment, getIcon } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { CourseExerciseGroup, buildGroupsFromExercises } from 'app/exercise/shared/entities/exercise/course-exercise-group.model';
 import { CourseOverviewExercisesService } from 'app/course/overview/services/course-overview-exercises.service';
 import { CourseStorageService } from 'app/course/manage/services/course-storage.service';
-import { ExerciseVariantGroupService } from 'app/course/manage/exercises/exercise-variant-group.service';
+import { ExerciseVariantGroupService, MilestoneStatusDTO } from 'app/course/manage/exercises/exercise-variant-group.service';
 import { EntityTitleService, EntityType } from 'app/core/navbar/entity-title.service';
 import { ProgrammingExercisePlantUmlExtensionWrapper } from 'app/programming/shared/instructions-render/extensions/programming-exercise-plant-uml.extension';
 import { taskRegex } from 'app/programming/shared/instructions-render/extensions/programming-exercise-task.extension';
@@ -21,11 +23,20 @@ import { ExerciseHeadersInformationComponent } from 'app/exercise/exercise-heade
 import { InformationBox, InformationBoxComponent } from 'app/shared-ui/information-box/information-box.component';
 import { StudentParticipation } from 'app/exercise/shared/entities/participation/student-participation.model';
 import { ParticipationService } from 'app/exercise/participation/participation.service';
+import { CourseExerciseService } from 'app/exercise/course-exercises/course-exercise.service';
 import { Course } from 'app/course/shared/entities/course.model';
 import { ArtemisServerDateService } from 'app/foundation/service/server-date.service';
 import { ScoresStorageService } from 'app/course/manage/course-scores/scores-storage.service';
+import { AlertService } from 'app/foundation/service/alert.service';
 import { isDateLessThanAWeekInTheFuture } from 'app/foundation/util/date.utils';
+import { cloneWith } from 'app/foundation/util/deep-clone.util';
 import { TumUiTooltipDirective } from '@tumaet/ui-angular';
+import { ExerciseActionButtonComponent } from 'app/shared-ui/components/buttons/exercise-action-button/exercise-action-button.component';
+import { FeatureToggle } from 'app/foundation/feature-toggle/feature-toggle.service';
+import { FeatureToggleDirective } from 'app/foundation/feature-toggle/feature-toggle.directive';
+import { CodeButtonComponent } from 'app/shared-ui/components/buttons/code-button/code-button.component';
+import { ProgrammingExerciseStudentParticipation } from 'app/exercise/shared/entities/participation/programming-exercise-student-participation.model';
+import { NgbDropdown, NgbDropdownItem, NgbDropdownMenu, NgbDropdownToggle } from '@ng-bootstrap/ng-bootstrap';
 
 @Component({
     selector: 'jhi-course-exercise-group-detail',
@@ -41,6 +52,13 @@ import { TumUiTooltipDirective } from '@tumaet/ui-angular';
         ExerciseHeadersInformationComponent,
         InformationBoxComponent,
         TumUiTooltipDirective,
+        ExerciseActionButtonComponent,
+        FeatureToggleDirective,
+        CodeButtonComponent,
+        NgbDropdown,
+        NgbDropdownToggle,
+        NgbDropdownMenu,
+        NgbDropdownItem,
     ],
     /* preserveWhitespaces: false is required here because the global tsconfig sets preserveWhitespaces: true,
      * which inserts whitespace text nodes that break [contentComponent] slot matching in jhi-information-box. */
@@ -60,13 +78,24 @@ export class CourseExerciseGroupDetailComponent {
 
     protected readonly faLayerGroup = faLayerGroup;
     protected readonly faCircleInfo = faCircleInfo;
+    protected readonly faPlayCircle = faPlayCircle;
+    protected readonly faWrench = faWrench;
     protected readonly getIcon = getIcon;
     protected readonly DifficultyLevel = DifficultyLevel;
+    protected readonly FeatureToggle = FeatureToggle;
 
     private readonly serverDateService = inject(ArtemisServerDateService);
     private readonly scoresStorageService = inject(ScoresStorageService);
     private readonly participationService = inject(ParticipationService);
+    private readonly courseExerciseService = inject(CourseExerciseService);
+    private readonly alertService = inject(AlertService);
     private readonly now = this.serverDateService.now();
+
+    /** Whether the requesting student has started the group's anchor milestone exercise; undefined until loaded. */
+    protected readonly milestoneStatus = signal<MilestoneStatusDTO | undefined>(undefined);
+    protected readonly isStartingMilestone = signal(false);
+    /** Milestone groups whose status has already been requested, so revisiting a group does not re-fetch it. */
+    private readonly requestedMilestoneStatusGroupIds = new Set<number>();
 
     private readonly groupId = signal<number | undefined>(undefined);
     private readonly courseExercises = signal<Exercise[]>([]);
@@ -265,6 +294,22 @@ export class CourseExerciseGroupDetailComponent {
                     },
                 });
         });
+
+        effect(() => {
+            const group = this.group();
+            const groupId = group?.id;
+            if (group?.type !== 'milestone' || groupId === undefined || this.requestedMilestoneStatusGroupIds.has(groupId)) {
+                return;
+            }
+            this.requestedMilestoneStatusGroupIds.add(groupId);
+            this.exerciseVariantGroupService
+                .getMilestoneStatus(this.courseId, groupId)
+                .pipe(takeUntilDestroyed(this.destroyRef))
+                .subscribe({
+                    next: (status) => this.milestoneStatus.set(status),
+                    error: () => this.requestedMilestoneStatusGroupIds.delete(groupId),
+                });
+        });
     }
 
     private renderProblemStatements(exercises: Exercise[], statements: Map<number, string>): void {
@@ -304,5 +349,63 @@ export class CourseExerciseGroupDetailComponent {
 
     protected exerciseLink(exercise: Exercise): string {
         return `/courses/${this.courseId}/exercises/${exercise.id}`;
+    }
+
+    /**
+     * Starts the group's anchor milestone exercise for the current student, so every UserStoryExercise in the group
+     * shares its repository (server-side: `ParticipationService.shareSiblingRepositoryIfAvailable`) instead of each
+     * provisioning its own once the student starts it.
+     */
+    protected startMilestone(): void {
+        const status = this.milestoneStatus();
+        if (!status || status.started || this.isStartingMilestone()) {
+            return;
+        }
+        this.isStartingMilestone.set(true);
+        this.courseExerciseService
+            .startExercise(status.milestoneExerciseId)
+            .pipe(finalize(() => this.isStartingMilestone.set(false)))
+            .subscribe({
+                next: (participation) => {
+                    const programmingParticipation = participation as ProgrammingExerciseStudentParticipation;
+                    this.milestoneStatus.set(
+                        cloneWith(status, { started: true, participationId: programmingParticipation.id, repositoryUri: programmingParticipation.repositoryUri }),
+                    );
+                },
+                error: (error: HttpErrorResponse) => {
+                    if (error.status !== 403) {
+                        this.alertService.error('artemisApp.exercise.startError');
+                    }
+                },
+            });
+    }
+
+    /** Where the group's "Instructor actions" dropdown entry for one member exercise links to: its own course-management detail page. */
+    protected exerciseManagementRouterLink(exercise: Exercise): (string | number)[] {
+        return ['/course-management', this.courseId, getExerciseUrlSegment(exercise.type), exercise.id ?? 0];
+    }
+
+    /**
+     * The milestone's own participation, wrapped as a single-element array for `jhi-code-button`'s `[participations]`
+     * input - the group view shows the "Code" button for the milestone's (shared) repository directly, instead of the
+     * plain "started" text a normal exercise page would show once a participation exists.
+     */
+    protected readonly milestoneCodeButtonParticipations = computed<ProgrammingExerciseStudentParticipation[]>(() => {
+        const status = this.milestoneStatus();
+        if (!status?.started || status.participationId === undefined) {
+            return [];
+        }
+        const participation = new ProgrammingExerciseStudentParticipation();
+        participation.id = status.participationId;
+        participation.repositoryUri = status.repositoryUri;
+        return [participation];
+    });
+
+    protected routerLinkForMilestoneRepository(): (string | number)[] {
+        const status = this.milestoneStatus();
+        if (!status?.participationId) {
+            return ['/courses', this.courseId, 'exercises', status?.milestoneExerciseId ?? 0];
+        }
+        return ['/courses', this.courseId, 'exercises', status.milestoneExerciseId, 'repository', status.participationId];
     }
 }

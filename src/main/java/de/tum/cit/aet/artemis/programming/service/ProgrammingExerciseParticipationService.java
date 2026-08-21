@@ -313,7 +313,7 @@ public class ProgrammingExerciseParticipationService {
             return templateParticipationRepository.findByRepositoryUriElseThrow(repositoryURL);
         }
 
-        return studentParticipationRepository.findByRepositoryUriElseThrow(repositoryURL);
+        return studentParticipationRepository.findByExerciseIdAndRepositoryUriElseThrow(exercise.getId(), repositoryURL);
     }
 
     /**

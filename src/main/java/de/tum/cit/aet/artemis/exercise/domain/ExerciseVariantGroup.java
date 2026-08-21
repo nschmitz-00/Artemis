@@ -6,15 +6,23 @@ import java.util.Objects;
 import java.util.Set;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.DiscriminatorColumn;
+import jakarta.persistence.DiscriminatorType;
+import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.Inheritance;
+import jakarta.persistence.InheritanceType;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
+import org.hibernate.annotations.ConcreteProxy;
 import org.jspecify.annotations.Nullable;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
 import de.tum.cit.aet.artemis.core.domain.DomainObject;
 import de.tum.cit.aet.artemis.core.exception.BadRequestAlertException;
@@ -36,11 +44,22 @@ import de.tum.cit.aet.artemis.core.exception.BadRequestAlertException;
  */
 @Entity
 @Table(name = "exercise_variant_group")
+@Inheritance(strategy = InheritanceType.SINGLE_TABLE)
+@DiscriminatorColumn(name = "discriminator", discriminatorType = DiscriminatorType.STRING)
+@DiscriminatorValue("V")
+@ConcreteProxy
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
+@JsonSubTypes({ @JsonSubTypes.Type(value = MilestoneExerciseGroup.class, name = "milestone") })
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class ExerciseVariantGroup extends DomainObject {
 
     @Column(name = "title", nullable = false)
     private String title;
+
+    /** Shown in the "choose a variant" banner on the student group-detail page; falls back to a generic message when unset. */
+    @Nullable
+    @Column(name = "description")
+    private String description;
 
     /** Cap on the group's contribution to the course score: {@code min(sum(points of variants), maxPoints)}. */
     @Nullable
@@ -79,6 +98,15 @@ public class ExerciseVariantGroup extends DomainObject {
 
     public void setTitle(String title) {
         this.title = Objects.requireNonNull(title, "title must not be null").strip();
+    }
+
+    @Nullable
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(@Nullable String description) {
+        this.description = description;
     }
 
     @Nullable
@@ -162,13 +190,15 @@ public class ExerciseVariantGroup extends DomainObject {
      * @return {@code true} if the set dates do not contradict each other
      */
     public boolean areDatesValid() {
+        // Read through the getters (not the raw fields) so a subclass that overrides them to delegate elsewhere
+        // (e.g. MilestoneExerciseGroup, whose dates live on its MilestoneExercise) is validated correctly.
         //@formatter:off
-        return isNotAfterAndNotNull(releaseDate, dueDate)
-                && isNotAfterAndNotNull(releaseDate, startDate)
-                && isNotAfterAndNotNull(startDate, dueDate)
-                && isValidAssessmentDueDate(startDate, dueDate, assessmentDueDate)
-                && isValidAssessmentDueDate(releaseDate, dueDate, assessmentDueDate)
-                && isNotAfterAndNotNull(releaseDate, exampleSolutionPublicationDate);
+        return isNotAfterAndNotNull(getReleaseDate(), getDueDate())
+                && isNotAfterAndNotNull(getReleaseDate(), getStartDate())
+                && isNotAfterAndNotNull(getStartDate(), getDueDate())
+                && isValidAssessmentDueDate(getStartDate(), getDueDate(), getAssessmentDueDate())
+                && isValidAssessmentDueDate(getReleaseDate(), getDueDate(), getAssessmentDueDate())
+                && isNotAfterAndNotNull(getReleaseDate(), getExampleSolutionPublicationDate());
         //@formatter:on
     }
 

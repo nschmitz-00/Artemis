@@ -9,10 +9,21 @@
                     "heading": "Wähle eine Variante zum Bearbeiten",
                     "body": "Diese Gruppe hat {{ count }} Varianten. Du kannst beliebig viele davon bearbeiten.",
                     "cappedScore": " Deine Gesamtpunktzahl für diese Gruppe ist auf {{ maxPoints }} Punkte begrenzt."
-                }
+                },
+                "startMilestone": "Aufgabe starten",
+                "milestoneStarted": "Gestartet",
+                "instructorActions": "Aktionen für Lehrende"
             },
             "edit": "Gruppe bearbeiten",
             "delete": "Gruppe löschen",
+            "description": "Beschreibung",
+            "descriptionHint": "Wird Studierenden anstelle der Standardmeldung \"Wähle eine Variante zum Bearbeiten\" angezeigt.",
+            "milestoneGroup": "Meilenstein-Gruppe",
+            "milestoneGroupCreateLabel": "Meilenstein erstellen",
+            "milestoneGroupEditLabel": "Meilenstein bearbeiten",
+            "milestoneGroupRequired": "Bitte wähle eine Meilenstein-Gruppe aus.",
+            "userStoryCreateLabel": "User Story erstellen",
+            "userStoryEditLabel": "User Story bearbeiten",
             "timelineLocked": {
                 "tooltip": "Diese Termine werden von der Aufgabengruppe verwaltet. Zum Bearbeiten der Termine der Gruppe hier klicken."
             },

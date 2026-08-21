@@ -62,7 +62,11 @@ public enum ExerciseType {
     public static ExerciseType getExerciseTypeFromClass(Class<? extends Exercise> exerciseClass) {
         return switch (exerciseClass.getSimpleName()) {
             case "TextExercise" -> TEXT;
-            case "ProgrammingExercise" -> PROGRAMMING;
+            // MilestoneExercise and UserStoryExercise are ProgrammingExercise subtypes (see the programming.domain
+            // package); they are classified as PROGRAMMING here too, rather than adding new ExerciseType constants that
+            // would ripple through every exhaustive switch over this enum, both server-side and in the mirrored Angular
+            // ExerciseType. Their "not graded" / "always grouped" / "not rendered" behavior is layered on separately.
+            case "ProgrammingExercise", "MilestoneExercise", "UserStoryExercise" -> PROGRAMMING;
             case "ModelingExercise" -> MODELING;
             case "FileUploadExercise" -> FILE_UPLOAD;
             case "QuizExercise" -> QUIZ;

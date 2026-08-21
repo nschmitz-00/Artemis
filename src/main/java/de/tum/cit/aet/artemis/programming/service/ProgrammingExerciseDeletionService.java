@@ -92,6 +92,10 @@ public class ProgrammingExerciseDeletionService {
         // Note: we fetch the programming exercise again here with student participations to avoid Hibernate issues during the delete operation below
         var programmingExerciseWithStudentParticipations = programmingExerciseRepository.findByIdWithStudentParticipationsAndSubmissionsElseThrow(programmingExerciseId);
         log.debug("Delete programming exercises with student participations: {}", programmingExerciseWithStudentParticipations.getStudentParticipations());
+        // Delete all student participations first (including their participation-scoped VCS access tokens, whose
+        // participation_id foreign key uses ON DELETE RESTRICT and would otherwise block the participation delete
+        // that cascades from deleteById below).
+        participationDeletionService.deleteAllByExercise(programmingExerciseWithStudentParticipations, false);
         // Remove the repository-scoped VCS access tokens before deleting the exercise (the exercise_id foreign key uses ON DELETE RESTRICT).
         repositoryVcsAccessTokenService.deleteByExerciseId(programmingExerciseId);
         // This will also delete the template & solution participation: we explicitly use deleteById to avoid potential Hibernate issues during deletion

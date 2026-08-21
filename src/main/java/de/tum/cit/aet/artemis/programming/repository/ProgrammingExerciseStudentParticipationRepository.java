@@ -97,6 +97,25 @@ public interface ProgrammingExerciseStudentParticipationRepository extends Artem
         return getValueElseThrow(findByRepositoryUri(repositoryUri));
     }
 
+    /**
+     * Like {@link #findByRepositoryUri}, but also scoped to a specific exercise - needed because a {@code UserStoryExercise}
+     * participation can share its {@code MilestoneExerciseGroup}'s repository (see {@code ParticipationService.shareSiblingRepositoryIfAvailable}
+     * / {@code provisionUserStoryParticipationsForMilestoneStart}), so multiple participations of different exercises can
+     * legitimately have the exact same {@code repositoryUri}; {@link #findByRepositoryUri} alone would then throw
+     * {@code NonUniqueResultException}. Git fetch/push access to such a repository always resolves the exercise from the
+     * repository's project key first (which is always the milestone's, since siblings physically live under it), so
+     * scoping by that already-known exercise id disambiguates cleanly.
+     *
+     * @param exerciseId    the id of the exercise the participation belongs to
+     * @param repositoryUri the repository URI to look up
+     * @return the participation, or empty if none exists for that exercise/repository pair
+     */
+    Optional<ProgrammingExerciseStudentParticipation> findByExerciseIdAndRepositoryUri(long exerciseId, String repositoryUri);
+
+    default ProgrammingExerciseStudentParticipation findByExerciseIdAndRepositoryUriElseThrow(long exerciseId, String repositoryUri) {
+        return getValueElseThrow(findByExerciseIdAndRepositoryUri(exerciseId, repositoryUri));
+    }
+
     @EntityGraph(type = LOAD, attributePaths = { "team.students" })
     Optional<ProgrammingExerciseStudentParticipation> findByExerciseIdAndTeamId(long exerciseId, long teamId);
 
@@ -264,4 +283,34 @@ public interface ProgrammingExerciseStudentParticipationRepository extends Artem
             WHERE p.id IN :participationIds
             """)
     Set<ProgrammingExerciseStudentParticipation> findByIdsWithEagerSubmissions(@Param("participationIds") Collection<Long> participationIds);
+
+    /**
+     * Finds the earliest already-initialized (real repository, non-practice) participation the given student has among
+     * the <b>other</b> {@code UserStoryExercise}/{@code MilestoneExercise} members of a {@code MilestoneExerciseGroup},
+     * excluding {@code exerciseId} itself.
+     * <p>
+     * Used by {@code ParticipationService} to decide, when a student starts a {@code UserStoryExercise}, whether to
+     * provision a brand-new repository (none found - this becomes the student's canonical participation for the whole
+     * milestone) or reuse an existing sibling's repository URI (one found - the milestone's exercises all share one
+     * physical repository per student). Ordered by id so the very first participation the student ever started in this
+     * milestone is always the one whose repository gets reused, regardless of which sibling is starting now.
+     *
+     * @param studentLogin the login of the student starting a new sibling exercise
+     * @param groupId      the id of the {@code MilestoneExerciseGroup} both exercises belong to
+     * @param exerciseId   the id of the exercise being started, excluded from the search
+     * @return the earliest matching sibling participation, if any
+     */
+    @Query("""
+            SELECT p
+            FROM ProgrammingExerciseStudentParticipation p
+            WHERE p.student.login = :studentLogin
+                AND p.exercise.exerciseVariantGroup.id = :groupId
+                AND p.exercise.id <> :exerciseId
+                AND p.repositoryUri IS NOT NULL
+                AND p.testRun = false
+            ORDER BY p.id ASC
+            LIMIT 1
+            """)
+    Optional<ProgrammingExerciseStudentParticipation> findFirstInitializedSiblingInMilestoneGroup(@Param("studentLogin") String studentLogin, @Param("groupId") Long groupId,
+            @Param("exerciseId") Long exerciseId);
 }

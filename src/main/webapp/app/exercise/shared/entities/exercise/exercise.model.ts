@@ -37,6 +37,10 @@ export enum ExerciseType {
     QUIZ = 'quiz',
     TEXT = 'text',
     FILE_UPLOAD = 'file-upload',
+    /** A ProgrammingExercise subtype; never rendered as an exercise in its own right — see MilestoneExerciseGroup. */
+    MILESTONE = 'milestone',
+    /** A ProgrammingExercise subtype that always belongs to a milestone exercise group. */
+    USER_STORY = 'user-story',
 }
 
 export type ScoresPerExerciseType = Map<ExerciseType, CourseScores>;
@@ -80,6 +84,12 @@ export enum IncludedInOverallScore {
 export interface ExerciseVariantGroupReference {
     id?: number;
     title?: string;
+    /** Shown in the "choose a variant" banner on the student group-detail page; falls back to a generic message when unset. */
+    description?: string;
+    /** `'variant'` (a plain ExerciseVariantGroup) or `'milestone'` (a MilestoneExerciseGroup). */
+    type?: 'variant' | 'milestone';
+    /** Only set when {@link type} is `'milestone'` — the id of the group's anchor MilestoneExercise. */
+    milestoneExerciseId?: number;
     maxPoints?: number;
     releaseDate?: dayjs.Dayjs;
     startDate?: dayjs.Dayjs;
@@ -91,6 +101,8 @@ export interface ExerciseVariantGroupReference {
 export abstract class Exercise implements BaseEntity {
     public id?: number;
     public problemStatement?: string;
+    /** Milestone-only: shown in the "choose a variant" banner on the student group-detail page. */
+    public description?: string;
     public gradingInstructions?: string;
     public title?: string;
     public shortName?: string;
@@ -208,6 +220,7 @@ export function getIcon(exerciseType?: ExerciseType): IconProp {
         [ExerciseType.QUIZ]: faCheckDouble,
         [ExerciseType.TEXT]: faFont,
         [ExerciseType.FILE_UPLOAD]: faFileUpload,
+        [ExerciseType.USER_STORY]: faKeyboard,
     };
 
     return icons[exerciseType] ?? faQuestion;
@@ -217,12 +230,13 @@ export function getIconTooltip(exerciseType?: ExerciseType): string {
     if (!exerciseType) {
         return '';
     }
-    const tooltips = {
+    const tooltips: Record<string, string> = {
         [ExerciseType.PROGRAMMING]: 'artemisApp.exercise.isProgramming',
         [ExerciseType.MODELING]: 'artemisApp.exercise.isModeling',
         [ExerciseType.QUIZ]: 'artemisApp.exercise.isQuiz',
         [ExerciseType.TEXT]: 'artemisApp.exercise.isText',
         [ExerciseType.FILE_UPLOAD]: 'artemisApp.exercise.isFileUpload',
+        [ExerciseType.USER_STORY]: 'artemisApp.exercise.isProgramming',
     };
 
     return tooltips[exerciseType];
@@ -269,6 +283,12 @@ export function declareExerciseType(exerciseInfo: ExerciseInfo): ExerciseType | 
 
 /**
  * Get the url segment for different types of exercises.
+ * <p>
+ * `UserStoryExercise` and `MilestoneExercise` are both `ProgrammingExercise` variants under the hood (a milestone
+ * group's real anchor exercise, and a member exercise sharing its repository) but carry their own `type`
+ * discriminator ('user-story'/'milestone'). No `{type}-exercises/...` course-management route is registered for
+ * either - only `programming-exercises/...` is - so they route through the same segment as a plain programming
+ * exercise; anything else would silently match no route.
  * @param exerciseType The type of the exercise
  * @return The url segment for the exercise type
  */
@@ -279,6 +299,8 @@ export function getExerciseUrlSegment(exerciseType?: ExerciseType): string {
         case ExerciseType.MODELING:
             return 'modeling-exercises';
         case ExerciseType.PROGRAMMING:
+        case ExerciseType.USER_STORY:
+        case ExerciseType.MILESTONE:
             return 'programming-exercises';
         case ExerciseType.FILE_UPLOAD:
             return 'file-upload-exercises';

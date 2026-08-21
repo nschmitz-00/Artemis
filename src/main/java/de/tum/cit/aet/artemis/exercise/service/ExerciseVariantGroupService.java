@@ -22,13 +22,16 @@ import de.tum.cit.aet.artemis.core.exception.BadRequestAlertException;
 import de.tum.cit.aet.artemis.core.service.messaging.InstanceMessageSendService;
 import de.tum.cit.aet.artemis.exercise.domain.Exercise;
 import de.tum.cit.aet.artemis.exercise.domain.ExerciseVariantGroup;
+import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
 import de.tum.cit.aet.artemis.exercise.repository.ExerciseRepository;
 import de.tum.cit.aet.artemis.exercise.repository.ExerciseVariantGroupRepository;
 import de.tum.cit.aet.artemis.exercise.repository.ParticipationRepository;
 import de.tum.cit.aet.artemis.lecture.api.SlideApi;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
+import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 import de.tum.cit.aet.artemis.programming.dto.ProgrammingExerciseTimelineUpdateDTO;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseCreationUpdateService;
+import de.tum.cit.aet.artemis.programming.service.UserStoryExerciseService;
 import de.tum.cit.aet.artemis.quiz.domain.QuizExercise;
 import de.tum.cit.aet.artemis.quiz.service.QuizExerciseService;
 import de.tum.cit.aet.artemis.text.domain.TextExercise;
@@ -62,12 +65,14 @@ public class ExerciseVariantGroupService {
 
     private final QuizExerciseService quizExerciseService;
 
+    private final UserStoryExerciseService userStoryExerciseService;
+
     private final Optional<SlideApi> slideApi;
 
     public ExerciseVariantGroupService(ExerciseVariantGroupRepository exerciseVariantGroupRepository, ExerciseRepository exerciseRepository,
             ProgrammingExerciseCreationUpdateService programmingExerciseCreationUpdateService, ParticipationRepository participationRepository, ExerciseService exerciseService,
             ExerciseVersionService exerciseVersionService, InstanceMessageSendService instanceMessageSendService, QuizExerciseService quizExerciseService,
-            Optional<SlideApi> slideApi) {
+            UserStoryExerciseService userStoryExerciseService, Optional<SlideApi> slideApi) {
         this.exerciseVariantGroupRepository = exerciseVariantGroupRepository;
         this.exerciseRepository = exerciseRepository;
         this.programmingExerciseCreationUpdateService = programmingExerciseCreationUpdateService;
@@ -76,6 +81,7 @@ public class ExerciseVariantGroupService {
         this.exerciseVersionService = exerciseVersionService;
         this.instanceMessageSendService = instanceMessageSendService;
         this.quizExerciseService = quizExerciseService;
+        this.userStoryExerciseService = userStoryExerciseService;
         this.slideApi = slideApi;
     }
 
@@ -132,6 +138,11 @@ public class ExerciseVariantGroupService {
             rejectIfQuizMemberNotEditable(exercise);
             // Let a brand-new, empty group adopt its first exercise's dates instead of forcing everything to null.
             adoptMissingDatesFromExercise(group, exercise);
+        }
+        if (group instanceof MilestoneExerciseGroup milestoneGroup && milestoneGroup.getMilestoneExercise() != null && exercise instanceof UserStoryExercise userStoryExercise) {
+            // Moving between milestone groups re-syncs Language/Version-Control and the (shared) repository URIs, same
+            // as the timeline below - a user story is never independently configured on any of these.
+            userStoryExerciseService.applyMilestoneConfig(userStoryExercise, milestoneGroup.getMilestoneExercise());
         }
         // Joining changes the dates as much as a group edit, so snapshot here too; unassignment makes the side effects no-ops.
         TimelineSnapshot snapshot = TimelineSnapshot.of(exercise);

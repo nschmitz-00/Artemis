@@ -356,7 +356,7 @@ export class CourseExerciseDetailsComponent implements OnInit, OnDestroy {
         this._isAfterAssessmentDueDate.set(!this.exercise?.assessmentDueDate || dayjs().isAfter(this.exercise.assessmentDueDate));
         this._allowComplaintsForAutomaticAssessments.set(false);
         this._plagiarismCaseInfo.set(newExerciseDetails.plagiarismCaseInfo);
-        if (this.exercise?.type === ExerciseType.PROGRAMMING) {
+        if (this.exercise?.type === ExerciseType.PROGRAMMING || this.exercise?.type === ExerciseType.USER_STORY) {
             const programmingExercise = this.exercise as ProgrammingExercise;
             const isAfterDateForComplaint =
                 !this.exercise.dueDate ||
@@ -367,7 +367,11 @@ export class CourseExerciseDetailsComponent implements OnInit, OnDestroy {
             this._submissionPolicy.set(programmingExercise.submissionPolicy);
         }
 
-        if ((this.exercise?.type === ExerciseType.PROGRAMMING || this.exercise?.type === ExerciseType.TEXT) && !this.exercise.exerciseGroup && this.courseId) {
+        if (
+            (this.exercise?.type === ExerciseType.PROGRAMMING || this.exercise?.type === ExerciseType.USER_STORY || this.exercise?.type === ExerciseType.TEXT) &&
+            !this.exercise.exerciseGroup &&
+            this.courseId
+        ) {
             this._irisEnabled.set(this.profileService.isModuleFeatureActive(MODULE_FEATURE_IRIS));
             if (this.irisEnabled()) {
                 this.irisSettingsService

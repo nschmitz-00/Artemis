@@ -26,24 +26,29 @@ public record ExerciseForCourseOverviewDTO(ExerciseType type, Long id, String ti
         @Nullable DifficultyLevel difficulty, ExerciseMode mode, IncludedInOverallScore includedInOverallScore, @Nullable Boolean presentationScoreEnabled,
         boolean allowFeedbackRequests, @Nullable Boolean allowOnlineEditor, @Nullable Boolean allowOfflineIde, @Nullable Boolean staticCodeAnalysisEnabled,
         @Nullable ZonedDateTime buildAndTestStudentSubmissionsAfterDueDate, @Nullable Long variantGroupId, @Nullable String variantGroupTitle,
-        @Nullable Double variantGroupMaxPoints, @Nullable ZonedDateTime variantGroupReleaseDate, @Nullable ZonedDateTime variantGroupStartDate,
-        @Nullable ZonedDateTime variantGroupDueDate, @Nullable ZonedDateTime variantGroupAssessmentDueDate, @Nullable ZonedDateTime variantGroupExampleSolutionPublicationDate) {
+        @Nullable String variantGroupDescription, @Nullable String variantGroupType, @Nullable Double variantGroupMaxPoints, @Nullable ZonedDateTime variantGroupReleaseDate,
+        @Nullable ZonedDateTime variantGroupStartDate, @Nullable ZonedDateTime variantGroupDueDate, @Nullable ZonedDateTime variantGroupAssessmentDueDate,
+        @Nullable ZonedDateTime variantGroupExampleSolutionPublicationDate) {
 
     /**
-     * JPQL constructor accepting the entity class produced by Hibernate's {@code TYPE(...)} function.
+     * JPQL constructor accepting the entity class produced by Hibernate's {@code TYPE(...)} function for the exercise
+     * itself. {@code variantGroupType} arrives as a plain {@code "variant"}/{@code "milestone"}/{@code null} string
+     * already - unlike the exercise, {@code TYPE(variantGroup)} can't be used directly here, since it throws
+     * "Could not resolve discriminator value" for the (very common) rows where the LEFT JOINed variantGroup is absent;
+     * the query instead derives the string itself via a {@code MilestoneExerciseGroup} existence check.
      */
     public ExerciseForCourseOverviewDTO(Class<? extends Exercise> type, Long id, String title, Double maxPoints, @Nullable Double bonusPoints, @Nullable ZonedDateTime releaseDate,
             @Nullable ZonedDateTime startDate, @Nullable ZonedDateTime dueDate, @Nullable ZonedDateTime assessmentDueDate, AssessmentType assessmentType,
             @Nullable DifficultyLevel difficulty, ExerciseMode mode, IncludedInOverallScore includedInOverallScore, @Nullable Boolean presentationScoreEnabled,
             boolean allowFeedbackRequests, @Nullable Boolean allowOnlineEditor, @Nullable Boolean allowOfflineIde, @Nullable Boolean staticCodeAnalysisEnabled,
             @Nullable ZonedDateTime buildAndTestStudentSubmissionsAfterDueDate, @Nullable Long variantGroupId, @Nullable String variantGroupTitle,
-            @Nullable Double variantGroupMaxPoints, @Nullable ZonedDateTime variantGroupReleaseDate, @Nullable ZonedDateTime variantGroupStartDate,
-            @Nullable ZonedDateTime variantGroupDueDate, @Nullable ZonedDateTime variantGroupAssessmentDueDate,
+            @Nullable String variantGroupDescription, @Nullable String variantGroupType, @Nullable Double variantGroupMaxPoints, @Nullable ZonedDateTime variantGroupReleaseDate,
+            @Nullable ZonedDateTime variantGroupStartDate, @Nullable ZonedDateTime variantGroupDueDate, @Nullable ZonedDateTime variantGroupAssessmentDueDate,
             @Nullable ZonedDateTime variantGroupExampleSolutionPublicationDate) {
         this(ExerciseType.getExerciseTypeFromClass(type), id, title, maxPoints, bonusPoints, releaseDate, startDate, dueDate, assessmentDueDate, assessmentType, difficulty, mode,
                 includedInOverallScore, presentationScoreEnabled, allowFeedbackRequests, allowOnlineEditor, allowOfflineIde, staticCodeAnalysisEnabled,
-                buildAndTestStudentSubmissionsAfterDueDate, variantGroupId, variantGroupTitle, variantGroupMaxPoints, variantGroupReleaseDate, variantGroupStartDate,
-                variantGroupDueDate, variantGroupAssessmentDueDate, variantGroupExampleSolutionPublicationDate);
+                buildAndTestStudentSubmissionsAfterDueDate, variantGroupId, variantGroupTitle, variantGroupDescription, variantGroupType, variantGroupMaxPoints,
+                variantGroupReleaseDate, variantGroupStartDate, variantGroupDueDate, variantGroupAssessmentDueDate, variantGroupExampleSolutionPublicationDate);
     }
 
     /**
@@ -52,8 +57,8 @@ public record ExerciseForCourseOverviewDTO(ExerciseType type, Long id, String ti
     public ExerciseOverviewDTO toOverviewDTO(Set<String> categories, @Nullable Long studentAssignedTeamId, Set<ParticipationOverviewDTO> studentParticipations,
             ZonedDateTime calculationTime, boolean quizBatchStarted) {
         ExerciseVariantGroupReferenceDTO variantGroup = variantGroupId == null ? null
-                : new ExerciseVariantGroupReferenceDTO(variantGroupId, variantGroupTitle, variantGroupMaxPoints, variantGroupReleaseDate, variantGroupStartDate,
-                        variantGroupDueDate, variantGroupAssessmentDueDate, variantGroupExampleSolutionPublicationDate);
+                : new ExerciseVariantGroupReferenceDTO(variantGroupId, variantGroupTitle, variantGroupDescription, variantGroupType, variantGroupMaxPoints, variantGroupReleaseDate,
+                        variantGroupStartDate, variantGroupDueDate, variantGroupAssessmentDueDate, variantGroupExampleSolutionPublicationDate);
         boolean teamMode = mode == ExerciseMode.TEAM;
         Boolean quizEnded = type == ExerciseType.QUIZ ? dueDate != null && calculationTime.isAfter(dueDate) : null;
         Set<QuizBatchOverviewDTO> quizBatches = quizBatchStarted ? Set.of(QuizBatchOverviewDTO.STARTED) : Set.of();

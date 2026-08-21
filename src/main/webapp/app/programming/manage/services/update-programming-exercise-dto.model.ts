@@ -61,6 +61,8 @@ export interface UpdateProgrammingExerciseDTO {
     secondCorrectionEnabled?: boolean;
     feedbackSuggestionModule?: string;
     gradingInstructions?: string;
+    /** MilestoneExercise-only: shown in the "choose a variant" banner on the student group-detail page. */
+    description?: string;
 
     // Timeline fields
     releaseDate?: string;
@@ -184,6 +186,7 @@ export function toUpdateProgrammingExerciseDTO(exercise: ProgrammingExercise): U
         secondCorrectionEnabled: exercise.secondCorrectionEnabled,
         feedbackSuggestionModule: exercise.feedbackSuggestionModule,
         gradingInstructions: exercise.gradingInstructions,
+        description: exercise.description,
         releaseDate: convertDateFromClient(exercise.releaseDate),
         startDate: convertDateFromClient(exercise.startDate),
         dueDate: convertDateFromClient(exercise.dueDate),
