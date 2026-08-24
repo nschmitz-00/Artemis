@@ -115,6 +115,8 @@ export abstract class Exercise implements BaseEntity {
     public assessmentType?: AssessmentType;
     public allowComplaintsForAutomaticAssessments?: boolean;
     public allowFeedbackRequests?: boolean;
+    /** When enabled, users who are at least tutor (not only instructors) see the per-row actions on the exercise-scores page. */
+    public allowTutorScoreRowActions?: boolean;
     public difficulty?: DifficultyLevel;
     public mode?: ExerciseMode = ExerciseMode.INDIVIDUAL; // default value
     public includedInOverallScore?: IncludedInOverallScore = IncludedInOverallScore.INCLUDED_COMPLETELY; // default value
@@ -191,6 +193,7 @@ export abstract class Exercise implements BaseEntity {
         this.presentationScoreEnabled = false; // default value;
         this.allowComplaintsForAutomaticAssessments = false; // default value;
         this.allowFeedbackRequests = false; // default value;
+        this.allowTutorScoreRowActions = false; // default value;
     }
 
     /**
@@ -321,6 +324,7 @@ export function resetForImport(exercise: Exercise) {
     // without dates set, they can only be false
     exercise.allowComplaintsForAutomaticAssessments = false;
     exercise.allowFeedbackRequests = false;
+    exercise.allowTutorScoreRowActions = false;
 
     exercise.competencyLinks = [];
 }

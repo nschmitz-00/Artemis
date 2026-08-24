@@ -93,7 +93,7 @@
                 [totalRows]="totalRows()"
                 [loading]="isLoading()"
                 [tableActions]="filterActionsTemplate() ?? null"
-                [rowActions]="exercise()!.isAtLeastInstructor ? actionsTemplate : null"
+                [rowActions]="showRowActions() ? actionsTemplate : null"
                 [options]="tableOptions()"
                 (onLazyLoad)="onLazyLoad($event)"
             />

@@ -651,6 +651,9 @@ public class ModelingExerciseResource {
         if (updateModelingExerciseDTO.presentationScoreEnabled() != null) {
             exercise.setPresentationScoreEnabled(updateModelingExerciseDTO.presentationScoreEnabled());
         }
+        if (updateModelingExerciseDTO.allowTutorScoreRowActions() != null) {
+            exercise.setAllowTutorScoreRowActions(updateModelingExerciseDTO.allowTutorScoreRowActions());
+        }
         if (updateModelingExerciseDTO.secondCorrectionEnabled() != null) {
             exercise.setSecondCorrectionEnabled(updateModelingExerciseDTO.secondCorrectionEnabled());
         }

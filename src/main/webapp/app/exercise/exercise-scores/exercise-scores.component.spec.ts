@@ -261,6 +261,26 @@ describe('Exercise Scores Component', () => {
         );
     });
 
+    describe('showRowActions', () => {
+        it.each([
+            // instructors always see the row actions, regardless of the flag
+            [{ isAtLeastInstructor: true, isAtLeastTutor: true, allowTutorScoreRowActions: false }, true],
+            // tutors see them only when the exercise opts in
+            [{ isAtLeastInstructor: false, isAtLeastTutor: true, allowTutorScoreRowActions: true }, true],
+            [{ isAtLeastInstructor: false, isAtLeastTutor: true, allowTutorScoreRowActions: false }, false],
+            // the flag alone is not enough without at least the tutor role
+            [{ isAtLeastInstructor: false, isAtLeastTutor: false, allowTutorScoreRowActions: true }, false],
+        ])('should gate row actions on instructor role or the tutor opt-in flag', (ex: Partial<Exercise>, expected: boolean) => {
+            component.exercise.set(ex as Exercise);
+            expect(component.showRowActions()).toBe(expected);
+        });
+
+        it('should be false when no exercise is loaded', () => {
+            component.exercise.set(undefined);
+            expect(component.showRowActions()).toBe(false);
+        });
+    });
+
     describe('getBuildPlanUrl', () => {
         it('should construct build plan URL from template', () => {
             component.exercise.set({

@@ -99,6 +99,10 @@ public abstract class Exercise extends BaseExercise implements LearningObject {
     @Column(name = "allow_complaints_for_automatic_assessments")
     private boolean allowComplaintsForAutomaticAssessments;
 
+    // When enabled, users who are at least tutor (not only instructors) can see the per-row actions on the exercise-scores page.
+    @Column(name = "allow_tutor_score_row_actions")
+    private boolean allowTutorScoreRowActions;
+
     // TODO: rename in a follow up
     @Column(name = "allow_manual_feedback_requests")
     private boolean allowFeedbackRequests;
@@ -271,6 +275,14 @@ public abstract class Exercise extends BaseExercise implements LearningObject {
 
     public void setAllowComplaintsForAutomaticAssessments(boolean allowComplaintsForAutomaticAssessments) {
         this.allowComplaintsForAutomaticAssessments = allowComplaintsForAutomaticAssessments;
+    }
+
+    public boolean isAllowTutorScoreRowActions() {
+        return allowTutorScoreRowActions;
+    }
+
+    public void setAllowTutorScoreRowActions(boolean allowTutorScoreRowActions) {
+        this.allowTutorScoreRowActions = allowTutorScoreRowActions;
     }
 
     public String getProblemStatement() {

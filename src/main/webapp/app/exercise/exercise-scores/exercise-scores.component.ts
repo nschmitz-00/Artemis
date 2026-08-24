@@ -171,6 +171,16 @@ export class ExerciseScoresComponent implements OnInit, OnDestroy {
         });
     });
 
+    /**
+     * Row actions on the scores page are shown to instructors, and to tutors when the exercise opts in via
+     * {@link Exercise#allowTutorScoreRowActions}. The route already requires at least tutor, so `isAtLeastTutor` is a
+     * defensive lower bound rather than a strict gate here.
+     */
+    readonly showRowActions = computed<boolean>(() => {
+        const ex = this.exercise();
+        return !!ex && (!!ex.isAtLeastInstructor || (!!ex.allowTutorScoreRowActions && !!ex.isAtLeastTutor));
+    });
+
     private lastLazyEvent: TableLazyLoadEvent | undefined;
     private currentLoadRequestId = 0;
     paramSub!: Subscription; // set in ngOnInit(), unsubscribed in ngOnDestroy()
