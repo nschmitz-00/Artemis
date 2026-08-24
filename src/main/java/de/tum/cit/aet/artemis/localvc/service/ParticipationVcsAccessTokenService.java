@@ -50,8 +50,8 @@ public class ParticipationVcsAccessTokenService {
      * Creates a vcs access token for a User,Participation pair with a caller-supplied token value, instead of generating a fresh one.
      * <p>
      * Used when a participation shares another (canonical) participation's repository - e.g. a {@code UserStoryExercise}
-     * participation reusing its {@code MilestoneExercise} group's repository (see {@code ParticipationService.shareSiblingRepositoryIfAvailable}
-     * / {@code provisionUserStoryParticipationsForMilestoneStart}). Git authentication against the shared repository is
+     * participation reusing its {@code MilestoneExercise} group's repository (see {@code ParticipationService.startUserStoryExercise}
+     * / {@code provisionUserStoryParticipationsForGroup}). Git authentication against the shared repository is
      * always checked against the *canonical* participation's stored token (the exercise resolved from the repository's
      * project key is the canonical one, and only its own participations are searched - see
      * {@code LocalVCServletService.tryAuthenticationWithParticipationVCSAccessToken}), so a sharing participation's token

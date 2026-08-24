@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import de.tum.cit.aet.artemis.account.domain.User;
 import de.tum.cit.aet.artemis.account.repository.UserRepository;
+import de.tum.cit.aet.artemis.assessment.repository.ResultRepository;
 import de.tum.cit.aet.artemis.communication.service.conversation.ChannelService;
 import de.tum.cit.aet.artemis.core.exception.BadRequestAlertException;
 import de.tum.cit.aet.artemis.core.security.annotations.enforceRoleInCourse.EnforceAtLeastEditorInCourse;
@@ -54,14 +55,17 @@ import de.tum.cit.aet.artemis.exercise.repository.ExerciseRepository;
 import de.tum.cit.aet.artemis.exercise.repository.ExerciseVariantGroupRepository;
 import de.tum.cit.aet.artemis.exercise.service.ExerciseVariantGroupService;
 import de.tum.cit.aet.artemis.exercise.service.ExerciseVersionService;
+import de.tum.cit.aet.artemis.exercise.service.ParticipationService;
 import de.tum.cit.aet.artemis.plagiarism.domain.PlagiarismDetectionConfigHelper;
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
+import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParticipation;
 import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 import de.tum.cit.aet.artemis.programming.exception.ContinuousIntegrationException;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseStudentParticipationRepository;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseCreationUpdateService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseDeletionService;
+import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseGradingService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseValidationService;
 import de.tum.cit.aet.artemis.programming.service.StaticCodeAnalysisService;
 import de.tum.cit.aet.artemis.programming.service.UserStoryExerciseService;
@@ -117,12 +121,19 @@ public class ExerciseVariantGroupResource {
 
     private final ChannelService channelService;
 
+    private final ParticipationService participationService;
+
+    private final ProgrammingExerciseGradingService programmingExerciseGradingService;
+
+    private final ResultRepository resultRepository;
+
     public ExerciseVariantGroupResource(CourseRepository courseRepository, ExerciseVariantGroupRepository exerciseVariantGroupRepository, ExerciseRepository exerciseRepository,
             ExerciseVariantGroupService exerciseVariantGroupService, UserRepository userRepository, AuthorizationCheckService authCheckService,
             ProgrammingExerciseValidationService programmingExerciseValidationService, ProgrammingExerciseCreationUpdateService programmingExerciseCreationUpdateService,
             StaticCodeAnalysisService staticCodeAnalysisService, ExerciseVersionService exerciseVersionService, UserStoryExerciseService userStoryExerciseService,
             ProgrammingExerciseDeletionService programmingExerciseDeletionService,
-            ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository, ChannelService channelService) {
+            ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository, ChannelService channelService,
+            ParticipationService participationService, ProgrammingExerciseGradingService programmingExerciseGradingService, ResultRepository resultRepository) {
         this.courseRepository = courseRepository;
         this.exerciseVariantGroupRepository = exerciseVariantGroupRepository;
         this.exerciseRepository = exerciseRepository;
@@ -137,6 +148,9 @@ public class ExerciseVariantGroupResource {
         this.programmingExerciseDeletionService = programmingExerciseDeletionService;
         this.programmingExerciseStudentParticipationRepository = programmingExerciseStudentParticipationRepository;
         this.channelService = channelService;
+        this.participationService = participationService;
+        this.programmingExerciseGradingService = programmingExerciseGradingService;
+        this.resultRepository = resultRepository;
     }
 
     /**
@@ -274,8 +288,29 @@ public class ExerciseVariantGroupResource {
         // update endpoint.
         userStoryExerciseService.syncTestCasesFromMilestone(created, milestoneGroup.getMilestoneExercise());
         userStoryExerciseService.updateRelevantTestCases(created);
+        backfillExistingParticipantsForNewUserStoryExercise(created, milestoneGroup);
         exerciseVersionService.createExerciseVersion(created);
         return ResponseEntity.created(new URI("/api/programming/programming-exercises/" + created.getId())).body(created);
+    }
+
+    /**
+     * Retroactively provisions a participation - and an initial score derived from their latest existing result - for
+     * every student who already shares {@code milestoneGroup}'s repository, so they don't have to start
+     * {@code created} themselves for it to show up with a correct score. Only the latest already-graded result per
+     * student is backfilled (not the full submission history); the score simply won't reflect this new exercise
+     * before that point in time.
+     *
+     * @param created        the newly created user story exercise
+     * @param milestoneGroup the group it was created in
+     */
+    private void backfillExistingParticipantsForNewUserStoryExercise(UserStoryExercise created, MilestoneExerciseGroup milestoneGroup) {
+        long milestoneExerciseId = milestoneGroup.getMilestoneExercise().getId();
+        for (ProgrammingExerciseStudentParticipation newParticipation : participationService.provisionParticipationsForNewUserStoryExercise(created)) {
+            newParticipation.getStudent()
+                    .flatMap(student -> programmingExerciseStudentParticipationRepository.findByExerciseIdAndStudentLogin(milestoneExerciseId, student.getLogin()))
+                    .flatMap(milestoneParticipation -> resultRepository.findLatestResultWithFeedbacksForParticipation(milestoneParticipation.getId(), true))
+                    .ifPresent(latestMilestoneResult -> programmingExerciseGradingService.fanOutResultToUserStoryExercise(latestMilestoneResult, created, newParticipation));
+        }
     }
 
     /**
@@ -371,7 +406,7 @@ public class ExerciseVariantGroupResource {
      * The milestone exercise is never itself shown to students ({@code MilestoneExercise.isVisibleToStudents} is always
      * {@code false}), so the milestone group view can't just fetch its details like any other exercise to find this out.
      * All the group's {@code UserStoryExercise}s share the milestone's repository once it's started (see
-     * {@code ParticipationService.shareSiblingRepositoryIfAvailable}), so this is what the view uses to decide whether to
+     * {@code ParticipationService.startUserStoryExercise}), so this is what the view uses to decide whether to
      * offer a "Start exercise" action for the milestone itself.
      *
      * @param groupId  the id of the milestone exercise group to check

@@ -84,11 +84,41 @@ public interface ProgrammingExerciseStudentParticipationRepository extends Artem
 
     List<ProgrammingExerciseStudentParticipation> findAllByExerciseIdAndStudentLogin(long exerciseId, String username);
 
+    /**
+     * All non-test-run participations of the given exercise that already have a real repository - used to find every
+     * student who already shares a {@code MilestoneExerciseGroup}'s repository (via its {@code MilestoneExercise}'s
+     * participations), so a newly created {@code UserStoryExercise} can backfill a participation for each of them (see
+     * {@code ParticipationService.provisionParticipationsForNewUserStoryExercise}).
+     *
+     * @param exerciseId the id of the exercise (typically the group's {@code MilestoneExercise})
+     * @return the matching participations
+     */
+    List<ProgrammingExerciseStudentParticipation> findAllByExerciseIdAndRepositoryUriIsNotNullAndTestRunFalse(long exerciseId);
+
     @EntityGraph(type = LOAD, attributePaths = { "submissions" })
     Optional<ProgrammingExerciseStudentParticipation> findWithSubmissionsByRepositoryUri(String repositoryUri);
 
     default ProgrammingExerciseStudentParticipation findWithSubmissionsByRepositoryUriElseThrow(String repositoryUri) {
         return getValueElseThrow(findWithSubmissionsByRepositoryUri(repositoryUri));
+    }
+
+    /**
+     * Like {@link #findWithSubmissionsByRepositoryUri}, but also scoped to a specific exercise - needed for the exact
+     * same reason as {@link #findByExerciseIdAndRepositoryUri}: a {@code UserStoryExercise} participation can share its
+     * {@code MilestoneExerciseGroup}'s repository, so multiple participations of different exercises can legitimately
+     * have the exact same {@code repositoryUri}. Used by the online code editor's "commit" push-processing path
+     * ({@code ProgrammingExerciseParticipationService.fetchParticipationWithSubmissionsByRepository}), which - unlike a
+     * real git push - already knows which participation (and therefore which exercise) the user committed through.
+     *
+     * @param exerciseId    the id of the exercise the participation belongs to
+     * @param repositoryUri the repository URI to look up
+     * @return the participation, or empty if none exists for that exercise/repository pair
+     */
+    @EntityGraph(type = LOAD, attributePaths = { "submissions" })
+    Optional<ProgrammingExerciseStudentParticipation> findWithSubmissionsByExerciseIdAndRepositoryUri(long exerciseId, String repositoryUri);
+
+    default ProgrammingExerciseStudentParticipation findWithSubmissionsByExerciseIdAndRepositoryUriElseThrow(long exerciseId, String repositoryUri) {
+        return getValueElseThrow(findWithSubmissionsByExerciseIdAndRepositoryUri(exerciseId, repositoryUri));
     }
 
     Optional<ProgrammingExerciseStudentParticipation> findByRepositoryUri(String repositoryUri);
@@ -99,8 +129,8 @@ public interface ProgrammingExerciseStudentParticipationRepository extends Artem
 
     /**
      * Like {@link #findByRepositoryUri}, but also scoped to a specific exercise - needed because a {@code UserStoryExercise}
-     * participation can share its {@code MilestoneExerciseGroup}'s repository (see {@code ParticipationService.shareSiblingRepositoryIfAvailable}
-     * / {@code provisionUserStoryParticipationsForMilestoneStart}), so multiple participations of different exercises can
+     * participation can share its {@code MilestoneExerciseGroup}'s repository (see {@code ParticipationService.startUserStoryExercise}
+     * / {@code provisionUserStoryParticipationsForGroup}), so multiple participations of different exercises can
      * legitimately have the exact same {@code repositoryUri}; {@link #findByRepositoryUri} alone would then throw
      * {@code NonUniqueResultException}. Git fetch/push access to such a repository always resolves the exercise from the
      * repository's project key first (which is always the milestone's, since siblings physically live under it), so
@@ -283,34 +313,4 @@ public interface ProgrammingExerciseStudentParticipationRepository extends Artem
             WHERE p.id IN :participationIds
             """)
     Set<ProgrammingExerciseStudentParticipation> findByIdsWithEagerSubmissions(@Param("participationIds") Collection<Long> participationIds);
-
-    /**
-     * Finds the earliest already-initialized (real repository, non-practice) participation the given student has among
-     * the <b>other</b> {@code UserStoryExercise}/{@code MilestoneExercise} members of a {@code MilestoneExerciseGroup},
-     * excluding {@code exerciseId} itself.
-     * <p>
-     * Used by {@code ParticipationService} to decide, when a student starts a {@code UserStoryExercise}, whether to
-     * provision a brand-new repository (none found - this becomes the student's canonical participation for the whole
-     * milestone) or reuse an existing sibling's repository URI (one found - the milestone's exercises all share one
-     * physical repository per student). Ordered by id so the very first participation the student ever started in this
-     * milestone is always the one whose repository gets reused, regardless of which sibling is starting now.
-     *
-     * @param studentLogin the login of the student starting a new sibling exercise
-     * @param groupId      the id of the {@code MilestoneExerciseGroup} both exercises belong to
-     * @param exerciseId   the id of the exercise being started, excluded from the search
-     * @return the earliest matching sibling participation, if any
-     */
-    @Query("""
-            SELECT p
-            FROM ProgrammingExerciseStudentParticipation p
-            WHERE p.student.login = :studentLogin
-                AND p.exercise.exerciseVariantGroup.id = :groupId
-                AND p.exercise.id <> :exerciseId
-                AND p.repositoryUri IS NOT NULL
-                AND p.testRun = false
-            ORDER BY p.id ASC
-            LIMIT 1
-            """)
-    Optional<ProgrammingExerciseStudentParticipation> findFirstInitializedSiblingInMilestoneGroup(@Param("studentLogin") String studentLogin, @Param("groupId") Long groupId,
-            @Param("exerciseId") Long exerciseId);
 }

@@ -215,15 +215,21 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
         // Points, and Assessment settings - those stay independently configured per UserStoryExercise member (see
         // UserStoryExerciseService.applyMilestoneConfig, which propagates everything else shown here). Forced after
         // the simple/advanced computation above so it applies regardless of mode.
-        if (this.isMilestoneMode) {
+        // Read via the signal, not the plain `isMilestoneMode` getter: this is a computed(), so it only re-evaluates
+        // when a signal it actually reads changes - reading the getter registers no dependency at all, meaning this
+        // record would keep whatever it computed on its very first evaluation (typically "not milestone mode", since
+        // isMilestoneMode is normally set slightly later during route-data handling) for the rest of the component's
+        // lifetime, permanently leaving Points/BonusPoints/etc. shown - and therefore validated - for a milestone.
+        if (this.isMilestoneModeSignal()) {
             for (const field of MILESTONE_HIDDEN_FIELDS) {
                 isEditFieldDisplayedMapping[field] = false;
             }
         }
 
         // A UserStoryExercise is configured on this same page, minus everything the group's MilestoneExercise
-        // already owns (see USER_STORY_HIDDEN_FIELDS) - the mirror image of the milestone case above.
-        if (this.isUserStoryMode) {
+        // already owns (see USER_STORY_HIDDEN_FIELDS) - the mirror image of the milestone case above, same reason
+        // for reading the signal instead of the isUserStoryMode getter.
+        if (this.isUserStoryModeSignal()) {
             for (const field of USER_STORY_HIDDEN_FIELDS) {
                 isEditFieldDisplayedMapping[field] = false;
             }
@@ -251,11 +257,13 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
     isImportFromExistingExerciseForAi = signal<boolean>(false);
     isImportFromFileForAi = signal<boolean>(false);
     isImportFromSharingForAi = signal<boolean>(false);
-    // Write-only: the value is never itself read, this signal only exists to give the getter/setter facade below a
-    // change-detection trigger under zoneless (see localRules/prefer-signal-template-state) - isMilestoneMode is read
-    // in the template (@if (isMilestoneMode)) same as isImportFromExistingExercise/isImportFromFile/isImportFromSharing.
+    // Gives the getter/setter facade below a change-detection trigger under zoneless (see
+    // localRules/prefer-signal-template-state) - isMilestoneMode is read in the template (@if (isMilestoneMode)) same
+    // as isImportFromExistingExercise/isImportFromFile/isImportFromSharing - and is also read directly by
+    // isEditFieldDisplayedRecord above, so that computed() properly re-evaluates once milestone mode is set.
     private readonly isMilestoneModeSignal = signal<boolean>(false);
-    // Same rationale as isMilestoneModeSignal above - isUserStoryMode is read in the template (@if (isUserStoryMode)).
+    // Same rationale as isMilestoneModeSignal above - isUserStoryMode is read in the template (@if (isUserStoryMode))
+    // and directly by isEditFieldDisplayedRecord.
     private readonly isUserStoryModeSignal = signal<boolean>(false);
     /** Milestone groups available to assign a newly-created UserStoryExercise to (see isUserStoryMode && isCreate). */
     userStoryMilestoneGroups = signal<CourseExerciseGroup[]>([]);

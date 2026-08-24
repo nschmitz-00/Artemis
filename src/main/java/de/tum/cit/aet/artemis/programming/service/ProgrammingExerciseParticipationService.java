@@ -287,7 +287,7 @@ public class ProgrammingExerciseParticipationService {
         if (repositoryTypeOrUserName.equals(RepositoryType.TEMPLATE.toString())) {
             return templateParticipationRepository.findWithSubmissionsByRepositoryUriElseThrow(repositoryURL);
         }
-        return studentParticipationRepository.findWithSubmissionsByRepositoryUriElseThrow(repositoryURL);
+        return studentParticipationRepository.findWithSubmissionsByExerciseIdAndRepositoryUriElseThrow(exercise.getId(), repositoryURL);
 
     }
 

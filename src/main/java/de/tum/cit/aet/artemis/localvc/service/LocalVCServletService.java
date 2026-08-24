@@ -65,6 +65,7 @@ import de.tum.cit.aet.artemis.localvc.exception.LocalVCInternalException;
 import de.tum.cit.aet.artemis.localvc.service.ssh.SshConstants;
 import de.tum.cit.aet.artemis.programming.domain.AuthenticationMechanism;
 import de.tum.cit.aet.artemis.programming.domain.Commit;
+import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseParticipation;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParticipation;
@@ -78,6 +79,7 @@ import de.tum.cit.aet.artemis.programming.repository.ParticipationVCSAccessToken
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseRepository;
 import de.tum.cit.aet.artemis.programming.repository.RepositoryVCSAccessTokenRepository;
 import de.tum.cit.aet.artemis.programming.service.AuxiliaryRepositoryService;
+import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseGradingService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseParticipationService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseTestCaseChangedService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingSubmissionMessagingService;
@@ -132,6 +134,8 @@ public class LocalVCServletService {
 
     private final ExerciseVersionService exerciseVersionService;
 
+    private final ProgrammingExerciseGradingService programmingExerciseGradingService;
+
     @Value("${artemis.version-control.url}")
     private URI localVCBaseUri;
 
@@ -152,7 +156,7 @@ public class LocalVCServletService {
             ProgrammingSubmissionMessagingService programmingSubmissionMessagingService, ProgrammingExerciseTestCaseChangedService programmingExerciseTestCaseChangedService,
             ParticipationVCSAccessTokenRepository participationVCSAccessTokenRepository, RepositoryVCSAccessTokenRepository repositoryVCSAccessTokenRepository,
             Optional<VcsAccessLogService> vcsAccessLogService, AuthorizationCheckService authorizationCheckService, RateLimitService rateLimitService,
-            ExerciseVersionService exerciseVersionService) {
+            ExerciseVersionService exerciseVersionService, ProgrammingExerciseGradingService programmingExerciseGradingService) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.programmingExerciseRepository = programmingExerciseRepository;
@@ -169,6 +173,7 @@ public class LocalVCServletService {
         this.authorizationCheckService = authorizationCheckService;
         this.rateLimitService = rateLimitService;
         this.exerciseVersionService = exerciseVersionService;
+        this.programmingExerciseGradingService = programmingExerciseGradingService;
     }
 
     /**
@@ -1179,6 +1184,15 @@ public class LocalVCServletService {
         // Remove unnecessary information from the new submission.
         submission.getParticipation().setSubmissions(null);
         programmingSubmissionMessagingService.notifyUserAboutSubmission(submission, participation.getExercise().getId());
+
+        if (participation.getExercise() instanceof MilestoneExercise milestoneExercise && participation instanceof ProgrammingExerciseStudentParticipation milestoneParticipation
+                && !milestoneParticipation.isPracticeMode()) {
+            // Every UserStoryExercise sibling shares this same push (see ParticipationService.startUserStoryExercise)
+            // and needs its own "building..." indicator right now, not only once ProgrammingExerciseGradingService's
+            // result fan-out runs after the build completes - otherwise a sibling's status box has nothing to show
+            // for the entire duration of the build and jumps straight from "-" to the final score.
+            programmingExerciseGradingService.provisionPendingSubmissionsForUserStoryExercises(submission, milestoneExercise, milestoneParticipation);
+        }
     }
 
     private Commit extractCommitInfo(String commitHash, Repository repository) throws IOException, GitAPIException, VersionControlException {

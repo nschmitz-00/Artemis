@@ -85,7 +85,7 @@ public class ConsistencyCheckService {
 
         VersionControlService versionControl = versionControlService.orElseThrow();
         // A UserStoryExercise shares its MilestoneExerciseGroup's repositories instead of owning its own (see
-        // ParticipationService.shareSiblingRepositoryIfAvailable) - its own project key was therefore never provisioned
+        // ParticipationService.startUserStoryExercise) - its own project key was therefore never provisioned
         // in the VCS, so checkIfProjectExists would always (correctly, but misleadingly) report VCS_PROJECT_MISSING.
         // Its template/test/solution URIs are copied from the milestone at creation time
         // (UserStoryExerciseService.applyMilestoneConfig) and already point at the milestone's real, shared
@@ -137,8 +137,8 @@ public class ConsistencyCheckService {
         List<ConsistencyErrorDTO> result = new ArrayList<>();
 
         // A UserStoryExercise never gets its own build plan - only the milestone's build plan is ever triggered for
-        // the shared repository (see ParticipationService.provisionUserStoryParticipationsForMilestoneStart /
-        // shareSiblingRepositoryIfAvailable), so its own template/solution build plan ids are always null by design.
+        // the shared repository (see ParticipationService.provisionUserStoryParticipationsForGroup /
+        // startUserStoryExercise), so its own template/solution build plan ids are always null by design.
         // Checking for them would always (correctly, but misleadingly) report them missing.
         if (programmingExercise instanceof UserStoryExercise) {
             return result;
