@@ -67,16 +67,18 @@ public interface ExerciseVariantGroupRepository extends ArtemisJpaRepository<Exe
      * {@code UserStoryExerciseService.applyMilestoneConfig}) that copy the milestone exercise's build config and
      * repository URIs onto the user story, since {@code spring.jpa.open-in-view} is disabled and everything here would
      * otherwise be an uninitialized proxy by the time that code runs. A no-op (plain left join) for a group that isn't a
-     * milestone group.
+     * milestone group. {@code exercises} is fetched too - {@code ExerciseVariantGroupService.assignToGroup} reads it
+     * (via {@code adoptMissingDatesFromExercise}) on the very group this query loads.
      *
      * @param groupId  the id of the exercise variant group to load
      * @param courseId the id of the course the group must belong to
-     * @return the matching group with its milestone exercise (if any) initialized, or empty if none matches
+     * @return the matching group with its milestone exercise (if any) and its exercises initialized, or empty if none matches
      */
     @Query("""
             SELECT DISTINCT evg
             FROM Course c
                 JOIN c.exerciseVariantGroups evg
+                LEFT JOIN FETCH evg.exercises
                 LEFT JOIN FETCH TREAT(evg AS MilestoneExerciseGroup).milestoneExercise me
                 LEFT JOIN FETCH me.buildConfig
                 LEFT JOIN FETCH me.templateParticipation

@@ -139,10 +139,13 @@ public class ExerciseVariantGroupService {
             // Let a brand-new, empty group adopt its first exercise's dates instead of forcing everything to null.
             adoptMissingDatesFromExercise(group, exercise);
         }
-        if (group instanceof MilestoneExerciseGroup milestoneGroup && milestoneGroup.getMilestoneExercise() != null && exercise instanceof UserStoryExercise userStoryExercise) {
+        if (group instanceof MilestoneExerciseGroup milestoneGroup && milestoneGroup.getMilestoneExercise() != null && exercise instanceof UserStoryExercise) {
             // Moving between milestone groups re-syncs Language/Version-Control and the (shared) repository URIs, same
-            // as the timeline below - a user story is never independently configured on any of these.
-            userStoryExerciseService.applyMilestoneConfig(userStoryExercise, milestoneGroup.getMilestoneExercise());
+            // as the timeline below - a user story is never independently configured on any of these. The passed-in
+            // exercise never eagerly loads templateParticipation/solutionParticipation/buildConfig (it's typically a
+            // generic ExerciseRepository lookup), so continue with the fresh, fully-loaded instance this returns
+            // instead - see its doc comment.
+            exercise = userStoryExerciseService.applyMilestoneConfigFreshFromDatabase(exercise.getId(), milestoneGroup.getMilestoneExercise());
         }
         // Joining changes the dates as much as a group edit, so snapshot here too; unassignment makes the side effects no-ops.
         TimelineSnapshot snapshot = TimelineSnapshot.of(exercise);

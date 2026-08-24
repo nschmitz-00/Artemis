@@ -209,31 +209,43 @@ public class UserStoryExerciseService {
     public void syncAllMembersConfig(MilestoneExerciseGroup milestoneGroup, MilestoneExercise milestoneExercise) {
         for (var exercise : milestoneGroup.getExercises()) {
             if (exercise instanceof UserStoryExercise) {
-                // Re-fetched fresh (rather than using the member instance from milestoneGroup.getExercises(), whose
-                // own templateParticipation/solutionParticipation/buildConfig are never eagerly loaded by that
-                // collection fetch) because applyMilestoneConfig dereferences those associations directly, which
-                // would otherwise throw LazyInitializationException in this no-open-in-view architecture.
-                UserStoryExercise userStoryExercise = (UserStoryExercise) programmingExerciseRepository
-                        .findByIdWithTemplateAndSolutionParticipationTeamAssignmentConfigCategoriesCompetenciesAndBuildConfigElseThrow(exercise.getId());
-                applyMilestoneConfig(userStoryExercise, milestoneExercise);
+                UserStoryExercise userStoryExercise = applyMilestoneConfigFreshFromDatabase(exercise.getId(), milestoneExercise);
                 userStoryExercise.setReleaseDate(milestoneExercise.getReleaseDate());
                 userStoryExercise.setStartDate(milestoneExercise.getStartDate());
                 userStoryExercise.setDueDate(milestoneExercise.getDueDate());
                 userStoryExercise.setAssessmentDueDate(milestoneExercise.getAssessmentDueDate());
-
-                // applyMilestoneConfig above always attaches a fresh, still-transient buildConfig copy (see its own
-                // doc comment) - it doesn't cascade PERSIST (see the field's @OneToOne on ProgrammingExercise), so it
-                // needs its own save before the owning exercise can be saved, matching
-                // ProgrammingExerciseCreationUpdateService.saveNewExerciseWithOwnAssociations's save dance.
-                var buildConfig = userStoryExercise.getBuildConfig();
-                if (buildConfig != null && buildConfig.getId() == null) {
-                    buildConfig.setProgrammingExercise(userStoryExercise);
-                    userStoryExercise.setBuildConfig(programmingExerciseBuildConfigRepository.save(buildConfig));
-                }
-
                 programmingExerciseRepository.save(userStoryExercise);
             }
         }
+    }
+
+    /**
+     * Re-fetches the persisted user story exercise identified by {@code userStoryExerciseId} with its
+     * templateParticipation/solutionParticipation/buildConfig eagerly loaded, then runs {@link #applyMilestoneConfig}
+     * on that fresh instance and saves any newly attached build config first.
+     * <p>
+     * The re-fetch is needed because this architecture runs without an open Hibernate session across repository
+     * calls: a caller's own instance (e.g. loaded by a generic {@code ExerciseRepository} lookup, or a member from
+     * {@code MilestoneExerciseGroup.getExercises()}) never eagerly loads those associations, which
+     * {@code applyMilestoneConfig} dereferences directly - it would otherwise throw {@code LazyInitializationException}.
+     * The build config needs its own save first because it doesn't cascade PERSIST (see the field's
+     * {@code @OneToOne} on {@code ProgrammingExercise}), matching
+     * {@code ProgrammingExerciseCreationUpdateService.saveNewExerciseWithOwnAssociations}'s save dance.
+     *
+     * @param userStoryExerciseId the id of the already-persisted user story exercise to update
+     * @param milestoneExercise   the group's milestone exercise, the source of truth for the shared config
+     * @return the fresh, config-updated instance - the caller still saves it, so its own further changes land on the same save
+     */
+    public UserStoryExercise applyMilestoneConfigFreshFromDatabase(long userStoryExerciseId, MilestoneExercise milestoneExercise) {
+        UserStoryExercise userStoryExercise = (UserStoryExercise) programmingExerciseRepository
+                .findByIdWithTemplateAndSolutionParticipationTeamAssignmentConfigCategoriesCompetenciesAndBuildConfigElseThrow(userStoryExerciseId);
+        applyMilestoneConfig(userStoryExercise, milestoneExercise);
+        var buildConfig = userStoryExercise.getBuildConfig();
+        if (buildConfig != null && buildConfig.getId() == null) {
+            buildConfig.setProgrammingExercise(userStoryExercise);
+            userStoryExercise.setBuildConfig(programmingExerciseBuildConfigRepository.save(buildConfig));
+        }
+        return userStoryExercise;
     }
 
     /**

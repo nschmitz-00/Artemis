@@ -291,6 +291,8 @@ public interface ProgrammingExerciseStudentParticipationRepository extends Artem
             """)
     Set<ProgrammingExerciseStudentParticipation> findByExerciseId(@Param("exerciseId") long exerciseId);
 
+    boolean existsByExerciseId(long exerciseId);
+
     @Query("""
             SELECT p
             FROM ProgrammingExerciseStudentParticipation p

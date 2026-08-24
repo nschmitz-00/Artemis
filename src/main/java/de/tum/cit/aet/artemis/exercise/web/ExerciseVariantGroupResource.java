@@ -503,6 +503,14 @@ public class ExerciseVariantGroupResource {
             // one) — it may move between Milestone groups, but never leave one or join a plain variant group.
             throw new BadRequestAlertException("A user story exercise must always belong to a milestone exercise group", ENTITY_NAME, "userStoryRequiresMilestoneGroup");
         }
+        if (exercise instanceof UserStoryExercise && group instanceof MilestoneExerciseGroup
+                && programmingExerciseStudentParticipationRepository.existsByExerciseId(exercise.getId())) {
+            // Moving re-syncs the (shared) repository URIs onto the exercise (see ExerciseVariantGroupService.assignToGroup /
+            // UserStoryExerciseService.applyMilestoneConfig) - a student who already started at the old repository would be
+            // silently left behind, so the move is rejected once any participation exists.
+            throw new BadRequestAlertException("This user story exercise cannot be moved because students have already started it", ENTITY_NAME,
+                    "userStoryHasStudentParticipations");
+        }
         if (group instanceof MilestoneExerciseGroup && (exercise.getClass() == ProgrammingExercise.class || exercise instanceof MilestoneExercise)) {
             // Only user stories (and, implicitly, quiz/text/modeling/file-upload exercises) may join a milestone group —
             // a bare programming exercise has no relevant task/test-case wiring to the milestone, and the milestone
