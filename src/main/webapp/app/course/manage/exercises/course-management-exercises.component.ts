@@ -20,6 +20,7 @@ import {
     faLayerGroup,
     faList,
     faPen,
+    faPencilAlt,
     faPlus,
     faTrash,
     faWrench,
@@ -28,6 +29,7 @@ import dayjs from 'dayjs/esm';
 import { Course } from 'app/course/shared/entities/course.model';
 import { Exercise, ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
+import { RepositoryType } from 'app/programming/shared/code-editor/model/code-editor.model';
 import { ProgrammingExerciseEditSelectedComponent } from 'app/programming/manage/edit-selected/programming-exercise-edit-selected.component';
 import { ConsistencyCheckComponent } from 'app/programming/manage/consistency-check/consistency-check.component';
 import { ProgrammingAssessmentRepoExportButtonComponent } from 'app/programming/manage/assess/repo-export/export-button/programming-assessment-repo-export-button.component';
@@ -108,6 +110,7 @@ export class CourseManagementExercisesComponent implements OnInit {
     protected readonly faFileExport = faFileExport;
     protected readonly faCircleInfo = faCircleInfo;
     protected readonly faPen = faPen;
+    protected readonly faPencilAlt = faPencilAlt;
     protected readonly faTrash = faTrash;
     protected readonly faWrench = faWrench;
     protected readonly faCheckDouble = faCheckDouble;
@@ -140,6 +143,8 @@ export class CourseManagementExercisesComponent implements OnInit {
     readonly groupEditGroup = signal<CourseExerciseGroup | undefined>(undefined);
     /** Whether the group-edit modal is creating (vs. updating) — chooses the persistence path on save. */
     protected readonly groupEditIsNew = signal(false);
+    /** Id of the milestone group currently resolving its template participation for "Edit in editor". */
+    readonly editorLoadingGroupId = signal<number | undefined>(undefined);
     readonly showConsistencyCheck = signal(false);
     readonly consistencyExercises = signal<ProgrammingExercise[]>([]);
     readonly showQuizExport = signal(false);
@@ -477,6 +482,40 @@ export class CourseManagementExercisesComponent implements OnInit {
             return;
         }
         this.openGroupEditDialog(group, false);
+    }
+
+    /**
+     * Opens the instructor code editor on a milestone group's shared repository (the anchor {@code MilestoneExercise}'s
+     * template repository). The group only carries the milestone exercise's id, so the template participation id is
+     * resolved on demand via the same call {@link ProgrammingExerciseDetailComponent} uses.
+     */
+    openMilestoneEditor(group: CourseExerciseGroup): void {
+        const courseId = this.courseId();
+        if (courseId === undefined || group.milestoneExerciseId === undefined) {
+            return;
+        }
+        this.editorLoadingGroupId.set(group.id);
+        this.programmingExerciseService.findWithTemplateAndSolutionParticipationAndLatestResults(group.milestoneExerciseId).subscribe({
+            next: (response) => {
+                this.editorLoadingGroupId.set(undefined);
+                const templateParticipationId = response.body?.templateParticipation?.id;
+                if (templateParticipationId !== undefined) {
+                    void this.router.navigate([
+                        '/course-management',
+                        courseId,
+                        'programming-exercises',
+                        group.milestoneExerciseId,
+                        'code-editor',
+                        RepositoryType.TEMPLATE,
+                        templateParticipationId,
+                    ]);
+                }
+            },
+            error: (errorRes: HttpErrorResponse) => {
+                this.editorLoadingGroupId.set(undefined);
+                this.alertService.addErrorAlert(errorRes.error?.title ?? errorRes.message, errorRes.error?.message, errorRes.error?.params);
+            },
+        });
     }
 
     /** Opens the group-edit modal. {@code isNew} selects the create vs. update path in {@link onGroupEditModalSave}. */

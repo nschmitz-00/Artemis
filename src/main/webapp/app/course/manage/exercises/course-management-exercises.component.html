@@ -230,6 +230,18 @@
                                     <fa-icon [icon]="faPen" />
                                     <span class="ms-1" jhiTranslate="artemisApp.exerciseVariantGroup.edit"></span>
                                 </tum-ui-button>
+                                @if (card.group.type === 'milestone' && card.group.milestoneExerciseId !== undefined) {
+                                    <tum-ui-button
+                                        severity="warn"
+                                        variant="outlined"
+                                        size="small"
+                                        [loading]="editorLoadingGroupId() === card.group.id"
+                                        (clicked)="openMilestoneEditor(card.group)"
+                                    >
+                                        <fa-icon [icon]="faPencilAlt" />
+                                        <span class="ms-1" jhiTranslate="entity.action.editInEditor"></span>
+                                    </tum-ui-button>
+                                }
                                 @if (canDeleteGroups()) {
                                     <tum-ui-button severity="danger" variant="outlined" size="small" (clicked)="confirmDeleteGroup(card.group)">
                                         <fa-icon [icon]="faTrash" />
