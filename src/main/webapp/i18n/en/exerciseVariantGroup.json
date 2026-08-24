@@ -2,7 +2,7 @@
     "artemisApp": {
         "exerciseVariantGroup": {
             "detail": {
-                "variants": "Variants",
+                "variants": "Items",
                 "pointsTooltip": "The variants in this group total {{ total }} pts, but only {{ cap }} pts count toward your course score.",
                 "noProblemStatement": "No problem statement configured.",
                 "callout": {

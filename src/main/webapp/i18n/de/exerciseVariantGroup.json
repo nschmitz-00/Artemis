@@ -2,7 +2,7 @@
     "artemisApp": {
         "exerciseVariantGroup": {
             "detail": {
-                "variants": "Varianten",
+                "variants": "Elemente",
                 "pointsTooltip": "Die Varianten dieser Gruppe ergeben zusammen {{ total }} Pkt., aber nur {{ cap }} Pkt. zählen zur Kursnote.",
                 "noProblemStatement": "Keine Aufgabenstellung konfiguriert.",
                 "callout": {

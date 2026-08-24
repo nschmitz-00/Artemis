@@ -11,7 +11,7 @@
                         @if (milestoneStatus(); as status) {
                             @if (status.started) {
                                 <jhi-code-button
-                                    [smallButtons]="true"
+                                    [smallButtons]="false"
                                     [repositoryUri]="status.repositoryUri ?? ''"
                                     [routerLinkForRepositoryView]="routerLinkForMilestoneRepository()"
                                     [participations]="milestoneCodeButtonParticipations()"
