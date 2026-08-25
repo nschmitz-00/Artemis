@@ -108,24 +108,10 @@ public class LocalCIBuildConfigurationService {
             scriptBuilder.append("  trap final_force_run_post_action EXIT\n\n");
         }
 
-        // One phase's script commonly exits non-zero for a completely normal reason (e.g. a test task exiting 1
-        // because student tests failed), not because the build itself is broken - under the top-level `set -e`,
-        // an unguarded command here would abort this whole loop the instant that happens, silently skipping every
-        // later phase (no output, no result XML) rather than just marking that one phase's own result path empty.
-        // `|| phase_exit_code=$?` stops the non-zero from propagating so the loop always reaches every phase, while
-        // still tracking the worst exit code seen so a genuinely broken script (not just failing tests) still shows
-        // up as a non-zero overall result.
-        scriptBuilder.append("  local phase_exit_code=0\n");
-        scriptBuilder.append("  local overall_exit_code=0\n");
         for (BuildPhaseDTO phase : nonForceRunPhase) {
             scriptBuilder.append("  cd \"${INITIAL_WORKING_DIRECTORY}\"\n");
-            scriptBuilder.append("  bash -c \"source ${_script_name} script_sourcing; ").append(phase.name()).append("\" || phase_exit_code=$?\n");
-            scriptBuilder.append("  if [[ \"${phase_exit_code}\" -ne 0 ]]; then\n");
-            scriptBuilder.append("    overall_exit_code=${phase_exit_code}\n");
-            scriptBuilder.append("    phase_exit_code=0\n");
-            scriptBuilder.append("  fi\n");
+            scriptBuilder.append("  bash -c \"source ${_script_name} script_sourcing; ").append(phase.name()).append("\"\n");
         }
-        scriptBuilder.append("  return \"${overall_exit_code}\"\n");
 
         scriptBuilder.append("}\n\n");
     }
