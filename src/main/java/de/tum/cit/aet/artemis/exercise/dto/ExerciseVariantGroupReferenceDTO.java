@@ -22,7 +22,7 @@ import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
  * @param type {@code "variant"} or {@code "milestone"}
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-public record ExerciseVariantGroupReferenceDTO(Long id, String title, @Nullable String description, String type, @Nullable Double maxPoints, @Nullable ZonedDateTime releaseDate,
+public record ExerciseVariantGroupReferenceDTO(Long id, String title, String type, @Nullable Double maxPoints, @Nullable ZonedDateTime releaseDate,
         @Nullable ZonedDateTime startDate, @Nullable ZonedDateTime dueDate, @Nullable ZonedDateTime assessmentDueDate, @Nullable ZonedDateTime exampleSolutionPublicationDate) {
 
     /**
@@ -45,7 +45,7 @@ public record ExerciseVariantGroupReferenceDTO(Long id, String title, @Nullable 
         if (group == null || !Hibernate.isInitialized(group)) {
             return null;
         }
-        return new ExerciseVariantGroupReferenceDTO(group.getId(), group.getTitle(), group.getDescription(), group instanceof MilestoneExerciseGroup ? "milestone" : "variant",
-                group.getMaxPoints(), group.getReleaseDate(), group.getStartDate(), group.getDueDate(), group.getAssessmentDueDate(), group.getExampleSolutionPublicationDate());
+        return new ExerciseVariantGroupReferenceDTO(group.getId(), group.getTitle(), group instanceof MilestoneExerciseGroup ? "milestone" : "variant", group.getMaxPoints(),
+                group.getReleaseDate(), group.getStartDate(), group.getDueDate(), group.getAssessmentDueDate(), group.getExampleSolutionPublicationDate());
     }
 }

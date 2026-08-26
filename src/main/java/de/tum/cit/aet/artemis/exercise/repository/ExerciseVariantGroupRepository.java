@@ -167,6 +167,22 @@ public interface ExerciseVariantGroupRepository extends ArtemisJpaRepository<Exe
     Optional<Long> findMilestoneExerciseIdByGroupId(@Param("groupId") Long groupId);
 
     /**
+     * Resolves a {@code MilestoneExerciseGroup}'s anchor {@code milestoneExercise}'s problem statement, which doubles as
+     * the group's description in the student group view. A scalar projection for the same reason as
+     * {@link #findMilestoneExerciseIdByGroupId}, and deliberately not {@link #findMilestoneExerciseByGroupId}: that one
+     * additionally fetches the build config and the template/solution participations, far more than a text blurb needs.
+     *
+     * @param groupId the id of the group to resolve the anchor milestone exercise's problem statement for
+     * @return the problem statement, or empty if the group isn't a milestone group, doesn't exist, or has none set
+     */
+    @Query("""
+            SELECT g.milestoneExercise.problemStatement
+            FROM MilestoneExerciseGroup g
+            WHERE g.id = :groupId
+            """)
+    Optional<String> findMilestoneProblemStatementByGroupId(@Param("groupId") Long groupId);
+
+    /**
      * Resolves a {@code MilestoneExerciseGroup}'s anchor {@code milestoneExercise}, fully hydrated (its
      * {@code buildConfig}, {@code templateParticipation} and {@code solutionParticipation}, each a further {@code LAZY}
      * association). Used to hydrate an already-loaded {@code UserStoryExercise}'s {@code exerciseVariantGroup} before it

@@ -56,11 +56,6 @@ public class ExerciseVariantGroup extends DomainObject {
     @Column(name = "title", nullable = false)
     private String title;
 
-    /** Shown in the "choose a variant" banner on the student group-detail page; falls back to a generic message when unset. */
-    @Nullable
-    @Column(name = "description")
-    private String description;
-
     /** Cap on the group's contribution to the course score: {@code min(sum(points of variants), maxPoints)}. */
     @Nullable
     @Column(name = "max_points")
@@ -98,15 +93,6 @@ public class ExerciseVariantGroup extends DomainObject {
 
     public void setTitle(String title) {
         this.title = Objects.requireNonNull(title, "title must not be null").strip();
-    }
-
-    @Nullable
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(@Nullable String description) {
-        this.description = description;
     }
 
     @Nullable

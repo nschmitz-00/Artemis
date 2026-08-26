@@ -1,10 +1,7 @@
 package de.tum.cit.aet.artemis.programming.domain;
 
-import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
-
-import org.jspecify.annotations.Nullable;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
@@ -22,24 +19,6 @@ import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
 @DiscriminatorValue("MS")
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class MilestoneExercise extends ProgrammingExercise {
-
-    /**
-     * Shown in the "choose a variant" banner on the student group-detail page of this milestone's
-     * {@code MilestoneExerciseGroup} (see {@link de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup#getDescription()},
-     * which delegates here) - falls back to a generic message when unset.
-     */
-    @Nullable
-    @Column(name = "description")
-    private String description;
-
-    @Nullable
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(@Nullable String description) {
-        this.description = description;
-    }
 
     @Override
     public String getType() {

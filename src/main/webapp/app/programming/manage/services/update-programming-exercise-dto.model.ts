@@ -188,7 +188,6 @@ export function toUpdateProgrammingExerciseDTO(exercise: ProgrammingExercise): U
         secondCorrectionEnabled: exercise.secondCorrectionEnabled,
         feedbackSuggestionModule: exercise.feedbackSuggestionModule,
         gradingInstructions: exercise.gradingInstructions,
-        description: exercise.description,
         releaseDate: convertDateFromClient(exercise.releaseDate),
         startDate: convertDateFromClient(exercise.startDate),
         dueDate: convertDateFromClient(exercise.dueDate),

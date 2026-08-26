@@ -406,9 +406,6 @@ public class ProgrammingExerciseUpdateResource {
 
         exercise.setFeedbackSuggestionModule(dto.feedbackSuggestionModule());
         exercise.setGradingInstructions(dto.gradingInstructions());
-        if (exercise instanceof MilestoneExercise milestoneExercise) {
-            milestoneExercise.setDescription(dto.description());
-        }
 
         // Update programming exercise specific fields
         if (dto.allowOnlineEditor() != null) {

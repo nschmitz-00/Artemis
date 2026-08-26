@@ -51,7 +51,7 @@ import {
     toCreateGroupPayload,
     toUpdateGroupPayload,
 } from 'app/course/manage/exercises/exercise-variant-group.service';
-import { CourseExerciseCard, ExerciseManagementView, buildCourseExerciseCards } from 'app/course/manage/exercises/course-exercise-cards';
+import { CourseExerciseCard, EXERCISE_MANAGEMENT_VIEW_STORAGE_KEY, ExerciseManagementView, buildCourseExerciseCards } from 'app/course/manage/exercises/course-exercise-cards';
 import { ExerciseGroupSyncService } from 'app/course/manage/exercises/exercise-group-sync.service';
 import { ExerciseTableComponent, TableGroupChange } from 'app/course/manage/exercises/exercise-row/exercise-table.component';
 import { AddModalMode, ExerciseAddModalComponent } from 'app/course/manage/exercises/create-modal/exercise-add-modal.component';
@@ -69,9 +69,6 @@ import { DeleteButtonDirective } from 'app/shared-ui/delete-dialog/directive/del
 import { ButtonType } from 'app/shared-ui/components/buttons/button/button.component';
 import { LocalStorageService } from 'app/foundation/service/local-storage.service';
 import { cloneWith, hydrate } from 'app/foundation/util/deep-clone.util';
-
-/** Local-storage key under which the last-selected view is remembered, so closing an exercise editor returns to it. */
-const VIEW_STORAGE_KEY = 'artemis.exerciseManagement.view';
 
 @Component({
     selector: 'jhi-course-management-exercises',
@@ -216,7 +213,7 @@ export class CourseManagementExercisesComponent implements OnInit {
 
     constructor() {
         // Restore the last-selected view, validated so a stale entry falls back to the default.
-        const storedView = this.localStorageService.retrieve<ExerciseManagementView>(VIEW_STORAGE_KEY);
+        const storedView = this.localStorageService.retrieve<ExerciseManagementView>(EXERCISE_MANAGEMENT_VIEW_STORAGE_KEY);
         if (storedView && this.viewOptions.some((option) => option.value === storedView)) {
             this.view.set(storedView);
         }
@@ -274,7 +271,7 @@ export class CourseManagementExercisesComponent implements OnInit {
     onViewChange(view: ExerciseManagementView): void {
         this.view.set(view);
         // Remember the selection so it is restored when the component is re-instantiated (e.g. after closing an editor).
-        this.localStorageService.store(VIEW_STORAGE_KEY, view);
+        this.localStorageService.store(EXERCISE_MANAGEMENT_VIEW_STORAGE_KEY, view);
         this.rebuildCards();
     }
 

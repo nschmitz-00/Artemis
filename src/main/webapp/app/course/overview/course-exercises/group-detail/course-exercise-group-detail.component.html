@@ -91,19 +91,19 @@
         <div class="d-flex flex-column h-100 overflow-hidden module-bg rounded-3 p-2">
             <div class="group-panel-scroll">
                 <div class="variant-callout rounded-3 p-3 mb-3">
-                    @if (group.description) {
-                        <div class="fw-semibold mb-1">{{ group.description }}</div>
+                    @if (milestoneDescriptionHtml(); as descriptionHtml) {
+                        <div class="markdown-preview" [innerHTML]="descriptionHtml"></div>
                     } @else {
                         <div class="fw-semibold mb-1" jhiTranslate="artemisApp.exerciseVariantGroup.detail.callout.heading"></div>
-                    }
-                    <p class="mb-0 text-body-secondary">
-                        @if (!group.description) {
+                        <p class="mb-0 text-body-secondary">
                             <span jhiTranslate="artemisApp.exerciseVariantGroup.detail.callout.body" [translateValues]="{ count: exercises().length }"></span>
-                        }
-                        @if (capReducesMaxPoints()) {
+                        </p>
+                    }
+                    @if (capReducesMaxPoints()) {
+                        <p class="mb-0 text-body-secondary">
                             <span jhiTranslate="artemisApp.exerciseVariantGroup.detail.callout.cappedScore" [translateValues]="{ maxPoints: group.maxPoints }"></span>
-                        }
-                    </p>
+                        </p>
+                    }
                 </div>
                 <div class="variant-grid">
                     @for (exercise of exercises(); track exercise.id) {

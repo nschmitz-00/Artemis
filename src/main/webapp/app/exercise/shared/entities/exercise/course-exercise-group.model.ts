@@ -9,8 +9,6 @@ import { convertDateFromServer } from 'app/foundation/util/date.utils';
 export class CourseExerciseGroup {
     id?: number;
     title?: string;
-    /** Shown in the "choose a variant" banner on the student group-detail page; falls back to a generic message when unset. */
-    description?: string;
 
     /** `'variant'` (a plain ExerciseVariantGroup) or `'milestone'` (a MilestoneExerciseGroup). */
     type?: 'variant' | 'milestone';
@@ -55,7 +53,6 @@ export function buildGroupsFromExercises(exercises: Exercise[]): CourseExerciseG
             group = {
                 id: reference.id,
                 title: reference.title,
-                description: reference.description,
                 type: reference.type,
                 milestoneExerciseId: reference.milestoneExerciseId,
                 maxPoints: reference.maxPoints,

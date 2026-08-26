@@ -93,7 +93,6 @@ public interface ExerciseRepository extends ArtemisJpaRepository<Exercise, Long>
                 programmingExercise.buildAndTestStudentSubmissionsAfterDueDate,
                 variantGroup.id,
                 variantGroup.title,
-                CASE WHEN milestoneExercise.id IS NOT NULL THEN milestoneExercise.description ELSE variantGroup.description END,
                 CASE WHEN variantGroup.id IS NULL THEN NULL
                      WHEN EXISTS (SELECT 1 FROM MilestoneExerciseGroup mg WHERE mg.id = variantGroup.id) THEN 'milestone'
                      ELSE 'variant' END,
@@ -106,7 +105,6 @@ public interface ExerciseRepository extends ArtemisJpaRepository<Exercise, Long>
             FROM Exercise exercise
                 LEFT JOIN ProgrammingExercise programmingExercise ON exercise.id = programmingExercise.id
                 LEFT JOIN exercise.exerciseVariantGroup variantGroup
-                LEFT JOIN TREAT(variantGroup AS MilestoneExerciseGroup).milestoneExercise milestoneExercise
             WHERE exercise.course.id = :courseId
                 AND TYPE(exercise) <> MilestoneExercise
                 AND (:includeUnreleased = TRUE OR exercise.releaseDate IS NULL OR exercise.releaseDate <= :calculationTime)

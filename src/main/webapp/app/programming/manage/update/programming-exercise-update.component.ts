@@ -67,6 +67,7 @@ import { ExerciseMetadataSyncService } from 'app/exercise/synchronization/servic
 import { BuildPhasesTemplateService } from 'app/programming/shared/services/build-phases-template.service';
 import { cloneWith, deepClone } from 'app/foundation/util/deep-clone.util';
 import { ExerciseVariantGroupService, toCourseExerciseGroup } from 'app/course/manage/exercises/exercise-variant-group.service';
+import { EXERCISE_MANAGEMENT_VIEW_STORAGE_KEY } from 'app/course/manage/exercises/course-exercise-cards';
 import { CourseExerciseGroup } from 'app/exercise/shared/entities/exercise/course-exercise-group.model';
 import { TumUiSelectComponent } from '@tumaet/ui-angular';
 
@@ -75,7 +76,6 @@ const AUTO_START_CODE_GENERATION_ALL_REPOSITORIES_STATE = 'autoStartCodeGenerati
 
 /** Fields forced hidden for a MilestoneExercise - see isEditFieldDisplayedRecord. */
 const MILESTONE_HIDDEN_FIELDS: ProgrammingExerciseInputField[] = [
-    ProgrammingExerciseInputField.PROBLEM_STATEMENT,
     ProgrammingExerciseInputField.LINKED_COMPETENCIES,
     ProgrammingExerciseInputField.POINTS,
     ProgrammingExerciseInputField.BONUS_POINTS,
@@ -314,8 +314,9 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
      * Whether this page is configuring a MilestoneExercise rather than a plain programming exercise - set from the URL
      * (see the 'milestone-exercise-groups' segment check in ngOnInit), matching how isImportFromExistingExercise/isEdit/
      * isCreate are already detected here. A MilestoneExercise is configured on this same page/layout as a plain
-     * programming exercise, minus Problem Statement/Points/Assessment (see isEditFieldDisplayedRecord/MILESTONE_HIDDEN_FIELDS)
-     * - those stay independently configured per UserStoryExercise member.
+     * programming exercise, minus Points/Assessment (see isEditFieldDisplayedRecord/MILESTONE_HIDDEN_FIELDS) - those stay
+     * independently configured per UserStoryExercise member. Its Problem Statement stays editable: it doubles as the
+     * milestone group's description in the student group view (see CourseExerciseGroupDetailComponent).
      */
     get isMilestoneMode(): boolean {
         return this.isMilestoneModeValue;
@@ -1154,8 +1155,8 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
      * to a milestone. Edit reuses the generic update endpoint unchanged - it has no exercise-type restriction and
      * already works for a MilestoneExercise. Create goes through the milestone-group endpoint instead (it provisions
      * real repositories/build plan and wraps the exercise into a MilestoneExerciseGroup in one call - the generic
-     * automatic-setup endpoint doesn't know about that wrapping), then re-fetches the created exercise as a plain
-     * ProgrammingExercise so the existing onSaveSuccess/navigation logic can be reused as-is.
+     * automatic-setup endpoint doesn't know about that wrapping). Both branches end in onMilestoneSaveSuccess, which
+     * navigates back to the group overview rather than to the saved exercise - so neither needs the response body.
      */
     private saveMilestone(): void {
         if (this.programmingExercise.id !== undefined) {
@@ -1163,16 +1164,30 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
             if (this.notificationText) {
                 requestOptions.notificationText = this.notificationText;
             }
-            this.subscribeToSaveResponse(this.programmingExerciseService.update(this.programmingExercise, requestOptions));
-            return;
-        }
-        this.exerciseVariantGroupService
-            .createMilestoneGroup(this.courseId(), this.programmingExercise)
-            .pipe(switchMap((group) => this.programmingExerciseService.find(group.milestoneExerciseId!)))
-            .subscribe({
-                next: (response) => this.onSaveSuccess(response.body!),
+            this.programmingExerciseService.update(this.programmingExercise, requestOptions).subscribe({
+                next: () => this.onMilestoneSaveSuccess(),
                 error: (error: HttpErrorResponse) => this.onSaveError(error),
             });
+            return;
+        }
+        this.exerciseVariantGroupService.createMilestoneGroup(this.courseId(), this.programmingExercise).subscribe({
+            next: () => this.onMilestoneSaveSuccess(),
+            error: (error: HttpErrorResponse) => this.onSaveError(error),
+        });
+    }
+
+    /**
+     * Mirrors {@link onSaveSuccess} for a milestone, but returns to the course's exercise management page instead of a
+     * MilestoneExercise detail page: the milestone exercise is only the group's internal anchor and is never listed as
+     * an exercise of its own (see CourseManagementExercisesComponent.loadCourseExercises) - what was just configured is
+     * the group. The Group view is pre-selected the same way CourseManagementExercisesComponent.onAddModalGroupCreate
+     * does it, so the group's card is on screen on arrival.
+     */
+    private onMilestoneSaveSuccess(): void {
+        this.isSaving.set(false);
+        this.calendarService.reloadEvents();
+        this.localStorageService.store(EXERCISE_MANAGEMENT_VIEW_STORAGE_KEY, 'group');
+        void this.router.navigate(['/course-management', this.courseId(), 'exercises']);
     }
 
     /** Loads the course's milestone groups so a new UserStoryExercise can be assigned to one (see isUserStoryMode && isCreate). */

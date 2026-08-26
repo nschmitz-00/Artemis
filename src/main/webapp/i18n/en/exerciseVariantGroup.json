@@ -16,8 +16,6 @@
             },
             "edit": "Edit group",
             "delete": "Delete group",
-            "description": "Description",
-            "descriptionHint": "Shown to students instead of the default \"Choose a variant to work on\" message.",
             "milestoneGroup": "Milestone group",
             "milestoneGroupCreateLabel": "Create Milestone",
             "milestoneGroupEditLabel": "Edit Milestone",

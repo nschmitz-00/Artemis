@@ -88,19 +88,6 @@ public class MilestoneExerciseGroup extends ExerciseVariantGroup {
 
     @Override
     @Nullable
-    public String getDescription() {
-        return isMilestoneExerciseAvailable() ? milestoneExercise.getDescription() : null;
-    }
-
-    @Override
-    public void setDescription(@Nullable String description) {
-        if (isMilestoneExerciseAvailable()) {
-            milestoneExercise.setDescription(description);
-        }
-    }
-
-    @Override
-    @Nullable
     public ZonedDateTime getReleaseDate() {
         return isMilestoneExerciseAvailable() ? milestoneExercise.getReleaseDate() : null;
     }

@@ -35,20 +35,6 @@
                 />
             </div>
         }
-        @if (isMilestoneMode) {
-            <div class="mb-3">
-                <label for="jhi-milestone-description" jhiTranslate="artemisApp.exerciseVariantGroup.description"></label>
-                <textarea
-                    id="jhi-milestone-description"
-                    class="form-control"
-                    rows="3"
-                    maxlength="500"
-                    [(ngModel)]="programmingExercise.description"
-                    name="milestoneDescription"
-                ></textarea>
-                <div class="form-text" jhiTranslate="artemisApp.exerciseVariantGroup.descriptionHint"></div>
-            </div>
-        }
         <div class="update-programming-exercise">
             <jhi-programming-exercise-info
                 [programmingExercise]="programmingExercise"
@@ -85,16 +71,14 @@
                 <jhi-programming-exercise-version-control [programmingExercise]="programmingExercise" [isEditFieldDisplayedRecord]="isEditFieldDisplayedRecord()" />
                 <hr class="mb-5" />
             }
-            @if (!isMilestoneMode) {
-                <jhi-programming-exercise-problem
-                    [programmingExercise]="programmingExercise"
-                    [programmingExerciseCreationConfig]="getProgrammingExerciseCreationConfig()"
-                    [isEditFieldDisplayedRecord]="isEditFieldDisplayedRecord()"
-                    (problemStatementChange)="calculateFormStatusSections()"
-                    (programmingExerciseChange)="programmingExercise = $event"
-                />
-                <hr class="mb-5" />
-            }
+            <jhi-programming-exercise-problem
+                [programmingExercise]="programmingExercise"
+                [programmingExerciseCreationConfig]="getProgrammingExerciseCreationConfig()"
+                [isEditFieldDisplayedRecord]="isEditFieldDisplayedRecord()"
+                (problemStatementChange)="calculateFormStatusSections()"
+                (programmingExerciseChange)="programmingExercise = $event"
+            />
+            <hr class="mb-5" />
             <jhi-programming-exercise-grading
                 class="form-step"
                 [programmingExercise]="programmingExercise"

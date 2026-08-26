@@ -20,7 +20,6 @@ import de.tum.cit.aet.artemis.exercise.domain.DifficultyLevel;
 import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
 import de.tum.cit.aet.artemis.exercise.dto.CompetencyLinksHolderDTO;
 import de.tum.cit.aet.artemis.lecture.dto.CompetencyLinkDTO;
-import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingLanguage;
 import de.tum.cit.aet.artemis.programming.domain.ProjectType;
@@ -40,10 +39,6 @@ public record UpdateProgrammingExerciseDTO(
         String title, String channelName, String shortName, String problemStatement, Set<String> categories, DifficultyLevel difficulty, Double maxPoints, Double bonusPoints,
         IncludedInOverallScore includedInOverallScore, Boolean allowComplaintsForAutomaticAssessments, Boolean allowFeedbackRequests, Boolean presentationScoreEnabled,
         Boolean allowTutorScoreRowActions, Boolean secondCorrectionEnabled, String feedbackSuggestionModule, String gradingInstructions,
-
-        // MilestoneExercise-only: shown in the "choose a variant" banner on the student group-detail page (see
-        // MilestoneExerciseGroup#getDescription, which delegates to it). Null for every other exercise type.
-        @Nullable String description,
 
         // Timeline fields
         ZonedDateTime releaseDate, ZonedDateTime startDate, ZonedDateTime dueDate, ZonedDateTime assessmentDueDate, ZonedDateTime exampleSolutionPublicationDate,
@@ -99,18 +94,16 @@ public record UpdateProgrammingExerciseDTO(
                     : exercise.getAuxiliaryRepositories().stream().map(AuxiliaryRepositoryDTO::of).toList();
         }
 
-        String description = exercise instanceof MilestoneExercise milestoneExercise ? milestoneExercise.getDescription() : null;
-
         return new UpdateProgrammingExerciseDTO(exercise.getId(), exercise.getTitle(), exercise.getChannelName(), exercise.getShortName(), exercise.getProblemStatement(),
                 exercise.getCategories(), exercise.getDifficulty(), exercise.getMaxPoints(), exercise.getBonusPoints(), exercise.getIncludedInOverallScore(),
                 exercise.getAllowComplaintsForAutomaticAssessments(), exercise.getAllowFeedbackRequests(), exercise.getPresentationScoreEnabled(),
                 exercise.isAllowTutorScoreRowActions(), exercise.getSecondCorrectionEnabled(), exercise.getFeedbackSuggestionModule(), exercise.getGradingInstructions(),
-                description, exercise.getReleaseDate(), exercise.getStartDate(), exercise.getDueDate(), exercise.getAssessmentDueDate(),
-                exercise.getExampleSolutionPublicationDate(), courseId, exerciseGroupId, gradingCriterionDTOs, competencyLinkDTOs, exercise.getTestRepositoryUri(),
-                exercise.getSolutionRepositoryUri(), auxiliaryRepositoryDTOs, exercise.isAllowOnlineEditor(), exercise.isAllowOfflineIde(), exercise.isAllowOnlineIde(),
-                exercise.isStaticCodeAnalysisEnabled(), exercise.getMaxStaticCodeAnalysisPenalty(), exercise.getProgrammingLanguage(), exercise.getPackageName(),
-                exercise.getShowTestNamesToStudents(), exercise.getBuildAndTestStudentSubmissionsAfterDueDate(), exercise.getTestCasesChanged(), exercise.getProjectKey(),
-                exercise.getSubmissionPolicy(), exercise.getProjectType(), exercise.isReleaseTestsWithExampleSolution(), exercise.getAssessmentType(),
+                exercise.getReleaseDate(), exercise.getStartDate(), exercise.getDueDate(), exercise.getAssessmentDueDate(), exercise.getExampleSolutionPublicationDate(), courseId,
+                exerciseGroupId, gradingCriterionDTOs, competencyLinkDTOs, exercise.getTestRepositoryUri(), exercise.getSolutionRepositoryUri(), auxiliaryRepositoryDTOs,
+                exercise.isAllowOnlineEditor(), exercise.isAllowOfflineIde(), exercise.isAllowOnlineIde(), exercise.isStaticCodeAnalysisEnabled(),
+                exercise.getMaxStaticCodeAnalysisPenalty(), exercise.getProgrammingLanguage(), exercise.getPackageName(), exercise.getShowTestNamesToStudents(),
+                exercise.getBuildAndTestStudentSubmissionsAfterDueDate(), exercise.getTestCasesChanged(), exercise.getProjectKey(), exercise.getSubmissionPolicy(),
+                exercise.getProjectType(), exercise.isReleaseTestsWithExampleSolution(), exercise.getAssessmentType(),
                 UpdateProgrammingExerciseBuildConfigDTO.of(exercise.getBuildConfig()));
     }
 }

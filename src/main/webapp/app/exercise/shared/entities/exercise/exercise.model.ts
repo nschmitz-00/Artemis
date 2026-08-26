@@ -84,8 +84,6 @@ export enum IncludedInOverallScore {
 export interface ExerciseVariantGroupReference {
     id?: number;
     title?: string;
-    /** Shown in the "choose a variant" banner on the student group-detail page; falls back to a generic message when unset. */
-    description?: string;
     /** `'variant'` (a plain ExerciseVariantGroup) or `'milestone'` (a MilestoneExerciseGroup). */
     type?: 'variant' | 'milestone';
     /** Only set when {@link type} is `'milestone'` — the id of the group's anchor MilestoneExercise. */
@@ -101,8 +99,6 @@ export interface ExerciseVariantGroupReference {
 export abstract class Exercise implements BaseEntity {
     public id?: number;
     public problemStatement?: string;
-    /** Milestone-only: shown in the "choose a variant" banner on the student group-detail page. */
-    public description?: string;
     public gradingInstructions?: string;
     public title?: string;
     public shortName?: string;

@@ -16,8 +16,6 @@
             },
             "edit": "Gruppe bearbeiten",
             "delete": "Gruppe löschen",
-            "description": "Beschreibung",
-            "descriptionHint": "Wird Studierenden anstelle der Standardmeldung \"Wähle eine Variante zum Bearbeiten\" angezeigt.",
             "milestoneGroup": "Meilenstein-Gruppe",
             "milestoneGroupCreateLabel": "Meilenstein erstellen",
             "milestoneGroupEditLabel": "Meilenstein bearbeiten",

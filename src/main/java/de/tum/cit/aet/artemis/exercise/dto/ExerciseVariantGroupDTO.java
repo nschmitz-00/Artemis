@@ -25,12 +25,12 @@ import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
  * {@link MilestoneExerciseGroup#setMaxPoints}) - this is purely a display value for the instructor UI.
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-public record ExerciseVariantGroupDTO(Long id, String title, @Nullable String description, String type, @Nullable Double maxPoints, @Nullable ZonedDateTime releaseDate,
-        @Nullable ZonedDateTime startDate, @Nullable ZonedDateTime dueDate, @Nullable ZonedDateTime assessmentDueDate, @Nullable ZonedDateTime exampleSolutionPublicationDate,
-        Set<Long> exerciseIds, @Nullable Long milestoneExerciseId) {
+public record ExerciseVariantGroupDTO(Long id, String title, String type, @Nullable Double maxPoints, @Nullable ZonedDateTime releaseDate, @Nullable ZonedDateTime startDate,
+        @Nullable ZonedDateTime dueDate, @Nullable ZonedDateTime assessmentDueDate, @Nullable ZonedDateTime exampleSolutionPublicationDate, Set<Long> exerciseIds,
+        @Nullable Long milestoneExerciseId) {
 
     public ExerciseVariantGroupDTO(ExerciseVariantGroup group) {
-        this(group.getId(), group.getTitle(), group.getDescription(), group instanceof MilestoneExerciseGroup ? "milestone" : "variant",
+        this(group.getId(), group.getTitle(), group instanceof MilestoneExerciseGroup ? "milestone" : "variant",
                 group instanceof MilestoneExerciseGroup ? sumOfMemberPoints(group) : group.getMaxPoints(), group.getReleaseDate(), group.getStartDate(), group.getDueDate(),
                 group.getAssessmentDueDate(), group.getExampleSolutionPublicationDate(), group.getExercises().stream().map(DomainObject::getId).collect(Collectors.toSet()),
                 group instanceof MilestoneExerciseGroup milestoneGroup && milestoneGroup.getMilestoneExercise() != null ? milestoneGroup.getMilestoneExercise().getId() : null);

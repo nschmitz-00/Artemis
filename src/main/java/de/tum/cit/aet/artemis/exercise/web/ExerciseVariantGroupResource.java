@@ -411,7 +411,8 @@ public class ExerciseVariantGroupResource {
      *
      * @param groupId  the id of the milestone exercise group to check
      * @param courseId the id of the course the group belongs to
-     * @return the ResponseEntity with status 200 (OK) and the milestone's id plus whether the student has started it
+     * @return the ResponseEntity with status 200 (OK) and the milestone's id, whether the student has started it, and
+     *         the milestone's problem statement (which doubles as the group's description in the student group view)
      */
     @GetMapping("courses/{courseId}/exercise-variant-groups/{groupId}/milestone-status")
     @EnforceAtLeastStudentInCourse
@@ -424,9 +425,12 @@ public class ExerciseVariantGroupResource {
         long milestoneExerciseId = exerciseVariantGroupRepository.findMilestoneExerciseIdByGroupId(groupId)
                 .orElseThrow(() -> new BadRequestAlertException("The milestone group has no anchor milestone exercise", ENTITY_NAME, "milestoneExerciseMissing"));
         User user = userRepository.getUserWithAuthorities();
+        // The milestone's problem statement doubles as the group's description in the student group view - the milestone
+        // itself is never rendered, so this endpoint is the only path that can hand it to the group view.
+        String problemStatement = exerciseVariantGroupRepository.findMilestoneProblemStatementByGroupId(groupId).orElse(null);
         var participation = programmingExerciseStudentParticipationRepository.findByExerciseIdAndStudentLogin(milestoneExerciseId, user.getLogin());
-        MilestoneStatusDTO status = participation.map(p -> new MilestoneStatusDTO(milestoneExerciseId, true, p.getId(), p.getRepositoryUri()))
-                .orElseGet(() -> new MilestoneStatusDTO(milestoneExerciseId, false, null, null));
+        MilestoneStatusDTO status = participation.map(p -> new MilestoneStatusDTO(milestoneExerciseId, true, p.getId(), p.getRepositoryUri(), problemStatement))
+                .orElseGet(() -> new MilestoneStatusDTO(milestoneExerciseId, false, null, null, problemStatement));
         return ResponseEntity.ok(status);
     }
 

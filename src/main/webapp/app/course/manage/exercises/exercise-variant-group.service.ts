@@ -14,8 +14,6 @@ import { deepClone } from 'app/foundation/util/deep-clone.util';
 export interface ExerciseVariantGroupDTO {
     id?: number;
     title?: string;
-    /** Shown in the "choose a variant" banner on the student group-detail page; falls back to a generic message when unset. */
-    description?: string;
     /** `'variant'` or `'milestone'`, mirroring the server's `discriminator`. */
     type?: 'variant' | 'milestone';
     /** Only set when {@link type} is `'milestone'`. */
@@ -38,7 +36,8 @@ export interface ExerciseProblemStatementDTO {
 /**
  * Whether the requesting student has started a milestone group's anchor milestone exercise (mirrors the backend
  * {@code MilestoneStatusDTO}). The milestone exercise itself is never shown to students, so this is the only way the
- * group view can tell whether to offer "Start exercise" for it.
+ * group view can tell whether to offer "Start exercise" for it — and the only way it can reach the milestone's problem
+ * statement, which doubles as the group's description.
  */
 export interface MilestoneStatusDTO {
     milestoneExerciseId: number;
@@ -47,6 +46,8 @@ export interface MilestoneStatusDTO {
     participationId?: number;
     /** The (shared) repository URI of that participation. Set only when {@link started} is `true`. */
     repositoryUri?: string;
+    /** The milestone's problem statement, shown as the group's description. Unset when the instructor left it empty. */
+    problemStatement?: string;
 }
 
 /** The date fields a group payload carries, as the client holds them. */
@@ -211,7 +212,6 @@ export function toCourseExerciseGroup(dto: ExerciseVariantGroupDTO, exercisesByI
     return {
         id: dto.id,
         title: dto.title,
-        description: dto.description,
         type: dto.type,
         milestoneExerciseId: dto.milestoneExerciseId,
         maxPoints: dto.maxPoints,

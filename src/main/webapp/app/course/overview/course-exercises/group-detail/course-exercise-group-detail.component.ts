@@ -156,6 +156,25 @@ export class CourseExerciseGroupDetailComponent {
         return this.scoresStorageService.getStoredAchievedGroupPoints(this.courseId, group.id) ?? 0;
     });
 
+    /**
+     * The milestone group's description, which is its anchor MilestoneExercise's problem statement. The milestone itself
+     * is never rendered to students, so it arrives via the milestone-status request the view already makes rather than
+     * with the dashboard payload — the callout therefore falls back to the generic heading until that resolves.
+     *
+     * Rendered the same way the member previews are (see {@link renderProblemStatements}), minus the PlantUML extension:
+     * that one is stateful (setExerciseId plus callbacks flushed in afterNextRender) and cannot be driven from a pure
+     * computed. A milestone blurb needing PlantUML would have to move into renderProblemStatements.
+     */
+    protected readonly milestoneDescriptionHtml = computed<SafeHtml | undefined>(() => {
+        const problemStatement = this.milestoneStatus()?.problemStatement;
+        if (!problemStatement) {
+            return undefined;
+        }
+        // Strip task syntax — [task][Name](tests) → Name — so it renders as plain text instead of a link.
+        const preprocessed = problemStatement.replace(taskRegex, (_match, name: string) => name);
+        return this.sanitizer.bypassSecurityTrustHtml(htmlForMarkdown(preprocessed));
+    });
+
     protected readonly pointsInfoBoxData = computed<InformationBox>(() => ({
         title: 'artemisApp.courseOverview.exerciseDetails.points',
         content: { type: 'string', value: '' },

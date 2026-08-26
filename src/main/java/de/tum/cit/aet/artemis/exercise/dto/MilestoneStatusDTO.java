@@ -14,7 +14,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * @param started             whether the requesting student already has a participation in it
  * @param participationId     the id of that participation, or {@code null} if not started
  * @param repositoryUri       the participation's (shared) repository URI, or {@code null} if not started
+ * @param problemStatement    the milestone exercise's problem statement, which doubles as the group's description in the
+ *                                student group view - the milestone itself is never rendered, so this endpoint is the only
+ *                                way to reach it; {@code null} when the instructor left it empty
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-public record MilestoneStatusDTO(long milestoneExerciseId, boolean started, @Nullable Long participationId, @Nullable String repositoryUri) {
+public record MilestoneStatusDTO(long milestoneExerciseId, boolean started, @Nullable Long participationId, @Nullable String repositoryUri, @Nullable String problemStatement) {
 }
