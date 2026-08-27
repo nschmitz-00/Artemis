@@ -182,7 +182,7 @@ export class CourseExerciseGroupDetailComponent {
     }));
 
     protected readonly variantsInfoBoxData = computed<InformationBox>(() => ({
-        title: 'artemisApp.exerciseVariantGroup.detail.variants',
+        title: this.group()?.type === 'milestone' ? 'artemisApp.exerciseVariantGroup.detail.milestoneVariants' : 'artemisApp.exerciseVariantGroup.detail.variants',
         content: { type: 'string', value: this.exercises().length },
     }));
 
