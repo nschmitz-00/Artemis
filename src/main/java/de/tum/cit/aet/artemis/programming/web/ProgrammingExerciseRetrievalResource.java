@@ -40,6 +40,7 @@ import de.tum.cit.aet.artemis.course.repository.CourseRepository;
 import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
 import de.tum.cit.aet.artemis.exercise.domain.participation.StudentParticipation;
 import de.tum.cit.aet.artemis.exercise.repository.ExerciseVariantGroupRepository;
+import de.tum.cit.aet.artemis.exercise.repository.MilestoneExerciseGroupRepository;
 import de.tum.cit.aet.artemis.exercise.repository.StudentParticipationRepository;
 import de.tum.cit.aet.artemis.exercise.service.ExerciseService;
 import de.tum.cit.aet.artemis.plagiarism.domain.PlagiarismDetectionConfigHelper;
@@ -101,6 +102,8 @@ public class ProgrammingExerciseRetrievalResource {
 
     private final ExerciseVariantGroupRepository exerciseVariantGroupRepository;
 
+    private final MilestoneExerciseGroupRepository milestoneExerciseGroupRepository;
+
     public ProgrammingExerciseRetrievalResource(ProgrammingExerciseService programmingExerciseService, ProgrammingExerciseRepository programmingExerciseRepository,
             CourseRepository courseRepository, AuthorizationCheckService authCheckService, UserRepository userRepository,
             ProgrammingExerciseBuildConfigRepository programmingExerciseBuildConfigRepository, ExerciseService exerciseService,
@@ -108,7 +111,8 @@ public class ProgrammingExerciseRetrievalResource {
             GradingCriterionRepository gradingCriterionRepository, ChannelRepository channelRepository,
             TemplateProgrammingExerciseParticipationRepository templateProgrammingExerciseParticipationRepository,
             SolutionProgrammingExerciseParticipationRepository solutionProgrammingExerciseParticipationRepository, RepositoryCheckoutService repositoryCheckoutService,
-            RepositoryParticipationService repositoryParticipationService, ExerciseVariantGroupRepository exerciseVariantGroupRepository) {
+            RepositoryParticipationService repositoryParticipationService, ExerciseVariantGroupRepository exerciseVariantGroupRepository,
+            MilestoneExerciseGroupRepository milestoneExerciseGroupRepository) {
         this.programmingExerciseService = programmingExerciseService;
         this.programmingExerciseRepository = programmingExerciseRepository;
         this.courseRepository = courseRepository;
@@ -125,6 +129,7 @@ public class ProgrammingExerciseRetrievalResource {
         this.repositoryCheckoutService = repositoryCheckoutService;
         this.repositoryParticipationService = repositoryParticipationService;
         this.exerciseVariantGroupRepository = exerciseVariantGroupRepository;
+        this.milestoneExerciseGroupRepository = milestoneExerciseGroupRepository;
     }
 
     /**
@@ -176,7 +181,7 @@ public class ProgrammingExerciseRetrievalResource {
         // hydrating this first throws LazyInitializationException regardless of whether milestoneExercise is itself
         // serialized as a JSON property (see ExerciseVariantGroupRepository.findMilestoneExerciseByGroupId).
         if (programmingExercise.getExerciseVariantGroup() instanceof MilestoneExerciseGroup milestoneGroup) {
-            exerciseVariantGroupRepository.findMilestoneExerciseByGroupId(milestoneGroup.getId()).ifPresent(milestoneGroup::setMilestoneExercise);
+            milestoneExerciseGroupRepository.findMilestoneExerciseByGroupId(milestoneGroup.getId()).ifPresent(milestoneGroup::setMilestoneExercise);
         }
         // Fetch grading criterion into exercise of participation
         Set<GradingCriterion> gradingCriteria = gradingCriterionRepository.findByExerciseIdWithEagerGradingCriteria(programmingExercise.getId());

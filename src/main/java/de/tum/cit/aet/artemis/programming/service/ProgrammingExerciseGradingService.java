@@ -47,6 +47,7 @@ import de.tum.cit.aet.artemis.exercise.domain.SubmissionType;
 import de.tum.cit.aet.artemis.exercise.domain.participation.Participation;
 import de.tum.cit.aet.artemis.exercise.domain.participation.StudentParticipation;
 import de.tum.cit.aet.artemis.exercise.repository.ExerciseVariantGroupRepository;
+import de.tum.cit.aet.artemis.exercise.repository.MilestoneExerciseGroupRepository;
 import de.tum.cit.aet.artemis.exercise.repository.StudentParticipationRepository;
 import de.tum.cit.aet.artemis.exercise.service.ExerciseDateService;
 import de.tum.cit.aet.artemis.localci.service.ProgrammingExerciseFeedbackCreationService;
@@ -123,6 +124,8 @@ public class ProgrammingExerciseGradingService {
 
     private final ExerciseVariantGroupRepository exerciseVariantGroupRepository;
 
+    private final MilestoneExerciseGroupRepository milestoneExerciseGroupRepository;
+
     private final UserStoryExerciseService userStoryExerciseService;
 
     private final ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository;
@@ -139,7 +142,8 @@ public class ProgrammingExerciseGradingService {
             SubmissionPolicyService submissionPolicyService, ProgrammingExerciseRepository programmingExerciseRepository, BuildLogEntryService buildLogService,
             StaticCodeAnalysisCategoryRepository staticCodeAnalysisCategoryRepository, ProgrammingExerciseFeedbackCreationService feedbackCreationService,
             MavenCentralRateLimitNotificationService mavenCentralRateLimitNotificationService, ExerciseVariantGroupRepository exerciseVariantGroupRepository,
-            UserStoryExerciseService userStoryExerciseService, ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository,
+            MilestoneExerciseGroupRepository milestoneExerciseGroupRepository, UserStoryExerciseService userStoryExerciseService,
+            ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository,
             ProgrammingSubmissionMessagingService programmingSubmissionMessagingService, ProgrammingMessagingService programmingMessagingService) {
         this.studentParticipationRepository = studentParticipationRepository;
         this.continuousIntegrationResultService = continuousIntegrationResultService;
@@ -160,6 +164,7 @@ public class ProgrammingExerciseGradingService {
         this.feedbackService = feedbackService;
         this.mavenCentralRateLimitNotificationService = mavenCentralRateLimitNotificationService;
         this.exerciseVariantGroupRepository = exerciseVariantGroupRepository;
+        this.milestoneExerciseGroupRepository = milestoneExerciseGroupRepository;
         this.userStoryExerciseService = userStoryExerciseService;
         this.programmingExerciseStudentParticipationRepository = programmingExerciseStudentParticipationRepository;
         this.programmingSubmissionMessagingService = programmingSubmissionMessagingService;
@@ -268,7 +273,7 @@ public class ProgrammingExerciseGradingService {
      * @param milestoneExercise the milestone whose solution build just extracted (possibly changed) test cases
      */
     private void syncMilestoneGroupTestCases(MilestoneExercise milestoneExercise) {
-        exerciseVariantGroupRepository.findByMilestoneExerciseIdWithExercises(milestoneExercise.getId())
+        milestoneExerciseGroupRepository.findByMilestoneExerciseIdWithExercises(milestoneExercise.getId())
                 .ifPresent(milestoneGroup -> userStoryExerciseService.syncAllMembersTestCases(milestoneGroup, milestoneExercise));
     }
 
@@ -427,7 +432,7 @@ public class ProgrammingExerciseGradingService {
         }
         String studentLogin = student.get().getLogin();
 
-        exerciseVariantGroupRepository.findByMilestoneExerciseIdWithExercises(milestoneExercise.getId()).ifPresent(group -> {
+        milestoneExerciseGroupRepository.findByMilestoneExerciseIdWithExercises(milestoneExercise.getId()).ifPresent(group -> {
             for (Exercise member : group.getExercises()) {
                 if (!(member instanceof UserStoryExercise userStoryExercise)) {
                     continue;
@@ -473,7 +478,7 @@ public class ProgrammingExerciseGradingService {
                         return;
                     }
                     String studentLogin = student.get().getLogin();
-                    exerciseVariantGroupRepository.findByMilestoneExerciseIdWithExercises(milestoneExercise.getId()).ifPresent(group -> {
+                    milestoneExerciseGroupRepository.findByMilestoneExerciseIdWithExercises(milestoneExercise.getId()).ifPresent(group -> {
                         for (Exercise member : group.getExercises()) {
                             if (!(member instanceof UserStoryExercise userStoryExercise)) {
                                 continue;
@@ -506,7 +511,7 @@ public class ProgrammingExerciseGradingService {
         }
         String studentLogin = student.get().getLogin();
 
-        exerciseVariantGroupRepository.findByMilestoneExerciseIdWithExercises(milestoneExercise.getId()).ifPresent(group -> {
+        milestoneExerciseGroupRepository.findByMilestoneExerciseIdWithExercises(milestoneExercise.getId()).ifPresent(group -> {
             for (Exercise member : group.getExercises()) {
                 if (!(member instanceof UserStoryExercise userStoryExercise)) {
                     continue;

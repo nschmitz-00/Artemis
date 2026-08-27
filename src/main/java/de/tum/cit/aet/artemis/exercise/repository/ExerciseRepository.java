@@ -550,22 +550,19 @@ public interface ExerciseRepository extends ArtemisJpaRepository<Exercise, Long>
             """)
     Optional<Exercise> findByIdWithEagerExampleSubmissions(@Param("exerciseId") Long exerciseId);
 
-    // Also fetches a MilestoneExerciseGroup member's group.milestoneExercise (a LAZY @OneToOne) together with *its* own
-    // LAZY buildConfig/templateParticipation/solutionParticipation. GET .../exercises/{id}/details serializes the
-    // returned entity directly (ExerciseDetailsDTO wraps it as-is: a UserStoryExercise carries its group, and the group
-    // carries this anchor exercise), and spring.jpa.open-in-view is disabled, so any of these left unfetched here is an
-    // uninitialized proxy by the time Jackson walks the object graph. A no-op (plain left join) for any exercise that
-    // isn't in a milestone group.
+    // A MilestoneExerciseGroup member's group.milestoneExercise (a LAZY @OneToOne) is deliberately NOT fetched here, even
+    // though GET .../exercises/{id}/details serializes the returned entity directly (ExerciseDetailsDTO wraps it as-is: a
+    // member exercise carries its group, and the group carries this anchor exercise) with spring.jpa.open-in-view
+    // disabled. Reaching that subtype association from the base type needs TREAT(evg AS MilestoneExerciseGroup), which
+    // restricts the fetch join to that subtype instead of only the join - so every exercise in an ordinary variant group
+    // came back with a null exerciseVariantGroup. ExerciseService.findOneWithDetailsForStudents hydrates the anchor in a
+    // second, type-specific query instead (see MilestoneExerciseGroupRepository).
     @Query("""
             SELECT DISTINCT e
             FROM Exercise e
                 LEFT JOIN FETCH e.categories
                 LEFT JOIN FETCH e.submissionPolicy
-                LEFT JOIN FETCH e.exerciseVariantGroup evg
-                LEFT JOIN FETCH TREAT(evg AS MilestoneExerciseGroup).milestoneExercise me
-                LEFT JOIN FETCH me.buildConfig
-                LEFT JOIN FETCH me.templateParticipation
-                LEFT JOIN FETCH me.solutionParticipation
+                LEFT JOIN FETCH e.exerciseVariantGroup
             WHERE e.id = :exerciseId
             """)
     Optional<Exercise> findByIdWithDetailsForStudent(@Param("exerciseId") Long exerciseId);

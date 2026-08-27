@@ -40,6 +40,7 @@ import de.tum.cit.aet.artemis.core.service.feature.FeatureToggle;
 import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.course.service.CourseService;
 import de.tum.cit.aet.artemis.exercise.repository.ExerciseVariantGroupRepository;
+import de.tum.cit.aet.artemis.exercise.repository.MilestoneExerciseGroupRepository;
 import de.tum.cit.aet.artemis.exercise.repository.ParticipationRepository;
 import de.tum.cit.aet.artemis.exercise.service.CompetencyExerciseLinkService;
 import de.tum.cit.aet.artemis.exercise.service.ExerciseService;
@@ -111,6 +112,8 @@ public class ProgrammingExerciseUpdateResource {
 
     private final ExerciseVariantGroupRepository exerciseVariantGroupRepository;
 
+    private final MilestoneExerciseGroupRepository milestoneExerciseGroupRepository;
+
     private final UserStoryExerciseService userStoryExerciseService;
 
     public ProgrammingExerciseUpdateResource(ProgrammingExerciseRepository programmingExerciseRepository, UserRepository userRepository, AuthorizationCheckService authCheckService,
@@ -119,7 +122,8 @@ public class ProgrammingExerciseUpdateResource {
             AuxiliaryRepositoryService auxiliaryRepositoryService, Optional<AthenaApi> athenaApi, ModuleFeatureService moduleFeatureService, Optional<SlideApi> slideApi,
             Optional<AutomaticAfterDueDateService> automaticAfterDueDateService, ExerciseVersionService exerciseVersionService, ParticipationRepository participationRepository,
             CompetencyExerciseLinkService competencyExerciseLinkService, ExerciseVariantGroupService exerciseVariantGroupService,
-            ExerciseVariantGroupRepository exerciseVariantGroupRepository, UserStoryExerciseService userStoryExerciseService) {
+            ExerciseVariantGroupRepository exerciseVariantGroupRepository, MilestoneExerciseGroupRepository milestoneExerciseGroupRepository,
+            UserStoryExerciseService userStoryExerciseService) {
         this.programmingExerciseValidationService = programmingExerciseValidationService;
         this.programmingExerciseCreationUpdateService = programmingExerciseCreationUpdateService;
         this.programmingExerciseRepository = programmingExerciseRepository;
@@ -138,6 +142,7 @@ public class ProgrammingExerciseUpdateResource {
         this.competencyExerciseLinkService = competencyExerciseLinkService;
         this.exerciseVariantGroupService = exerciseVariantGroupService;
         this.exerciseVariantGroupRepository = exerciseVariantGroupRepository;
+        this.milestoneExerciseGroupRepository = milestoneExerciseGroupRepository;
         this.userStoryExerciseService = userStoryExerciseService;
     }
 
@@ -338,7 +343,7 @@ public class ProgrammingExerciseUpdateResource {
         if (savedProgrammingExercise instanceof MilestoneExercise) {
             MilestoneExercise freshMilestoneExercise = (MilestoneExercise) programmingExerciseRepository
                     .findByIdWithTemplateAndSolutionParticipationTeamAssignmentConfigCategoriesCompetenciesAndBuildConfigElseThrow(savedProgrammingExercise.getId());
-            exerciseVariantGroupRepository.findByMilestoneExerciseIdWithExercises(freshMilestoneExercise.getId())
+            milestoneExerciseGroupRepository.findByMilestoneExerciseIdWithExercises(freshMilestoneExercise.getId())
                     .ifPresent(milestoneGroup -> userStoryExerciseService.syncAllMembersConfig(milestoneGroup, freshMilestoneExercise));
         }
 

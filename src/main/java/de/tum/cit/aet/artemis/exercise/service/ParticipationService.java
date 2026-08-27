@@ -49,6 +49,7 @@ import de.tum.cit.aet.artemis.exercise.dto.ParticipationScoreDTO;
 import de.tum.cit.aet.artemis.exercise.dto.ParticipationScoreSearchDTO;
 import de.tum.cit.aet.artemis.exercise.dto.ParticipationSearchDTO;
 import de.tum.cit.aet.artemis.exercise.repository.ExerciseVariantGroupRepository;
+import de.tum.cit.aet.artemis.exercise.repository.MilestoneExerciseGroupRepository;
 import de.tum.cit.aet.artemis.exercise.repository.ParticipationRepository;
 import de.tum.cit.aet.artemis.exercise.repository.StudentParticipationRepository;
 import de.tum.cit.aet.artemis.exercise.repository.SubmissionRepository;
@@ -114,12 +115,14 @@ public class ParticipationService {
 
     private final ExerciseVariantGroupRepository exerciseVariantGroupRepository;
 
+    private final MilestoneExerciseGroupRepository milestoneExerciseGroupRepository;
+
     public ParticipationService(Optional<ContinuousIntegrationService> continuousIntegrationService, Optional<VersionControlService> versionControlService,
             ParticipationRepository participationRepository, StudentParticipationRepository studentParticipationRepository,
             ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository, ProgrammingExerciseRepository programmingExerciseRepository,
             SubmissionRepository submissionRepository, TeamRepository teamRepository, UriService uriService, ParticipationVcsAccessTokenService participationVCSAccessTokenService,
             ResultRepository resultRepository, TemplateProgrammingExerciseParticipationRepository templateProgrammingExerciseParticipationRepository,
-            ExerciseVariantGroupRepository exerciseVariantGroupRepository) {
+            ExerciseVariantGroupRepository exerciseVariantGroupRepository, MilestoneExerciseGroupRepository milestoneExerciseGroupRepository) {
         this.continuousIntegrationService = continuousIntegrationService;
         this.versionControlService = versionControlService;
         this.participationRepository = participationRepository;
@@ -133,6 +136,7 @@ public class ParticipationService {
         this.resultRepository = resultRepository;
         this.templateProgrammingExerciseParticipationRepository = templateProgrammingExerciseParticipationRepository;
         this.exerciseVariantGroupRepository = exerciseVariantGroupRepository;
+        this.milestoneExerciseGroupRepository = milestoneExerciseGroupRepository;
     }
 
     /**
@@ -302,7 +306,7 @@ public class ParticipationService {
             return startProgrammingParticipation(copiedParticipation);
         }
         User user = student.get();
-        long milestoneExerciseId = exerciseVariantGroupRepository.findMilestoneExerciseIdByGroupId(group.getId())
+        long milestoneExerciseId = milestoneExerciseGroupRepository.findMilestoneExerciseIdByGroupId(group.getId())
                 .orElseThrow(() -> new IllegalStateException("Milestone exercise group " + group.getId() + " has no anchor milestone exercise"));
 
         ProgrammingExerciseStudentParticipation milestoneParticipation = programmingExerciseStudentParticipationRepository
@@ -372,7 +376,7 @@ public class ParticipationService {
         User user = student.get();
         String studentLogin = user.getLogin();
 
-        ExerciseVariantGroup group = exerciseVariantGroupRepository.findByMilestoneExerciseIdWithExercises(milestoneParticipation.getExercise().getId()).orElse(null);
+        ExerciseVariantGroup group = milestoneExerciseGroupRepository.findByMilestoneExerciseIdWithExercises(milestoneParticipation.getExercise().getId()).orElse(null);
         if (group == null) {
             return;
         }
@@ -438,7 +442,7 @@ public class ParticipationService {
         if (group == null) {
             return List.of();
         }
-        long milestoneExerciseId = exerciseVariantGroupRepository.findMilestoneExerciseIdByGroupId(group.getId())
+        long milestoneExerciseId = milestoneExerciseGroupRepository.findMilestoneExerciseIdByGroupId(group.getId())
                 .orElseThrow(() -> new IllegalStateException("Milestone exercise group " + group.getId() + " has no anchor milestone exercise"));
 
         List<ProgrammingExerciseStudentParticipation> created = new ArrayList<>();

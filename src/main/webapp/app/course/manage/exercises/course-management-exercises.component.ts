@@ -546,7 +546,7 @@ export class CourseManagementExercisesComponent implements OnInit {
     private deleteGroup(group: CourseExerciseGroup): void {
         const courseId = this.course()?.id;
         if (courseId !== undefined && group.id !== undefined) {
-            this.exerciseVariantGroupService.deleteGroup(courseId, group.id).subscribe({
+            this.exerciseVariantGroupService.deleteGroup(courseId, group.id, group.type).subscribe({
                 next: () => {
                     this.groupDeleteError.next('');
                     this.loadGroupsFromServer(courseId);

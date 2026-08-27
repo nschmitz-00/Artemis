@@ -1192,9 +1192,10 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
 
     /** Loads the course's milestone groups so a new UserStoryExercise can be assigned to one (see isUserStoryMode && isCreate). */
     private loadUserStoryMilestoneGroups(courseId: number): void {
-        this.exerciseVariantGroupService.getGroupsForCourse(courseId).subscribe({
+        // The milestone endpoint returns exactly this page's candidates, so no client-side type filter is needed.
+        this.exerciseVariantGroupService.getMilestoneGroupsForCourse(courseId).subscribe({
             next: (dtos) => {
-                const milestoneGroups = dtos.filter((dto) => dto.type === 'milestone').map((dto) => toCourseExerciseGroup(dto, new Map()));
+                const milestoneGroups = dtos.map((dto) => toCourseExerciseGroup(dto, new Map()));
                 this.userStoryMilestoneGroups.set(milestoneGroups);
                 if (milestoneGroups.length === 1 && milestoneGroups[0].id !== undefined) {
                     this.selectMilestoneGroupForUserStory(milestoneGroups[0].id);
