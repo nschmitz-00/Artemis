@@ -12,7 +12,7 @@ import { FeatureToggle } from 'app/foundation/feature-toggle/feature-toggle.serv
 import { ProgrammingSubmissionService } from 'app/programming/shared/services/programming-submission.service';
 import { areManualResultsAllowed } from 'app/exercise/util/exercise.utils';
 import { ResultService } from 'app/exercise/result/result.service';
-import { Exercise, ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { Exercise, ExerciseType, getExerciseUrlSegment, getExerciseUrlSegmentOrEmpty } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { AssessmentType } from 'app/assessment/shared/entities/assessment-type.model';
 import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
 import { createBuildPlanUrl } from 'app/programming/shared/utils/programming-exercise.utils';
@@ -100,6 +100,8 @@ export enum FilterProp {
     ],
 })
 export class ExerciseScoresComponent implements OnInit, OnDestroy {
+    protected readonly exerciseUrlSegment = computed(() => getExerciseUrlSegmentOrEmpty(this.exercise()?.type));
+
     protected readonly faDownload = faDownload;
     protected readonly faSync = faSync;
     protected readonly faFolderOpen = faFolderOpen;
@@ -361,12 +363,12 @@ export class ExerciseScoresComponent implements OnInit, OnDestroy {
                   ex.exerciseGroup.exam!.id!.toString(),
                   'exercise-groups',
                   ex.exerciseGroup.id!.toString(),
-                  ex.type + '-exercises',
+                  getExerciseUrlSegment(ex.type),
                   ex.id!.toString(),
                   'participations',
                   participationId.toString(),
               ]
-            : ['/course-management', course.id!.toString(), ex.type + '-exercises', ex.id!.toString(), 'participations', participationId.toString(), 'submissions'];
+            : ['/course-management', course.id!.toString(), getExerciseUrlSegment(ex.type), ex.id!.toString(), 'participations', participationId.toString(), 'submissions'];
     }
 
     updateParticipationFilter(newValue: string) {

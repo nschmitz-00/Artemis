@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
-import { Exercise, ExerciseType, getIcon, getIconTooltip } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { Exercise, ExerciseType, getExerciseUrlSegmentOrEmpty, getIcon, getIconTooltip } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { IconProp } from '@fortawesome/fontawesome-svg-core';
 import { CourseManagementOverviewExerciseStatisticsDTO } from 'app/course/manage/overview/course-management-overview-exercise-statistics-dto.model';
 import { Course } from 'app/course/shared/entities/course.model';
@@ -45,6 +45,12 @@ export enum ExerciseRowType {
 export class CourseManagementExerciseRowComponent {
     readonly course = input.required<Course>();
     readonly details = input.required<Exercise>();
+
+    /**
+     * The route segment the row's exercise is reachable under. Not `type + '-exercises'`: a UserStoryExercise and a
+     * MilestoneExercise carry their own type discriminator but have no route of their own (see getExerciseUrlSegment).
+     */
+    protected readonly exerciseUrlSegment = computed(() => getExerciseUrlSegmentOrEmpty(this.details()?.type));
     readonly statistic = input<CourseManagementOverviewExerciseStatisticsDTO>();
     readonly rowType = input.required<ExerciseRowType>();
 

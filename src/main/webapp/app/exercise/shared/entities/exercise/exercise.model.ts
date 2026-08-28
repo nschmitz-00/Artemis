@@ -310,6 +310,18 @@ export function getExerciseUrlSegment(exerciseType?: ExerciseType): string {
     }
 }
 
+/**
+ * {@link getExerciseUrlSegment} for view code that may render before its exercise has loaded. An unknown type yields an
+ * empty segment - a dead link, exactly as concatenating an undefined type used to produce - rather than throwing and
+ * taking the whole page down with it.
+ *
+ * @param exerciseType The type of the exercise, possibly not known yet
+ * @return The url segment for the exercise type, or an empty string when there is no type
+ */
+export function getExerciseUrlSegmentOrEmpty(exerciseType?: ExerciseType): string {
+    return exerciseType ? getExerciseUrlSegment(exerciseType) : '';
+}
+
 export function resetForImport(exercise: Exercise) {
     exercise.releaseDate = undefined;
     exercise.startDate = undefined;

@@ -135,7 +135,7 @@ export const getLinkToSubmissionAssessment = (
             examId.toString(),
             'exercise-groups',
             exerciseGroupId.toString(),
-            exerciseType + '-exercises',
+            getExerciseUrlSegment(exerciseType),
             exerciseId.toString(),
             'submissions',
             submissionId.toString(),
@@ -147,7 +147,9 @@ export const getLinkToSubmissionAssessment = (
         }
         return route;
     } else {
-        return ['/course-management', courseId.toString(), exerciseType + '-exercises', exerciseId.toString(), 'submissions', submissionId.toString(), 'assessment'];
+        // Not `exerciseType + '-exercises'`: a UserStoryExercise/MilestoneExercise carries its own type discriminator but
+        // has no course-management route of its own, so the raw type matches nothing (see getExerciseUrlSegment).
+        return ['/course-management', courseId.toString(), getExerciseUrlSegment(exerciseType), exerciseId.toString(), 'submissions', submissionId.toString(), 'assessment'];
     }
 };
 
@@ -191,7 +193,17 @@ export const navigateToExamExercise = (
     subPage: string,
 ): void => {
     setTimeout(() => {
-        navigationUtilService.routeInNewTab(['course-management', courseId, 'exams', examId, 'exercise-groups', exerciseGroupId, `${exerciseType}-exercises`, exerciseId, subPage]);
+        navigationUtilService.routeInNewTab([
+            'course-management',
+            courseId,
+            'exams',
+            examId,
+            'exercise-groups',
+            exerciseGroupId,
+            getExerciseUrlSegment(exerciseType),
+            exerciseId,
+            subPage,
+        ]);
     }, 1000);
 };
 

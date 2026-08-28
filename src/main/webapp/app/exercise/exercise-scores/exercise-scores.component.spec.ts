@@ -193,6 +193,24 @@ describe('Exercise Scores Component', () => {
     });
 
     describe('Navigation links', () => {
+        it('should route a user story exercise to the programming assessment link', () => {
+            component.course.set(course);
+            component.exercise.set({ ...exercise, type: ExerciseType.USER_STORY });
+
+            const returnedLink = component.getExerciseParticipationsLink(1);
+
+            // A UserStoryExercise has no route of its own; `user-story-exercises/...` would match nothing and the
+            // assessment button would go nowhere.
+            expect(returnedLink).toContain('programming-exercises');
+            expect(returnedLink).not.toContain('user-story-exercises');
+        });
+
+        it('should expose the programming route segment for a user story exercise', () => {
+            component.exercise.set({ ...exercise, type: ExerciseType.USER_STORY });
+
+            expect(component['exerciseUrlSegment']()).toBe('programming-exercises');
+        });
+
         it('should get exercise participation link for exercise without an exercise group', () => {
             const expectedLink = ['/course-management', course.id!.toString(), 'programming-exercises', exercise.id!.toString(), 'participations', '1', 'submissions'];
             component.course.set(course);

@@ -2,7 +2,7 @@
     <div class="container">
         <div class="exercise-row">
             <div class="details-container">
-                <a class="stretched-link" [routerLink]="['/course-management', course().id, details().type + '-exercises', details().id]"></a>
+                <a class="stretched-link" [routerLink]="['/course-management', course().id, exerciseUrlSegment(), details().id]"></a>
                 <div class="row-flex exercise-details-container">
                     @if (hasLeftoverAssessments()) {
                         <div class="ms-2 me-1 exercise-details-item">
@@ -143,7 +143,7 @@
             <div class="row-flex button-row">
                 @if (course().isAtLeastEditor && (details().type !== exerciseType.QUIZ || rowType() === exerciseRowType.FUTURE)) {
                     <a
-                        [routerLink]="['/course-management', course().id, details().type + '-exercises', details().id, 'edit']"
+                        [routerLink]="['/course-management', course().id, exerciseUrlSegment(), details().id, 'edit']"
                         class="btn btn-warning me-1 mb-1"
                         [ngbTooltip]="'entity.action.edit' | artemisTranslate"
                         ><fa-icon [icon]="faWrench"
@@ -151,7 +151,7 @@
                 }
                 @if (course().isAtLeastInstructor && details().type === exerciseType.QUIZ && rowType() === exerciseRowType.PAST) {
                     <a
-                        [routerLink]="['/course-management', course().id, details().type + '-exercises', details().id, 're-evaluate']"
+                        [routerLink]="['/course-management', course().id, exerciseUrlSegment(), details().id, 're-evaluate']"
                         class="btn btn-warning me-1 mb-1"
                         [ngbTooltip]="'entity.action.re-evaluate' | artemisTranslate"
                         ><fa-icon [icon]="faWrench"
@@ -159,7 +159,7 @@
                 }
                 @if (course().isAtLeastTutor) {
                     <a
-                        [routerLink]="['/course-management', course().id, details().type + '-exercises', details().id, 'scores']"
+                        [routerLink]="['/course-management', course().id, exerciseUrlSegment(), details().id, 'scores']"
                         class="btn btn-info me-1 mb-1"
                         [ngbTooltip]="'entity.action.scores' | artemisTranslate"
                         ><fa-icon [icon]="faTable"

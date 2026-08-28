@@ -241,13 +241,13 @@ export class ExerciseHeadersInformationComponent {
                 title: 'artemisApp.userStoryEffort.estimatedEffortShort',
                 content: { type: 'userStoryEffort', value: 'estimatedEffort' },
                 isContentComponent: true,
-                borderColor: effort?.estimatedEffort === undefined ? 'warning' : undefined,
+                borderColor: effort?.estimatedEffort === undefined ? 'state-warning' : undefined,
             },
             {
                 title: 'artemisApp.userStoryEffort.actualEffortShort',
                 content: { type: 'userStoryEffort', value: 'actualEffort' },
                 isContentComponent: true,
-                borderColor: effort?.actualEffort === undefined ? 'warning' : undefined,
+                borderColor: effort?.actualEffort === undefined ? 'state-warning' : undefined,
             },
         ];
     }
