@@ -21,6 +21,9 @@ import { MockActivatedRoute } from 'test/helpers/mocks/activated-route/mock-acti
 import { ActivatedRoute } from '@angular/router';
 import { DialogService } from 'primeng/dynamicdialog';
 import { MockDialogService } from 'test/helpers/mocks/service/mock-dialog.service';
+import { of } from 'rxjs';
+import { UserStoryEffortService } from 'app/programming/shared/services/user-story-effort.service';
+import { AlertService } from 'app/foundation/service/alert.service';
 
 describe('ExerciseHeadersInformationComponent', () => {
     let component: ExerciseHeadersInformationComponent;
@@ -268,5 +271,99 @@ describe('ExerciseHeadersInformationComponent', () => {
 
         titles = component.informationBoxItems().map((item) => item.title);
         expect(titles).toContain('artemisApp.courseOverview.exerciseDetails.submissionDueOver');
+    });
+
+    describe('user story effort', () => {
+        const userStory = {
+            id: 7,
+            type: ExerciseType.USER_STORY,
+            studentParticipations: [],
+            course: {},
+            dueDate: dayjs().add(1, 'weeks'),
+        } as unknown as Exercise;
+
+        function renderUserStory(withParticipation: boolean) {
+            fixture = TestBed.createComponent(ExerciseHeadersInformationComponent);
+            component = fixture.componentInstance;
+            fixture.componentRef.setInput('exercise', { ...userStory });
+            if (withParticipation) {
+                fixture.componentRef.setInput('studentParticipation', { id: 3 } as StudentParticipation);
+            }
+            fixture.detectChanges();
+        }
+
+        it('should not ask for the effort while the student has no participation', () => {
+            const effortService = TestBed.inject(UserStoryEffortService);
+            const getSpy = vi.spyOn(effortService, 'getEffort');
+
+            renderUserStory(false);
+
+            // Without a participation the server rejects the read, which used to alert the student on every visit.
+            expect(getSpy).not.toHaveBeenCalled();
+            expect(component.informationBoxItems().some((item) => item.content.type === 'userStoryEffort')).toBe(false);
+        });
+
+        it('should show both effort boxes once a participation exists', () => {
+            const effortService = TestBed.inject(UserStoryEffortService);
+            const getSpy = vi.spyOn(effortService, 'getEffort').mockReturnValue(of({ estimatedEffort: 2 }));
+
+            renderUserStory(true);
+
+            expect(getSpy).toHaveBeenCalledWith(7);
+            const effortItems = component.informationBoxItems().filter((item) => item.content.type === 'userStoryEffort');
+            expect(effortItems).toHaveLength(2);
+        });
+
+        it('should give only the unreported box an orange border', () => {
+            const effortService = TestBed.inject(UserStoryEffortService);
+            vi.spyOn(effortService, 'getEffort').mockReturnValue(of({ estimatedEffort: 2 }));
+
+            renderUserStory(true);
+
+            const effortItems = component.informationBoxItems().filter((item) => item.content.type === 'userStoryEffort');
+            expect(effortItems[0].borderColor).toBeUndefined();
+            expect(effortItems[1].borderColor).toBe('state-warning');
+        });
+
+        it('should start editing the clicked box, and stop once it is saved', () => {
+            const effortService = TestBed.inject(UserStoryEffortService);
+            vi.spyOn(effortService, 'getEffort').mockReturnValue(of({}));
+            vi.spyOn(effortService, 'updateEffort').mockReturnValue(of({ estimatedEffort: 3 }));
+            renderUserStory(true);
+
+            component['startEditingEffort']('estimatedEffort');
+            expect(component['editingEffortField']()).toBe('estimatedEffort');
+
+            component['saveReportedEffort']('estimatedEffort', 3);
+            expect(component['editingEffortField']()).toBeUndefined();
+        });
+
+        it('should not start editing once the story is due', () => {
+            const effortService = TestBed.inject(UserStoryEffortService);
+            vi.spyOn(effortService, 'getEffort').mockReturnValue(of({}));
+            fixture = TestBed.createComponent(ExerciseHeadersInformationComponent);
+            component = fixture.componentInstance;
+            fixture.componentRef.setInput('exercise', { ...userStory, dueDate: dayjs().subtract(1, 'weeks') });
+            fixture.componentRef.setInput('studentParticipation', { id: 3 } as StudentParticipation);
+            fixture.detectChanges();
+
+            component['startEditingEffort']('estimatedEffort');
+
+            expect(component['editingEffortField']()).toBeUndefined();
+        });
+
+        it('should confirm a saved value', () => {
+            const effortService = TestBed.inject(UserStoryEffortService);
+            vi.spyOn(effortService, 'getEffort').mockReturnValue(of({}));
+            const updateSpy = vi.spyOn(effortService, 'updateEffort').mockReturnValue(of({ estimatedEffort: 3 }));
+            const alertService = TestBed.inject(AlertService);
+            const successSpy = vi.spyOn(alertService, 'success');
+            renderUserStory(true);
+
+            component['saveReportedEffort']('estimatedEffort', 3);
+
+            expect(updateSpy).toHaveBeenCalledWith(7, { estimatedEffort: 3 });
+            expect(successSpy).toHaveBeenCalledWith('artemisApp.userStoryEffort.saved');
+        });
     });
 });
