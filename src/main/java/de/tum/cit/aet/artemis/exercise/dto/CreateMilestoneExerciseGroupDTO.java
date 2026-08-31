@@ -22,9 +22,9 @@ import de.tum.cit.aet.artemis.programming.dto.UpdateProgrammingExerciseBuildConf
  * settings of the {@link MilestoneExercise} that will be provisioned as its anchor (repositories, build plan, the works),
  * so this is a programming-exercise configuration minus everything a milestone never has.
  * <p>
- * Notably absent: points and assessment settings (a milestone is always
- * {@link IncludedInOverallScore#NOT_INCLUDED} — only its members score), the owning course (taken from the request path),
- * and the group's own title (taken from the exercise's).
+ * Notably absent: points and assessment settings (a milestone's points are always the sum of its user stories' points,
+ * kept in sync by {@code MilestoneExerciseService}), the owning course (taken from the request path), and the group's
+ * own title (taken from the exercise's).
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public record CreateMilestoneExerciseGroupDTO(@NotBlank @Size(max = 255) String title, @NotBlank @Size(max = 255) String shortName, @Nullable String problemStatement,
@@ -58,9 +58,7 @@ public record CreateMilestoneExerciseGroupDTO(@NotBlank @Size(max = 255) String 
         exercise.setDueDate(dueDate);
         exercise.setAssessmentDueDate(assessmentDueDate);
         exercise.setExampleSolutionPublicationDate(exampleSolutionPublicationDate);
-        // A milestone never scores (MilestoneExercise.getIncludedInOverallScore is hardcoded to NOT_INCLUDED), which is
-        // exactly the case Exercise.validateScoreSettings lets through with zero points - but bonus points must still be
-        // a non-null, non-negative number for it to pass.
+        exercise.setIncludedInOverallScore(IncludedInOverallScore.INCLUDED_COMPLETELY);
         exercise.setMaxPoints(0.0);
         exercise.setBonusPoints(0.0);
         exercise.setBuildConfig(toBuildConfig());

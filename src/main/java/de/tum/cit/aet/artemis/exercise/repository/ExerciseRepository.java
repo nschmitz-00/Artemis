@@ -905,7 +905,8 @@ public interface ExerciseRepository extends ArtemisJpaRepository<Exercise, Long>
     Set<NonQuizExerciseCalendarEventDTO> getNonQuizExerciseCalendarEventsDTOsForCourseId(@Param("courseId") long courseId);
 
     @Query("""
-            SELECT DISTINCT NEW de.tum.cit.aet.artemis.assessment.dto.ExerciseCourseScoreDTO(e.id, TYPE(e), e.includedInOverallScore, e.assessmentType, e.dueDate, e.assessmentDueDate, p.buildAndTestStudentSubmissionsAfterDueDate, e.maxPoints, e.bonusPoints, e.course.id, evg.id, evg.maxPoints)
+            SELECT DISTINCT NEW de.tum.cit.aet.artemis.assessment.dto.ExerciseCourseScoreDTO(e.id, TYPE(e), e.includedInOverallScore, e.assessmentType, e.dueDate, e.assessmentDueDate, p.buildAndTestStudentSubmissionsAfterDueDate, e.maxPoints, e.bonusPoints, e.course.id, evg.id, evg.maxPoints,
+                CASE WHEN evg.id IS NOT NULL AND EXISTS (SELECT 1 FROM MilestoneExerciseGroup mg WHERE mg.id = evg.id) THEN TRUE ELSE FALSE END)
             FROM Exercise e
                 LEFT JOIN ProgrammingExercise p ON e.id = p.id
                 LEFT JOIN e.exerciseVariantGroup evg

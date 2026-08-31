@@ -53,11 +53,13 @@ import de.tum.cit.aet.artemis.programming.domain.AuxiliaryRepository;
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseBuildConfig;
+import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 import de.tum.cit.aet.artemis.programming.dto.AuxiliaryRepositoryDTO;
 import de.tum.cit.aet.artemis.programming.dto.UpdateProgrammingExerciseBuildConfigDTO;
 import de.tum.cit.aet.artemis.programming.dto.UpdateProgrammingExerciseDTO;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseRepository;
 import de.tum.cit.aet.artemis.programming.service.AuxiliaryRepositoryService;
+import de.tum.cit.aet.artemis.programming.service.MilestoneExercisePointsService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseCreationUpdateService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseRepositoryService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseValidationService;
@@ -116,6 +118,8 @@ public class ProgrammingExerciseUpdateResource {
 
     private final UserStoryExerciseService userStoryExerciseService;
 
+    private final MilestoneExercisePointsService milestoneExercisePointsService;
+
     public ProgrammingExerciseUpdateResource(ProgrammingExerciseRepository programmingExerciseRepository, UserRepository userRepository, AuthorizationCheckService authCheckService,
             CourseService courseService, ExerciseService exerciseService, ProgrammingExerciseValidationService programmingExerciseValidationService,
             ProgrammingExerciseCreationUpdateService programmingExerciseCreationUpdateService, ProgrammingExerciseRepositoryService programmingExerciseRepositoryService,
@@ -123,7 +127,7 @@ public class ProgrammingExerciseUpdateResource {
             Optional<AutomaticAfterDueDateService> automaticAfterDueDateService, ExerciseVersionService exerciseVersionService, ParticipationRepository participationRepository,
             CompetencyExerciseLinkService competencyExerciseLinkService, ExerciseVariantGroupService exerciseVariantGroupService,
             ExerciseVariantGroupRepository exerciseVariantGroupRepository, MilestoneExerciseGroupRepository milestoneExerciseGroupRepository,
-            UserStoryExerciseService userStoryExerciseService) {
+            UserStoryExerciseService userStoryExerciseService, MilestoneExercisePointsService milestoneExercisePointsService) {
         this.programmingExerciseValidationService = programmingExerciseValidationService;
         this.programmingExerciseCreationUpdateService = programmingExerciseCreationUpdateService;
         this.programmingExerciseRepository = programmingExerciseRepository;
@@ -144,6 +148,7 @@ public class ProgrammingExerciseUpdateResource {
         this.exerciseVariantGroupRepository = exerciseVariantGroupRepository;
         this.milestoneExerciseGroupRepository = milestoneExerciseGroupRepository;
         this.userStoryExerciseService = userStoryExerciseService;
+        this.milestoneExercisePointsService = milestoneExercisePointsService;
     }
 
     /**
@@ -340,6 +345,11 @@ public class ProgrammingExerciseUpdateResource {
         // milestone with no members yet, and for every other exercise type. Re-fetched fresh (rather than reusing
         // savedProgrammingExercise) because the save above ran in its own session and did not eagerly load
         // template/solution participations, so touching them here would otherwise throw LazyInitializationException.
+        if (savedProgrammingExercise instanceof UserStoryExercise) {
+            // A story's points are a share of its milestone's total, so repointing one repoints the milestone (which also
+            // re-derives the group's static code analysis budget) and invalidates every student's aggregated score.
+            milestoneExercisePointsService.syncMaxPointsForUserStory(savedProgrammingExercise.getId());
+        }
         if (savedProgrammingExercise instanceof MilestoneExercise) {
             MilestoneExercise freshMilestoneExercise = (MilestoneExercise) programmingExerciseRepository
                     .findByIdWithTemplateAndSolutionParticipationTeamAssignmentConfigCategoriesCompetenciesAndBuildConfigElseThrow(savedProgrammingExercise.getId());
@@ -383,7 +393,11 @@ public class ProgrammingExerciseUpdateResource {
 
         exercise.setMaxPoints(dto.maxPoints());
         exercise.setBonusPoints(dto.bonusPoints());
-        exercise.setIncludedInOverallScore(dto.includedInOverallScore());
+        // A user story is always INCLUDED_COMPLETELY (its points count through its group, see UserStoryExercise); the
+        // form does not offer the field, so an incoming value can only be stale or hand-crafted.
+        if (!(exercise instanceof UserStoryExercise)) {
+            exercise.setIncludedInOverallScore(dto.includedInOverallScore());
+        }
 
         exercise.setReleaseDate(dto.releaseDate());
         exercise.setStartDate(dto.startDate());

@@ -1,10 +1,14 @@
 package de.tum.cit.aet.artemis.programming;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,11 +16,13 @@ import org.springframework.security.test.context.support.WithMockUser;
 
 import de.tum.cit.aet.artemis.account.domain.User;
 import de.tum.cit.aet.artemis.assessment.domain.AssessmentType;
+import de.tum.cit.aet.artemis.assessment.domain.CategoryState;
 import de.tum.cit.aet.artemis.assessment.domain.Feedback;
 import de.tum.cit.aet.artemis.assessment.domain.FeedbackType;
 import de.tum.cit.aet.artemis.assessment.domain.Result;
 import de.tum.cit.aet.artemis.assessment.domain.Visibility;
 import de.tum.cit.aet.artemis.course.domain.Course;
+import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
 import de.tum.cit.aet.artemis.exercise.domain.InitializationState;
 import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
 import de.tum.cit.aet.artemis.exercise.domain.SubmissionType;
@@ -28,7 +34,12 @@ import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParti
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseTestCase;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingLanguage;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingSubmission;
+import de.tum.cit.aet.artemis.programming.domain.StaticCodeAnalysisTool;
 import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
+import de.tum.cit.aet.artemis.programming.service.MilestoneExercisePointsService;
+import de.tum.cit.aet.artemis.programming.service.MilestoneScoreScheduleService;
+import de.tum.cit.aet.artemis.programming.service.MilestoneScoreService;
+import de.tum.cit.aet.artemis.programming.util.ProgrammingExerciseFactory;
 
 /**
  * Tests the milestone/user-story grading fan-out ({@link de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseGradingService#fanOutResultToUserStoryExercise}) and the
@@ -46,6 +57,15 @@ class UserStoryExerciseGradingFanOutTest extends AbstractProgrammingIntegrationI
 
     @Autowired
     private ParticipationService participationService;
+
+    @Autowired
+    private MilestoneExercisePointsService milestoneExercisePointsService;
+
+    @Autowired
+    private MilestoneScoreService milestoneScoreService;
+
+    @Autowired
+    private MilestoneScoreScheduleService milestoneScoreScheduleService;
 
     private Course course;
 
@@ -79,6 +99,14 @@ class UserStoryExerciseGradingFanOutTest extends AbstractProgrammingIntegrationI
         course = courseRepository.findWithEagerExerciseVariantGroupsByIdElseThrow(course.getId());
         course.addExerciseVariantGroup(group);
         courseRepository.save(course);
+    }
+
+    @AfterEach
+    void tearDown() {
+        // The schedule service is a singleton shared by the whole context, so a test that activates it must switch it
+        // back off - otherwise its background recomputations keep running against later tests' data and corrupt their
+        // sessions.
+        milestoneScoreScheduleService.shutdown();
     }
 
     private UserStoryExercise createUserStoryExercise(String shortNameSuffix) {
@@ -120,6 +148,201 @@ class UserStoryExerciseGradingFanOutTest extends AbstractProgrammingIntegrationI
         result.setSubmission(submission);
         result.setFeedbacks(feedbacks);
         return resultRepository.save(result);
+    }
+
+    /**
+     * Builds a rated milestone result carrying one SPOTBUGS "BAD_PRACTICE" issue plus the given test feedback, and runs
+     * it through the ordinary grading path - which is what categorizes the issue against the milestone's own categories
+     * and writes its penalty into the feedback's credits. That side effect is the single evaluation the whole design
+     * rests on, so the tests deliberately go through it rather than hand-setting credits.
+     */
+    private Result buildGradedMilestoneResult(ProgrammingExerciseStudentParticipation milestoneParticipation, String commitHash, List<Feedback> testFeedbacks) {
+        List<Feedback> feedbacks = new ArrayList<>(testFeedbacks);
+        // The grading path only reaches the penalty calculation when the result carries test case feedback at all -
+        // without any, it is indistinguishable from a build failure and is returned unscored. So always give it one.
+        feedbacks.add(new Feedback().testCase(createTestCase(milestoneExercise, "scaAnchorTest")).positive(true).type(FeedbackType.AUTOMATIC));
+        feedbacks.add(new Feedback().text(Feedback.STATIC_CODE_ANALYSIS_FEEDBACK_IDENTIFIER).reference(StaticCodeAnalysisTool.SPOTBUGS.name())
+                .detailText("{\"category\": \"BAD_PRACTICE\", \"rule\": \"Rule\", \"message\": \"Message\"}").type(FeedbackType.AUTOMATIC).positive(false));
+
+        Result result = buildSourceResult(milestoneParticipation, commitHash, feedbacks);
+        result.setRated(true);
+        MilestoneExercise freshMilestone = (MilestoneExercise) programmingExerciseRepository.findByIdElseThrow(milestoneExercise.getId());
+        resultRepository.save(gradingService.calculateScoreForResult(result, freshMilestone, true));
+        // Re-read with feedbacks and their test cases fetched: the saved instance hands back detached lazy test case
+        // proxies, which the fan-out reads by name.
+        return resultRepository.findLatestResultWithFeedbacksForParticipation(milestoneParticipation.getId(), true).orElseThrow();
+    }
+
+    /** Persists a rated result of the given percentage for a user story participation, as a fan-out or a tutor would. */
+    private void saveRatedUserStoryResult(ProgrammingExerciseStudentParticipation participation, String commitHash, double score) {
+        Result result = buildSourceResult(participation, commitHash, List.of());
+        result.setRated(true);
+        result.setScore(score);
+        resultRepository.save(result);
+    }
+
+    private void enableStaticCodeAnalysis(CategoryState badPracticeState, double penalty, Integer maxStaticCodeAnalysisPenalty) {
+        MilestoneExercise fresh = (MilestoneExercise) programmingExerciseRepository.findByIdElseThrow(milestoneExercise.getId());
+        fresh.setStaticCodeAnalysisEnabled(true);
+        fresh.setMaxStaticCodeAnalysisPenalty(maxStaticCodeAnalysisPenalty);
+        milestoneExercise = (MilestoneExercise) programmingExerciseRepository.save(fresh);
+        staticCodeAnalysisCategoryRepository.save(ProgrammingExerciseFactory.generateStaticCodeAnalysisCategory(milestoneExercise, "Bad Practice", badPracticeState, penalty, 10D));
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void userStoryExercisesStayIncludedCompletelyAndAreExcludedByGroupMembershipInstead() {
+        UserStoryExercise userStory = createUserStoryExercise("us1");
+
+        // A user story's points genuinely count - through its group - so it must not be labelled NOT_INCLUDED, which
+        // every UI reads as "these points do not count". Double counting is prevented by the score calculation skipping
+        // milestone group members (CourseScoreCalculator.includeIntoScoreCalculation), not by this flag.
+        assertThat(userStory.getIncludedInOverallScore()).isEqualTo(IncludedInOverallScore.INCLUDED_COMPLETELY);
+        assertThat(milestoneExercise.getIncludedInOverallScore()).isEqualTo(IncludedInOverallScore.INCLUDED_COMPLETELY);
+        assertThat(userStory.getExerciseVariantGroup()).isInstanceOf(MilestoneExerciseGroup.class);
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void milestonePointsAreTheSumOfItsUserStoryPoints() {
+        createUserStoryExercise("us1");
+        createUserStoryExercise("us2");
+
+        milestoneExercisePointsService.syncMaxPoints(milestoneExercise.getId());
+
+        // Two stories worth 2.0 each (see createUserStoryExercise).
+        assertThat(programmingExerciseRepository.findByIdElseThrow(milestoneExercise.getId()).getMaxPoints()).isEqualTo(4.0);
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void fanOutDoesNotCopyStaticCodeAnalysisFeedbackToUserStories() {
+        enableStaticCodeAnalysis(CategoryState.GRADED, 1.0, null);
+        UserStoryExercise userStory1 = createUserStoryExercise("us1");
+        UserStoryExercise userStory2 = createUserStoryExercise("us2");
+        milestoneExercisePointsService.syncMaxPoints(milestoneExercise.getId());
+        ProgrammingExerciseTestCase milestoneTestA = createTestCase(milestoneExercise, "testA");
+        createTestCase(userStory1, "testA");
+        createTestCase(userStory2, "testA");
+
+        ProgrammingExerciseStudentParticipation milestoneParticipation = participationFor(milestoneExercise);
+        ProgrammingExerciseStudentParticipation participation1 = participationFor(userStory1);
+        ProgrammingExerciseStudentParticipation participation2 = participationFor(userStory2);
+
+        Result milestoneResult = buildGradedMilestoneResult(milestoneParticipation, "commit-1",
+                List.of(new Feedback().testCase(milestoneTestA).positive(true).type(FeedbackType.AUTOMATIC)));
+        assertThat(milestoneResult.getFeedbacks()).anyMatch(Feedback::isStaticCodeAnalysisFeedback);
+
+        Result us1Result = gradingService.fanOutResultToUserStoryExercise(milestoneResult, userStory1, participation1);
+        Result us2Result = gradingService.fanOutResultToUserStoryExercise(milestoneResult, userStory2, participation2);
+
+        // The violation belongs to the shared codebase - copying it here is what would charge it once per story.
+        assertThat(us1Result.getFeedbacks()).noneMatch(Feedback::isStaticCodeAnalysisFeedback);
+        assertThat(us2Result.getFeedbacks()).noneMatch(Feedback::isStaticCodeAnalysisFeedback);
+        assertThat(us1Result.getScore()).isEqualTo(100.0);
+        assertThat(us2Result.getScore()).isEqualTo(100.0);
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void milestoneScoreIsTheSummedUserStoryPointsMinusTheStaticCodeAnalysisPenalty() {
+        enableStaticCodeAnalysis(CategoryState.GRADED, 1.0, null);
+        UserStoryExercise userStory1 = createUserStoryExercise("us1");
+        UserStoryExercise userStory2 = createUserStoryExercise("us2");
+        milestoneExercisePointsService.syncMaxPoints(milestoneExercise.getId());
+
+        ProgrammingExerciseStudentParticipation milestoneParticipation = participationFor(milestoneExercise);
+        buildGradedMilestoneResult(milestoneParticipation, "commit-1", List.of());
+        // 2.0 of 2.0 points on the first story, 1.0 of 2.0 on the second -> 3.0 of the group's 4.0 points.
+        saveRatedUserStoryResult(participationFor(userStory1), "commit-1", 100.0);
+        saveRatedUserStoryResult(participationFor(userStory2), "commit-1", 50.0);
+
+        Result aggregated = milestoneScoreService.recalculate(milestoneExercise.getId(), userUtilService.getUserByLogin(studentLogin).getId()).orElseThrow();
+
+        // One issue at a penalty of 1.0 point, charged exactly once for the whole group: (3.0 - 1.0) / 4.0.
+        assertThat(aggregated.getScore()).isEqualTo(50.0);
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void staticCodeAnalysisPenaltyIsCappedAgainstTheGroupsTotalPoints() {
+        // 25 % of the group's 4.0 points is 1.0, so a 3.0-point category penalty may only cost 1.0.
+        enableStaticCodeAnalysis(CategoryState.GRADED, 3.0, 25);
+        UserStoryExercise userStory1 = createUserStoryExercise("us1");
+        UserStoryExercise userStory2 = createUserStoryExercise("us2");
+        milestoneExercisePointsService.syncMaxPoints(milestoneExercise.getId());
+
+        ProgrammingExerciseStudentParticipation milestoneParticipation = participationFor(milestoneExercise);
+        buildGradedMilestoneResult(milestoneParticipation, "commit-1", List.of());
+        saveRatedUserStoryResult(participationFor(userStory1), "commit-1", 100.0);
+        saveRatedUserStoryResult(participationFor(userStory2), "commit-1", 100.0);
+
+        Result aggregated = milestoneScoreService.recalculate(milestoneExercise.getId(), userUtilService.getUserByLogin(studentLogin).getId()).orElseThrow();
+
+        // (4.0 - 1.0) / 4.0 - the cap is a percentage of the milestone's points, which are the group's points.
+        assertThat(aggregated.getScore()).isEqualTo(75.0);
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void aBlockingViolationZeroesTheWholeGroup() {
+        enableStaticCodeAnalysis(CategoryState.BLOCKING, 0.0, null);
+        UserStoryExercise userStory1 = createUserStoryExercise("us1");
+        UserStoryExercise userStory2 = createUserStoryExercise("us2");
+        milestoneExercisePointsService.syncMaxPoints(milestoneExercise.getId());
+
+        ProgrammingExerciseStudentParticipation milestoneParticipation = participationFor(milestoneExercise);
+        buildGradedMilestoneResult(milestoneParticipation, "commit-1", List.of());
+        ProgrammingExerciseStudentParticipation participation1 = participationFor(userStory1);
+        ProgrammingExerciseStudentParticipation participation2 = participationFor(userStory2);
+        saveRatedUserStoryResult(participation1, "commit-1", 100.0);
+        saveRatedUserStoryResult(participation2, "commit-1", 100.0);
+
+        Result aggregated = milestoneScoreService.recalculate(milestoneExercise.getId(), userUtilService.getUserByLogin(studentLogin).getId()).orElseThrow();
+
+        // Every story passed, but a blocking violation in the shared codebase costs the group everything.
+        assertThat(aggregated.getScore()).isZero();
+        // The stories keep their own results and scores - only the aggregate is zeroed.
+        assertThat(resultRepository.findFirstBySubmissionParticipationIdAndRatedOrderByCompletionDateDesc(participation1.getId(), true).orElseThrow().getScore()).isEqualTo(100.0);
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void fanOutStillPersistsStoryResultsWhileTheMilestoneScheduleServiceIsRunning() {
+        enableStaticCodeAnalysis(CategoryState.GRADED, 1.0, null);
+        UserStoryExercise userStory1 = createUserStoryExercise("us1");
+        UserStoryExercise userStory2 = createUserStoryExercise("us2");
+        milestoneExercisePointsService.syncMaxPoints(milestoneExercise.getId());
+        ProgrammingExerciseTestCase milestoneTestA = createTestCase(milestoneExercise, "testA");
+        createTestCase(userStory1, "testA");
+        createTestCase(userStory2, "testA");
+
+        ProgrammingExerciseStudentParticipation milestoneParticipation = participationFor(milestoneExercise);
+        ProgrammingExerciseStudentParticipation participation1 = participationFor(userStory1);
+        ProgrammingExerciseStudentParticipation participation2 = participationFor(userStory2);
+
+        Result milestoneResult = buildGradedMilestoneResult(milestoneParticipation, "commit-1",
+                List.of(new Feedback().testCase(milestoneTestA).positive(true).type(FeedbackType.AUTOMATIC)));
+
+        // The service only starts accepting work after the startup delay, which is why every other test in this class
+        // runs with it switched off - and why nothing here caught that saving a story result fires ResultListener into a
+        // path that queries the database from inside the flush that is persisting the result.
+        milestoneScoreScheduleService.activate();
+
+        gradingService.fanOutResultToUserStoryExercise(milestoneResult, userStory1, participation1);
+        gradingService.fanOutResultToUserStoryExercise(milestoneResult, userStory2, participation2);
+
+        // The regression: the results must actually exist and hang off their submissions. Without the fix the save above
+        // dies with "Entry for instance of Result has a null identifier", leaving the student with a pending submission
+        // and no result - which is what the UI reports as "No corresponding result available".
+        assertThat(resultRepository.findFirstBySubmissionParticipationIdAndRatedOrderByCompletionDateDesc(participation1.getId(), true)).isPresent();
+        assertThat(resultRepository.findFirstBySubmissionParticipationIdAndRatedOrderByCompletionDateDesc(participation2.getId(), true)).isPresent();
+
+        // And the aggregate still lands: 2.0 + 2.0 story points - 1.0 penalty, over the group's 4.0 points.
+        await().atMost(30, TimeUnit.SECONDS)
+                .untilAsserted(() -> assertThat(
+                        resultRepository.findFirstBySubmissionParticipationIdAndRatedOrderByCompletionDateDesc(milestoneParticipation.getId(), true).orElseThrow().getScore())
+                        .isEqualTo(75.0));
     }
 
     @Test

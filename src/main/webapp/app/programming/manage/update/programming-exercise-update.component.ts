@@ -114,6 +114,9 @@ const USER_STORY_HIDDEN_FIELDS: ProgrammingExerciseInputField[] = [
     ProgrammingExerciseInputField.RUN_TESTS_AFTER_DUE_DATE,
     ProgrammingExerciseInputField.SHOW_TEST_NAMES_TO_STUDENTS,
     ProgrammingExerciseInputField.INCLUDE_TESTS_INTO_EXAMPLE_SOLUTION,
+    // A user story's points count through its milestone group, so its inclusion is not a per-story decision: it stays
+    // INCLUDED_COMPLETELY and the score calculation skips group members instead (see UserStoryExercise server-side).
+    ProgrammingExerciseInputField.INCLUDE_EXERCISE_IN_COURSE_SCORE_CALCULATION,
 ];
 // TIMELINE/RELEASE_DATE/START_DATE/DUE_DATE are deliberately NOT hidden here (unlike for a MilestoneExercise): the
 // "Grading" section's timeline block (jhi-programming-exercise-update-timeline) bundles the date pickers together

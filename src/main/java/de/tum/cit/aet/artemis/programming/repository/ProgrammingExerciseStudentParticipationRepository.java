@@ -85,6 +85,27 @@ public interface ProgrammingExerciseStudentParticipationRepository extends Artem
     List<ProgrammingExerciseStudentParticipation> findAllByExerciseIdAndStudentLogin(long exerciseId, String username);
 
     /**
+     * Resolves a student's non-test-run participation in an exercise by the student's id rather than their login. Used by
+     * {@code MilestoneScoreService}, which is driven by result events carrying a participant id (see
+     * {@code ResultListener}) and would otherwise have to load the user just to read their login back out.
+     * <p>
+     * Milestone groups are individual-participation only (team milestones are not part of the repository-sharing scheme,
+     * see {@code ParticipationService}), so a student has at most one such participation per exercise.
+     *
+     * @param exerciseId the id of the exercise
+     * @param studentId  the id of the student
+     * @return the participation, or empty if the student has not started the exercise
+     */
+    @Query("""
+            SELECT p
+            FROM ProgrammingExerciseStudentParticipation p
+            WHERE p.exercise.id = :exerciseId
+                AND p.student.id = :studentId
+                AND p.testRun = FALSE
+            """)
+    Optional<ProgrammingExerciseStudentParticipation> findByExerciseIdAndStudentId(@Param("exerciseId") long exerciseId, @Param("studentId") long studentId);
+
+    /**
      * All non-test-run participations of the given exercise that already have a real repository - used to find every
      * student who already shares a {@code MilestoneExerciseGroup}'s repository (via its {@code MilestoneExercise}'s
      * participations), so a newly created {@code UserStoryExercise} can backfill a participation for each of them (see

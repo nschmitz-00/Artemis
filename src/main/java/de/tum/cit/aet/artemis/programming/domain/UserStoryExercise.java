@@ -17,6 +17,13 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * through the object graph. Only its own {@link ProgrammingExerciseTask}s (parsed from its own problem statement)
  * determine which of its test cases are marked {@code active} and therefore count toward its (independently
  * configurable) grade - see {@code UserStoryExerciseService.updateRelevantTestCases}.
+ * <p>
+ * Its {@code includedInOverallScore} stays {@code INCLUDED_COMPLETELY} and is not instructor-editable (see
+ * {@code USER_STORY_HIDDEN_FIELDS} client-side): a user story's points genuinely do count, they are simply counted
+ * through its group. Marking it {@code NOT_INCLUDED} would be read by every UI as "these points do not count", the
+ * opposite of the truth. Double counting is prevented where it belongs - in the score calculation, which skips the
+ * members of a milestone group because their {@link MilestoneExercise} already accounts for the whole group; see
+ * {@code CourseScoreCalculator.includeIntoScoreCalculation}.
  */
 @Entity
 @DiscriminatorValue("US")

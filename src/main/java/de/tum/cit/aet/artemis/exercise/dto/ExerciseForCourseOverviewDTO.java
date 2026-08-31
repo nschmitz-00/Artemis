@@ -71,6 +71,6 @@ public record ExerciseForCourseOverviewDTO(ExerciseType type, Long id, String ti
      */
     public ExerciseCourseScoreDTO toCourseScoreDTO(long courseId) {
         return new ExerciseCourseScoreDTO(id, type, includedInOverallScore, assessmentType, dueDate, assessmentDueDate, buildAndTestStudentSubmissionsAfterDueDate, maxPoints,
-                bonusPoints, courseId, variantGroupId, variantGroupMaxPoints);
+                bonusPoints, courseId, variantGroupId, variantGroupMaxPoints, "milestone".equals(variantGroupType));
     }
 }

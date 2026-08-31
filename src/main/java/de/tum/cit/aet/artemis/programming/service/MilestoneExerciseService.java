@@ -20,6 +20,7 @@ import de.tum.cit.aet.artemis.communication.service.conversation.ChannelService;
 import de.tum.cit.aet.artemis.core.exception.BadRequestAlertException;
 import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.course.repository.CourseRepository;
+import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
 import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
 import de.tum.cit.aet.artemis.exercise.dto.CreateMilestoneExerciseGroupDTO;
 import de.tum.cit.aet.artemis.exercise.dto.MilestoneStatusDTO;
@@ -86,12 +87,15 @@ public class MilestoneExerciseService {
 
     private final ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository;
 
+    private final MilestoneExercisePointsService milestoneExercisePointsService;
+
     public MilestoneExerciseService(CourseRepository courseRepository, MilestoneExerciseGroupRepository milestoneExerciseGroupRepository,
             ExerciseVariantGroupService exerciseVariantGroupService, ProgrammingExerciseValidationService programmingExerciseValidationService,
             ProgrammingExerciseCreationUpdateService programmingExerciseCreationUpdateService, StaticCodeAnalysisService staticCodeAnalysisService,
             ExerciseVersionService exerciseVersionService, ProgrammingExerciseDeletionService programmingExerciseDeletionService, UserStoryExerciseService userStoryExerciseService,
             ChannelService channelService, ParticipationService participationService, ProgrammingExerciseGradingService programmingExerciseGradingService,
-            ResultRepository resultRepository, ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository) {
+            ResultRepository resultRepository, ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository,
+            MilestoneExercisePointsService milestoneExercisePointsService) {
         this.courseRepository = courseRepository;
         this.milestoneExerciseGroupRepository = milestoneExerciseGroupRepository;
         this.exerciseVariantGroupService = exerciseVariantGroupService;
@@ -106,6 +110,7 @@ public class MilestoneExerciseService {
         this.programmingExerciseGradingService = programmingExerciseGradingService;
         this.resultRepository = resultRepository;
         this.programmingExerciseStudentParticipationRepository = programmingExerciseStudentParticipationRepository;
+        this.milestoneExercisePointsService = milestoneExercisePointsService;
     }
 
     /**
@@ -216,6 +221,10 @@ public class MilestoneExerciseService {
         userStoryExercise.setExerciseGroup(null);
         userStoryExercise.setExerciseVariantGroup(milestoneGroup);
         userStoryExercise.setFeedbackSuggestionModule(null);
+        // A user story's points count through its group, so it stays INCLUDED_COMPLETELY and the field is not offered in
+        // the form (USER_STORY_HIDDEN_FIELDS). Double counting is prevented by the score calculation skipping milestone
+        // group members - see CourseScoreCalculator.includeIntoScoreCalculation - not by lying about this value.
+        userStoryExercise.setIncludedInOverallScore(IncludedInOverallScore.INCLUDED_COMPLETELY);
         userStoryExerciseService.applyMilestoneConfig(userStoryExercise, milestoneGroup.getMilestoneExercise());
         userStoryExercise.setReleaseDate(milestoneGroup.getReleaseDate());
         userStoryExercise.setStartDate(milestoneGroup.getStartDate());
@@ -240,6 +249,10 @@ public class MilestoneExerciseService {
         // update endpoint.
         userStoryExerciseService.syncTestCasesFromMilestone(created, milestoneGroup.getMilestoneExercise());
         userStoryExerciseService.updateRelevantTestCases(created);
+        // The group just became worth more, and the milestone carries that total - both for the students' scores and for
+        // the static code analysis budget derived from it. Sync before backfilling, so the results written below are
+        // aggregated against the new total rather than the old one.
+        milestoneExercisePointsService.syncMaxPoints(milestoneGroup.getMilestoneExercise().getId());
         backfillExistingParticipantsForNewUserStoryExercise(created, milestoneGroup);
         exerciseVersionService.createExerciseVersion(created);
         return created;

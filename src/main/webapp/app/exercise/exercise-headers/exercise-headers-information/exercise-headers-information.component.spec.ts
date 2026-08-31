@@ -6,7 +6,7 @@ import { provideTranslateService } from '@ngx-translate/core';
 import { ExerciseHeadersInformationComponent } from 'app/exercise/exercise-headers/exercise-headers-information/exercise-headers-information.component';
 import { MockProvider } from 'ng-mocks';
 import { ExerciseService } from 'app/exercise/services/exercise.service';
-import { DifficultyLevel, Exercise, ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { DifficultyLevel, Exercise, ExerciseType, IncludedInOverallScore } from 'app/exercise/shared/entities/exercise/exercise.model';
 import dayjs from 'dayjs/esm';
 import { Course } from 'app/course/shared/entities/course.model';
 import { Result } from 'app/exercise/shared/entities/result/result.model';
@@ -364,6 +364,54 @@ describe('ExerciseHeadersInformationComponent', () => {
 
             expect(updateSpy).toHaveBeenCalledWith(7, { estimatedEffort: 3 });
             expect(successSpy).toHaveBeenCalledWith('artemisApp.userStoryEffort.saved');
+        });
+    });
+
+    describe('getCategoryItem', () => {
+        // The box only ever draws the not-released tag, the included-in-score badge and the categories (its showTags
+        // config switches difficulty and quizLive off), so it must exist exactly when one of those has something to say.
+        const releasedAndIncluded = {
+            ...baseExercise,
+            includedInOverallScore: IncludedInOverallScore.INCLUDED_COMPLETELY,
+            releaseDate: dayjs().subtract(1, 'weeks'),
+        } as unknown as Exercise;
+
+        it('should not emit a box when there is nothing to draw', () => {
+            fixture.componentRef.setInput('exercise', releasedAndIncluded);
+            fixture.detectChanges();
+
+            expect(component.getCategoryItem()).toBeUndefined();
+            expect(component.informationBoxItems().some((item) => item.content.type === 'categories')).toBe(false);
+        });
+
+        it('should not emit a box for a released, uncategorised user story', () => {
+            // The originally reported empty box. A user story is INCLUDED_COMPLETELY - its points count through its
+            // milestone group - so it has no inclusion badge to show and falls into the case above.
+            fixture.componentRef.setInput('exercise', { ...releasedAndIncluded, type: ExerciseType.USER_STORY } as unknown as Exercise);
+            fixture.detectChanges();
+
+            expect(component.getCategoryItem()).toBeUndefined();
+        });
+
+        it('should emit a box when the exercise has categories', () => {
+            fixture.componentRef.setInput('exercise', { ...releasedAndIncluded, categories: [{ category: 'Algorithms', color: '#ff0000' }] } as unknown as Exercise);
+            fixture.detectChanges();
+
+            expect(component.getCategoryItem()).toBeDefined();
+        });
+
+        it('should emit a box for an unreleased exercise', () => {
+            fixture.componentRef.setInput('exercise', { ...releasedAndIncluded, releaseDate: dayjs().add(1, 'weeks') } as unknown as Exercise);
+            fixture.detectChanges();
+
+            expect(component.getCategoryItem()).toBeDefined();
+        });
+
+        it('should emit a box for an optional exercise, whose badge is real content', () => {
+            fixture.componentRef.setInput('exercise', { ...releasedAndIncluded, includedInOverallScore: IncludedInOverallScore.NOT_INCLUDED } as unknown as Exercise);
+            fixture.detectChanges();
+
+            expect(component.getCategoryItem()).toBeDefined();
         });
     });
 });

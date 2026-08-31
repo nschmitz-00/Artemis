@@ -2,6 +2,7 @@ package de.tum.cit.aet.artemis.exercise.repository;
 
 import static de.tum.cit.aet.artemis.core.config.Constants.PROFILE_CORE;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Repository;
 import de.tum.cit.aet.artemis.core.exception.EntityNotFoundException;
 import de.tum.cit.aet.artemis.core.repository.base.ArtemisJpaRepository;
 import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
+import de.tum.cit.aet.artemis.exercise.dto.MilestoneScoreTargetDTO;
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 
 /**
@@ -216,6 +218,67 @@ public interface MilestoneExerciseGroupRepository extends ArtemisJpaRepository<M
             WHERE g.milestoneExercise.id = :milestoneExerciseId
             """)
     Optional<MilestoneExerciseGroup> findByMilestoneExerciseIdWithExercises(@Param("milestoneExerciseId") long milestoneExerciseId);
+
+    /**
+     * Sums the {@code maxPoints} of a group's {@code UserStoryExercise} members, which is what the group's anchor
+     * {@code MilestoneExercise} carries as its own {@code maxPoints}: the milestone is the only scored exercise of the
+     * group, and its points are the group's points (see {@code MilestoneExerciseService.syncMilestoneMaxPoints}).
+     * <p>
+     * Restricted to {@code UserStoryExercise} on purpose - a milestone group only ever holds those, and the type filter
+     * keeps the sum correct should anything else ever be assigned to one.
+     *
+     * @param milestoneExerciseId the id of the milestone exercise whose group's member points to sum
+     * @return the summed points, or empty if the group has no members yet
+     */
+    @Query("""
+            SELECT SUM(e.maxPoints)
+            FROM MilestoneExerciseGroup g
+                JOIN g.exercises e
+            WHERE g.milestoneExercise.id = :milestoneExerciseId
+                AND TYPE(e) = UserStoryExercise
+            """)
+    Optional<Double> sumUserStoryMaxPointsByMilestoneExerciseId(@Param("milestoneExerciseId") long milestoneExerciseId);
+
+    /**
+     * Finds every (milestone exercise, student) pair whose {@code UserStoryExercise} results were modified after the
+     * given instant - the fallback sweep of {@code MilestoneScoreScheduleService}, for events lost to a restart or a
+     * broker hiccup.
+     * <p>
+     * Restricted to individual participations: a milestone group is individual-participation only (see
+     * {@code ParticipationService}), so a team participation could never contribute to a milestone aggregate anyway.
+     *
+     * @param modifiedAfter only results modified strictly after this instant are considered
+     * @return the pairs whose aggregated milestone score may be out of date
+     */
+    @Query("""
+            SELECT DISTINCT new de.tum.cit.aet.artemis.exercise.dto.MilestoneScoreTargetDTO(g.milestoneExercise.id, p.student.id)
+            FROM Result r
+                JOIN r.submission s
+                JOIN TREAT(s.participation AS StudentParticipation) p
+                JOIN MilestoneExerciseGroup g ON p.exercise.exerciseVariantGroup.id = g.id
+            WHERE TYPE(p.exercise) = UserStoryExercise
+                AND p.student.id IS NOT NULL
+                AND r.lastModifiedDate > :modifiedAfter
+            """)
+    List<MilestoneScoreTargetDTO> findMilestoneScoreTargetsForUserStoryResultsModifiedAfter(@Param("modifiedAfter") Instant modifiedAfter);
+
+    /**
+     * Resolves the id of the {@code MilestoneExercise} anchoring the group a user story belongs to.
+     * <p>
+     * A scalar projection because the caller ({@code MilestoneScoreScheduleService}) runs this once per user story result
+     * event, purely to turn a per-story event into a per-milestone one so the recomputation can be debounced across a
+     * whole fan-out.
+     *
+     * @param userStoryExerciseId the id of the user story exercise
+     * @return the owning milestone exercise's id, or empty if the exercise has no milestone group
+     */
+    @Query("""
+            SELECT g.milestoneExercise.id
+            FROM MilestoneExerciseGroup g
+                JOIN g.exercises e
+            WHERE e.id = :userStoryExerciseId
+            """)
+    Optional<Long> findMilestoneExerciseIdByUserStoryExerciseId(@Param("userStoryExerciseId") long userStoryExerciseId);
 
     /**
      * Counts a group's members without loading them, for the "cannot delete a non-empty milestone group" guard. The

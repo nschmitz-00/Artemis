@@ -97,8 +97,12 @@ public class UserStoryExerciseService {
         userStoryExercise.setAllowOnlineEditor(milestoneExercise.isAllowOnlineEditor());
         userStoryExercise.setAllowOfflineIde(milestoneExercise.isAllowOfflineIde());
         userStoryExercise.setAllowOnlineIde(milestoneExercise.isAllowOnlineIde());
-        userStoryExercise.setStaticCodeAnalysisEnabled(milestoneExercise.isStaticCodeAnalysisEnabled());
-        userStoryExercise.setMaxStaticCodeAnalysisPenalty(milestoneExercise.getMaxStaticCodeAnalysisPenalty());
+        // Static code analysis describes the shared codebase, not one user story, so it is configured and priced once on
+        // the milestone (see MilestoneScoreService) and deliberately NOT copied down here. Leaving it disabled makes the
+        // generic SCA path in ProgrammingExerciseGradingService a no-op for user stories - which is what keeps the same
+        // violation from being charged once per story - and hides the SCA grading tab on them.
+        userStoryExercise.setStaticCodeAnalysisEnabled(false);
+        userStoryExercise.setMaxStaticCodeAnalysisPenalty(null);
 
         // A fresh copy every time (rather than mutating an existing one in place) is simplest and matches the copy
         // constructor's own contract (it already clears the back-reference and any per-copy secret); Hibernate

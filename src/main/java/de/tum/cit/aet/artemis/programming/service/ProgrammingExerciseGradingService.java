@@ -5,6 +5,7 @@ import static de.tum.cit.aet.artemis.programming.domain.ProgrammingSubmission.cr
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -589,7 +590,14 @@ public class ProgrammingExerciseGradingService {
                 copiedFeedback.setTestCase(matchedTestCase);
                 copiedFeedbacks.add(copiedFeedback);
             }
+            else if (sourceFeedback.isStaticCodeAnalysisFeedback()) {
+                // Static code analysis describes the shared codebase, so copying it here would charge the same violation
+                // once per user story. It stays on the milestone result, which is where it is priced (once) and where
+                // MilestoneScoreService reads it back from when it aggregates the group's points.
+                continue;
+            }
             else {
+                // Everything else - most importantly submission policy feedback - still applies per exercise.
                 Feedback copiedFeedback = feedbackService.copyFeedback(sourceFeedback);
                 copiedFeedback.setPositive(sourceFeedback.isPositive());
                 copiedFeedbacks.add(copiedFeedback);
@@ -1078,6 +1086,14 @@ public class ProgrammingExerciseGradingService {
     private double calculateScore(ScoreCalculationData scoreCalculationData, boolean applySubmissionPolicy) {
 
         double points = calculateSuccessfulTestPoints(scoreCalculationData);
+
+        if (applyBlockingStaticCodeAnalysisDeduction(scoreCalculationData, points)) {
+            // A blocking category is an all-or-nothing gate rather than a price list: the tests are not re-priced, the
+            // whole achieved amount is taken away. On a MilestoneExercise this result's score is then replaced by the
+            // group aggregate (see MilestoneScoreService), which applies the very same rule to the group's points.
+            return 0.0;
+        }
+
         points -= calculateTotalPenalty(scoreCalculationData, applySubmissionPolicy);
 
         points = Math.max(0, points);
@@ -1196,6 +1212,56 @@ public class ProgrammingExerciseGradingService {
         }
 
         return penalty;
+    }
+
+    /**
+     * Returns the static code analysis feedback of the given result that falls into a category the instructor marked
+     * {@link CategoryState#BLOCKING} - a category that zeroes the score of the exercise whose configuration declared it,
+     * instead of charging a price per issue.
+     * <p>
+     * Public because {@code MilestoneScoreService} applies the identical rule one level up: a milestone's static code
+     * analysis configuration governs a whole group of user stories, so one blocking violation in the shared codebase
+     * zeroes the group's aggregated points. Sharing the lookup keeps "blocking" from meaning two different things.
+     *
+     * @param programmingExercise        the exercise whose static code analysis configuration decides what blocks
+     * @param staticCodeAnalysisFeedback the already categorized static code analysis feedback to inspect
+     * @return the blocking feedback, empty if the exercise has no blocking category or none of them was violated
+     */
+    public List<Feedback> findBlockingStaticCodeAnalysisFeedback(ProgrammingExercise programmingExercise, Collection<Feedback> staticCodeAnalysisFeedback) {
+        if (!Boolean.TRUE.equals(programmingExercise.isStaticCodeAnalysisEnabled())) {
+            return List.of();
+        }
+        Set<String> blockingCategoryNames = staticCodeAnalysisCategoryRepository.findByExerciseId(programmingExercise.getId()).stream()
+                .filter(category -> category.getState() == CategoryState.BLOCKING).map(StaticCodeAnalysisCategory::getName).collect(Collectors.toSet());
+        if (blockingCategoryNames.isEmpty()) {
+            return List.of();
+        }
+        return staticCodeAnalysisFeedback.stream().filter(Feedback::isStaticCodeAnalysisFeedback)
+                .filter(feedback -> blockingCategoryNames.contains(feedback.getStaticCodeAnalysisCategory())).toList();
+    }
+
+    /**
+     * Takes the whole achieved amount away when a blocking category was violated, by writing it as negative credits on
+     * the blocking feedback.
+     * <p>
+     * Writing the deduction into the credits rather than only into the score is what keeps the two agreeing: several
+     * consumers re-derive a programming result's points by summing feedback credits instead of reading the score
+     * ({@link Result#calculateTotalPointsForProgrammingExercises()}, used for manual and semi-automatic results). If the
+     * zero lived only in the score, the first such re-derivation would hand the points straight back. It is the same
+     * reason {@link #calculateStaticCodeAnalysisPenalty} writes its per-issue penalties into the credits.
+     *
+     * @param scoreCalculationData the data of the result being scored
+     * @param achievedTestPoints   the points the result's tests earned, already capped at the exercise's maximum
+     * @return true if a blocking violation was found and the deduction was applied
+     */
+    private boolean applyBlockingStaticCodeAnalysisDeduction(ScoreCalculationData scoreCalculationData, double achievedTestPoints) {
+        List<Feedback> blockingFeedback = findBlockingStaticCodeAnalysisFeedback(scoreCalculationData.exercise(), scoreCalculationData.staticCodeAnalysisFeedback());
+        if (blockingFeedback.isEmpty()) {
+            return false;
+        }
+        double perFeedbackDeduction = achievedTestPoints / blockingFeedback.size();
+        blockingFeedback.forEach(feedback -> feedback.setCredits(-perFeedbackDeduction));
+        return true;
     }
 
     /**
