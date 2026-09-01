@@ -242,6 +242,9 @@ public class ProgrammingExerciseUpdateResource {
         Course course = courseService.retrieveCourseOverExerciseGroupOrCourseId(updatedProgrammingExercise);
         authCheckService.checkHasAtLeastRoleInCourseElseThrow(Role.EDITOR, course, user);
 
+        // Verify that the build config text fields do not exceed their maximum allowed length before the configuration is parsed
+        programmingExerciseValidationService.validateBuildConfigSize(updatedProgrammingExercise);
+
         programmingExerciseValidationService.checkProgrammingExerciseForError(updatedProgrammingExercise);
         // Validate plagiarism detection config
         PlagiarismDetectionConfigHelper.validatePlagiarismDetectionConfigOrThrow(updatedProgrammingExercise, ENTITY_NAME);
@@ -582,6 +585,9 @@ public class ProgrammingExerciseUpdateResource {
 
         // Apply DTO changes BEFORE re-evaluation so that updated grading criteria take effect.
         update(updateDTO, programmingExercise);
+
+        // Verify that the build config text fields do not exceed their maximum allowed length
+        programmingExerciseValidationService.validateBuildConfigSize(programmingExercise);
 
         exerciseService.reEvaluateExercise(programmingExercise, deleteFeedbackAfterGradingInstructionUpdate);
 

@@ -1125,6 +1125,7 @@ class TextExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
         channel.setIsArchived(false);
         channel.setName("testchannel-" + UUID.randomUUID().toString().substring(0, 8));
         channel.setExercise(textExercise);
+        channel.setCourse(course);
         channelRepository.save(channel);
         TextExerciseResponseDTO textExerciseServer = request.get("/api/text/text-exercises/" + textExercise.getId(), HttpStatus.OK, TextExerciseResponseDTO.class);
 
@@ -1236,6 +1237,7 @@ class TextExerciseIntegrationTest extends AbstractSpringIntegrationIndependentTe
         channel.setIsAnnouncementChannel(false);
         channel.setIsArchived(false);
         channel.setExercise(textExercise);
+        channel.setCourse(course);
         channelRepository.save(channel);
         Set<GradingCriterion> gradingCriteria = exerciseUtilService.addGradingInstructionsToExercise(textExercise);
         gradingCriterionRepository.saveAll(gradingCriteria);
