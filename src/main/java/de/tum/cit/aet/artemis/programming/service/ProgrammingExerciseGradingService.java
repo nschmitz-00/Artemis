@@ -80,6 +80,7 @@ import de.tum.cit.aet.artemis.programming.dto.SubmissionPolicyValuesDTO;
 import de.tum.cit.aet.artemis.programming.dto.SubmissionProcessingDTO;
 import de.tum.cit.aet.artemis.programming.exception.ContinuousIntegrationException;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseRepository;
+import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseStudentParticipationRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseTestCaseRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingSubmissionRepository;
 import de.tum.cit.aet.artemis.programming.repository.SolutionProgrammingExerciseParticipationRepository;
@@ -152,6 +153,12 @@ public class ProgrammingExerciseGradingService {
 
     private final ProgrammingFeedbackSynthesizerService programmingFeedbackSynthesizerService;
 
+    private final ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository;
+
+    private final ProgrammingSubmissionMessagingService programmingSubmissionMessagingService;
+
+    private final ProgrammingMessagingService programmingMessagingService;
+
     public ProgrammingExerciseGradingService(StudentParticipationRepository studentParticipationRepository, ResultRepository resultRepository,
             Optional<ContinuousIntegrationResultService> continuousIntegrationResultService, ProgrammingExerciseTestCaseRepository testCaseRepository,
             TemplateProgrammingExerciseParticipationRepository templateProgrammingExerciseParticipationRepository, FeedbackService feedbackService,
@@ -162,7 +169,9 @@ public class ProgrammingExerciseGradingService {
             MavenCentralRateLimitNotificationService mavenCentralRateLimitNotificationService, FeedbackMessageService feedbackMessageService,
             TestCaseFeedbackRepository testCaseFeedbackRepository, ScaFeedbackRepository scaFeedbackRepository, TestCasePointsService testCasePointsService,
             ProgrammingFeedbackSynthesizerService programmingFeedbackSynthesizerService, ExerciseVariantGroupRepository exerciseVariantGroupRepository,
-            MilestoneExerciseGroupRepository milestoneExerciseGroupRepository, UserStoryExerciseService userStoryExerciseService) {
+            MilestoneExerciseGroupRepository milestoneExerciseGroupRepository, UserStoryExerciseService userStoryExerciseService,
+            ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository,
+            ProgrammingSubmissionMessagingService programmingSubmissionMessagingService, ProgrammingMessagingService programmingMessagingService) {
         this.studentParticipationRepository = studentParticipationRepository;
         this.continuousIntegrationResultService = continuousIntegrationResultService;
         this.resultRepository = resultRepository;
@@ -189,6 +198,9 @@ public class ProgrammingExerciseGradingService {
         this.exerciseVariantGroupRepository = exerciseVariantGroupRepository;
         this.milestoneExerciseGroupRepository = milestoneExerciseGroupRepository;
         this.userStoryExerciseService = userStoryExerciseService;
+        this.programmingExerciseStudentParticipationRepository = programmingExerciseStudentParticipationRepository;
+        this.programmingSubmissionMessagingService = programmingSubmissionMessagingService;
+        this.programmingMessagingService = programmingMessagingService;
     }
 
     /**
@@ -606,47 +618,24 @@ public class ProgrammingExerciseGradingService {
         Map<String, ProgrammingExerciseTestCase> targetTestCasesByName = testCaseRepository.findByExerciseId(targetExercise.getId()).stream()
                 .collect(Collectors.toMap(ProgrammingExerciseTestCase::getTestName, Function.identity(), (first, second) -> first));
 
-        List<Feedback> copiedFeedbacks = new ArrayList<>();
-        for (Feedback sourceFeedback : sourceResult.getFeedbacks()) {
-            if (sourceFeedback.isTestFeedback()) {
-                ProgrammingExerciseTestCase matchedTestCase = sourceFeedback.getTestCase() == null ? null : targetTestCasesByName.get(sourceFeedback.getTestCase().getTestName());
-                if (matchedTestCase == null) {
-                    // This test case doesn't exist (yet) for the target exercise - nothing to score it against.
-                    continue;
-                }
-                Feedback copiedFeedback = feedbackService.copyFeedback(sourceFeedback);
-                // feedbackService.copyFeedback falls back to setPositiveViaCredits() (credits >= 0) whenever the
-                // source's own `positive` is null - correct for its usual caller (turning automatic feedback into a
-                // manual grader's draft, which always carries a real credit value by then), but wrong here: a test
-                // that never actually ran (e.g. a dynamic/parameterized test JUnit couldn't even generate against a
-                // missing class) is reported with positive=null and credits=0, and 0 >= 0 would silently turn "never
-                // ran" into "passed" once copied. Overwrite with the source's exact value (including null) instead.
-                copiedFeedback.setPositive(sourceFeedback.isPositive());
-                copiedFeedback.setTestCase(matchedTestCase);
-                copiedFeedbacks.add(copiedFeedback);
-            }
-            else if (sourceFeedback.isStaticCodeAnalysisFeedback()) {
-                // Static code analysis describes the shared codebase, so copying it here would charge the same violation
-                // once per user story. It stays on the milestone result, which is where it is priced (once) and where
-                // MilestoneScoreService reads it back from when it aggregates the group's points.
-                continue;
-            }
-            else {
-                // Everything else - most importantly submission policy feedback - still applies per exercise.
-                Feedback copiedFeedback = feedbackService.copyFeedback(sourceFeedback);
-                copiedFeedback.setPositive(sourceFeedback.isPositive());
-                copiedFeedbacks.add(copiedFeedback);
-            }
-        }
-
         Result targetResult = new Result();
         targetResult.setAssessmentType(sourceResult.getAssessmentType());
         targetResult.setCompletionDate(sourceResult.getCompletionDate());
         targetResult.setSuccessful(sourceResult.isSuccessful());
         targetResult.setExerciseId(targetExercise.getId());
         targetResult.setSubmission(targetSubmission);
-        targetResult.setFeedbacks(copiedFeedbacks);
         targetResult.setRatedIfNotAfterDueDate();
+
+        // only copy test case feedback here, all other feedbacks must be evaluated in the milestone..
+        for (TestCaseFeedback testFeedback : sourceResult.getTestCaseFeedbacks()) {
+            ProgrammingExerciseTestCase matchedTestCase = testFeedback.getTestCase() == null ? null : targetTestCasesByName.get(testFeedback.getTestCase().getTestName());
+            if (matchedTestCase == null) {
+                // This test case doesn't exist (yet) for the target exercise - nothing to score it against.
+                continue;
+            }
+            TestCaseFeedback copiedFeedback = feedbackService.copyTestCaseFeedback(testFeedback);
+            targetResult.addTestCaseFeedback(copiedFeedback);
+        }
 
         Result processedResult = calculateScoreForResult(targetResult, targetExercise, true);
 
@@ -1281,7 +1270,7 @@ public class ProgrammingExerciseGradingService {
      * @param staticCodeAnalysisFeedback the already categorized static code analysis feedback to inspect
      * @return the blocking feedback, empty if the exercise has no blocking category or none of them was violated
      */
-    public List<Feedback> findBlockingStaticCodeAnalysisFeedback(ProgrammingExercise programmingExercise, Collection<Feedback> staticCodeAnalysisFeedback) {
+    public List<ScaFeedback> findBlockingStaticCodeAnalysisFeedback(ProgrammingExercise programmingExercise, Collection<ScaFeedback> staticCodeAnalysisFeedback) {
         if (!Boolean.TRUE.equals(programmingExercise.isStaticCodeAnalysisEnabled())) {
             return List.of();
         }
@@ -1290,8 +1279,7 @@ public class ProgrammingExerciseGradingService {
         if (blockingCategoryNames.isEmpty()) {
             return List.of();
         }
-        return staticCodeAnalysisFeedback.stream().filter(Feedback::isStaticCodeAnalysisFeedback)
-                .filter(feedback -> blockingCategoryNames.contains(feedback.getStaticCodeAnalysisCategory())).toList();
+        return staticCodeAnalysisFeedback.stream().filter(feedback -> blockingCategoryNames.contains(feedback.getCategory())).toList();
     }
 
     /**
@@ -1309,12 +1297,12 @@ public class ProgrammingExerciseGradingService {
      * @return true if a blocking violation was found and the deduction was applied
      */
     private boolean applyBlockingStaticCodeAnalysisDeduction(ScoreCalculationData scoreCalculationData, double achievedTestPoints) {
-        List<Feedback> blockingFeedback = findBlockingStaticCodeAnalysisFeedback(scoreCalculationData.exercise(), scoreCalculationData.staticCodeAnalysisFeedback());
+        List<ScaFeedback> blockingFeedback = findBlockingStaticCodeAnalysisFeedback(scoreCalculationData.exercise(), scoreCalculationData.staticCodeAnalysisFeedback());
         if (blockingFeedback.isEmpty()) {
             return false;
         }
         double perFeedbackDeduction = achievedTestPoints / blockingFeedback.size();
-        blockingFeedback.forEach(feedback -> feedback.setCredits(-perFeedbackDeduction));
+        blockingFeedback.forEach(feedback -> feedback.setPenalty(perFeedbackDeduction));
         return true;
     }
 

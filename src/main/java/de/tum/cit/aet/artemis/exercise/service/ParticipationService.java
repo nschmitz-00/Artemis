@@ -387,7 +387,10 @@ public class ParticipationService {
         if (group == null || student.isEmpty()) {
             // Team participants and misconfigured exercises without a group aren't part of the sharing scheme -
             // fall back to the normal "create everything for this exercise" flow.
-            ProgrammingExerciseStudentParticipation copiedParticipation = copyRepository(exercise, () -> resolveTemplateRepositoryUri(exercise), participation);
+            Supplier<ProgrammingExercise> exerciseWithTemplateAndBuildConfig = memoize(
+                    () -> programmingExerciseRepository.findByIdWithTemplateParticipationAndBuildConfigElseThrow(exercise.getId()));
+            ProgrammingExerciseStudentParticipation copiedParticipation = copyRepository(exercise, () -> resolveTemplateRepositoryUri(exerciseWithTemplateAndBuildConfig.get()),
+                    () -> branchOf(exerciseWithTemplateAndBuildConfig.get()), participation);
             return startProgrammingParticipation(copiedParticipation);
         }
         User user = student.get();
@@ -426,16 +429,18 @@ public class ParticipationService {
      * @return the milestone's own, now-{@link InitializationState#INITIALIZED} participation
      */
     private ProgrammingExerciseStudentParticipation startMilestoneParticipationForSibling(long milestoneExerciseId, User student) {
-        MilestoneExercise milestoneExercise = (MilestoneExercise) programmingExerciseRepository.findByIdWithTemplateParticipationElseThrow(milestoneExerciseId);
+        Supplier<MilestoneExercise> milestoneExercise = memoize(
+                () -> (MilestoneExercise) programmingExerciseRepository.findByIdWithTemplateParticipationAndBuildConfigElseThrow(milestoneExerciseId));
 
         ProgrammingExerciseStudentParticipation milestoneParticipation = new ProgrammingExerciseStudentParticipation(defaultBranch);
         milestoneParticipation.setInitializationState(InitializationState.UNINITIALIZED);
-        milestoneParticipation.setExercise(milestoneExercise);
+        milestoneParticipation.setExercise(milestoneExercise.get());
         milestoneParticipation.setParticipant(student);
         milestoneParticipation = programmingExerciseStudentParticipationRepository.saveAndFlush(milestoneParticipation);
         participationVCSAccessTokenService.createParticipationVCSAccessToken(student, milestoneParticipation);
 
-        milestoneParticipation = copyRepository(milestoneExercise, () -> resolveTemplateRepositoryUri(milestoneExercise), milestoneParticipation);
+        milestoneParticipation = copyRepository(milestoneExercise.get(), () -> resolveTemplateRepositoryUri(milestoneExercise.get()), () -> branchOf(milestoneExercise.get()),
+                milestoneParticipation);
         StudentParticipation started = startProgrammingParticipation(milestoneParticipation);
         return programmingExerciseStudentParticipationRepository.saveAndFlush((ProgrammingExerciseStudentParticipation) started);
     }

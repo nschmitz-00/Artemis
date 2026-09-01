@@ -781,14 +781,15 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
                                     // milestone-group create endpoint deserializes its @RequestBody polymorphically via
                                     // this discriminator, so it must read 'milestone' or Jackson binds the wrong subtype.
                                     this.programmingExercise.type = ExerciseType.MILESTONE;
-                                    // MilestoneExercise.getIncludedInOverallScore() is hardcoded server-side to always
-                                    // return NOT_INCLUDED (a milestone never itself contributes to the score - only its
-                                    // UserStoryExercise members do); the client default (INCLUDED_COMPLETELY) must be
-                                    // overridden here too, since the (hidden, per isEditFieldDisplayedRecord) Points
-                                    // field's validity check treats "NOT_INCLUDED with no maxPoints" as valid-because-
-                                    // optional (see ProgrammingExerciseGradingComponent.calculateFormStatus) - anything
-                                    // else would leave the grading section permanently invalid and Save disabled.
-                                    this.programmingExercise.includedInOverallScore = IncludedInOverallScore.NOT_INCLUDED;
+                                    // A milestone is the only scored exercise of its group: it carries the sum of its
+                                    // UserStoryExercise members' points, which are NOT_INCLUDED so nothing double-counts.
+                                    // Set explicitly rather than left to the client default only to keep this form's model
+                                    // in step with what an immediate re-edit loads back - CreateMilestoneExerciseGroupDTO
+                                    // hardcodes the same value server-side regardless of what is sent. The Points/
+                                    // BonusPoints fields stay hidden (see MILESTONE_HIDDEN_FIELDS) and are excluded from
+                                    // validation on visibility, not on this value (see getInvalidReasons and
+                                    // ProgrammingExerciseGradingComponent.calculateFormStatus).
+                                    this.programmingExercise.includedInOverallScore = IncludedInOverallScore.INCLUDED_COMPLETELY;
                                 }
                                 if (this.isUserStoryMode && this.isCreate) {
                                     // Same polymorphic-deserialization reasoning as the milestone branch above -
@@ -1546,8 +1547,16 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
         this.validateExerciseTitle(validationErrorReasons);
         this.validateExerciseChannelName(validationErrorReasons);
         this.validateExerciseShortName(validationErrorReasons);
-        this.validateExercisePoints(validationErrorReasons);
-        this.validateExerciseBonusPoints(validationErrorReasons);
+        // Gated on the same record that drives rendering: a hidden field must never produce a reason, since a reason
+        // disables Save (see FormFooterComponent) with no control on screen to clear it. Points/BonusPoints are hidden
+        // for a MilestoneExercise (see MILESTONE_HIDDEN_FIELDS) - its points are the sum of its user stories', kept in
+        // sync server-side by MilestoneExercisePointsService, so a group with no members yet legitimately sits at 0.
+        if (this.isEditFieldDisplayedRecord().points) {
+            this.validateExercisePoints(validationErrorReasons);
+        }
+        if (this.isEditFieldDisplayedRecord().bonusPoints) {
+            this.validateExerciseBonusPoints(validationErrorReasons);
+        }
         this.validateProblemStatementLength(validationErrorReasons);
         this.validateExercisePlagiarism(validationErrorReasons);
         this.validateGradingSection(validationErrorReasons);

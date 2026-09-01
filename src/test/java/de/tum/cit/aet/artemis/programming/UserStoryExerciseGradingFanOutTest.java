@@ -231,14 +231,14 @@ class UserStoryExerciseGradingFanOutTest extends AbstractProgrammingIntegrationI
 
         Result milestoneResult = buildGradedMilestoneResult(milestoneParticipation, "commit-1",
                 List.of(new Feedback().testCase(milestoneTestA).positive(true).type(FeedbackType.AUTOMATIC)));
-        assertThat(milestoneResult.getFeedbacks()).anyMatch(Feedback::isStaticCodeAnalysisFeedback);
+        assertThat(milestoneResult.getScaFeedbacks()).isNotEmpty();
 
         Result us1Result = gradingService.fanOutResultToUserStoryExercise(milestoneResult, userStory1, participation1);
         Result us2Result = gradingService.fanOutResultToUserStoryExercise(milestoneResult, userStory2, participation2);
 
         // The violation belongs to the shared codebase - copying it here is what would charge it once per story.
-        assertThat(us1Result.getFeedbacks()).noneMatch(Feedback::isStaticCodeAnalysisFeedback);
-        assertThat(us2Result.getFeedbacks()).noneMatch(Feedback::isStaticCodeAnalysisFeedback);
+        assertThat(us1Result.getScaFeedbacks()).isEmpty();
+        assertThat(us2Result.getScaFeedbacks()).isEmpty();
         assertThat(us1Result.getScore()).isEqualTo(100.0);
         assertThat(us2Result.getScore()).isEqualTo(100.0);
     }

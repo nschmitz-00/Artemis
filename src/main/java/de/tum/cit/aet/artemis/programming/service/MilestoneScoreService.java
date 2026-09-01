@@ -2,6 +2,7 @@ package de.tum.cit.aet.artemis.programming.service;
 
 import static de.tum.cit.aet.artemis.core.config.Constants.PROFILE_CORE;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -12,9 +13,10 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import de.tum.cit.aet.artemis.assessment.domain.CategoryState;
-import de.tum.cit.aet.artemis.assessment.domain.Feedback;
 import de.tum.cit.aet.artemis.assessment.domain.Result;
+import de.tum.cit.aet.artemis.assessment.domain.ScaFeedback;
 import de.tum.cit.aet.artemis.assessment.repository.ResultRepository;
+import de.tum.cit.aet.artemis.assessment.repository.ScaFeedbackRepository;
 import de.tum.cit.aet.artemis.exercise.domain.Exercise;
 import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
 import de.tum.cit.aet.artemis.exercise.repository.MilestoneExerciseGroupRepository;
@@ -63,14 +65,17 @@ public class MilestoneScoreService {
 
     private final ResultRepository resultRepository;
 
+    private final ScaFeedbackRepository scaFeedbackRepository;
+
     public MilestoneScoreService(MilestoneExerciseGroupRepository milestoneExerciseGroupRepository,
             ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository, ProgrammingExerciseRepository programmingExerciseRepository,
-            ProgrammingExerciseGradingService programmingExerciseGradingService, ResultRepository resultRepository) {
+            ProgrammingExerciseGradingService programmingExerciseGradingService, ResultRepository resultRepository, ScaFeedbackRepository scaFeedbackRepository) {
         this.milestoneExerciseGroupRepository = milestoneExerciseGroupRepository;
         this.programmingExerciseStudentParticipationRepository = programmingExerciseStudentParticipationRepository;
         this.programmingExerciseRepository = programmingExerciseRepository;
         this.programmingExerciseGradingService = programmingExerciseGradingService;
         this.resultRepository = resultRepository;
+        this.scaFeedbackRepository = scaFeedbackRepository;
     }
 
     /**
@@ -108,9 +113,15 @@ public class MilestoneScoreService {
         MilestoneExercise milestoneExercise = (MilestoneExercise) programmingExerciseRepository.findByIdElseThrow(milestoneExerciseId);
 
         double achievedPoints = sumAchievedUserStoryPoints(group.get(), studentId);
-        double penaltyPoints = staticCodeAnalysisPenaltyPoints(result);
+        // Loaded through the repository rather than read off result.getScaFeedbacks(): Result#scaFeedbacks is a lazy
+        // association and the query above fetches only Result#feedbacks, while this service runs outside any transaction
+        // and off the scheduler rather than a web request (spring.jpa.open-in-view is false) - touching the collection
+        // would throw LazyInitializationException. Only the categories and penalties are needed here, not the rule
+        // messages, so the plain by-result query is enough.
+        List<ScaFeedback> scaFeedback = scaFeedbackRepository.findByResultIds(List.of(result.getId()));
+        double penaltyPoints = staticCodeAnalysisPenaltyPoints(scaFeedback);
         // The exact rule an ordinary exercise applies to its own result, applied here to the group's points instead.
-        boolean blocked = !programmingExerciseGradingService.findBlockingStaticCodeAnalysisFeedback(milestoneExercise, result.getFeedbacks()).isEmpty();
+        boolean blocked = !programmingExerciseGradingService.findBlockingStaticCodeAnalysisFeedback(milestoneExercise, scaFeedback).isEmpty();
 
         double points = blocked ? 0.0 : Math.max(0.0, achievedPoints - penaltyPoints);
         result.setScore(points, milestoneExercise.getMaxPoints(), milestoneExercise.getCourseViaExerciseGroupOrCourseMember());
@@ -143,15 +154,21 @@ public class MilestoneScoreService {
     }
 
     /**
-     * Reads the penalty back off the milestone result's own feedback instead of recomputing it. The ordinary grading
-     * path already priced every issue there as a side effect of {@code calculateStaticCodeAnalysisPenalty}, which writes
-     * each surviving SCA feedback's share as negative credits - so the sum of those credits <em>is</em> the group's
-     * penalty, already capped per category and by {@code maxStaticCodeAnalysisPenalty}. Recomputing would mean running
-     * categorization a second time against the same configuration for no gain.
+     * Reads the penalty back off the milestone result's own static code analysis feedback instead of recomputing it. The
+     * ordinary grading path already priced every issue there as a side effect of
+     * {@code calculateStaticCodeAnalysisPenalty}, which writes each surviving issue's share into
+     * {@link ScaFeedback#getPenalty()} - so the sum of those penalties <em>is</em> the group's penalty, already capped
+     * per category and by {@code maxStaticCodeAnalysisPenalty}. Recomputing would mean running categorization a second
+     * time against the same configuration for no gain.
+     * <p>
+     * Returned as a positive number, matching how the caller subtracts it - the negation of
+     * {@link ScaFeedback#getCredits()}, which is the form the ordinary score calculation consumes.
+     *
+     * @param scaFeedback the milestone result's static code analysis feedback
+     * @return the total penalty in points, as a non-negative number
      */
-    private double staticCodeAnalysisPenaltyPoints(Result milestoneResult) {
-        return -milestoneResult.getFeedbacks().stream().filter(Feedback::isStaticCodeAnalysisFeedback)
-                .mapToDouble(feedback -> Objects.requireNonNullElse(feedback.getCredits(), 0.0)).sum();
+    private double staticCodeAnalysisPenaltyPoints(List<ScaFeedback> scaFeedback) {
+        return scaFeedback.stream().mapToDouble(feedback -> Objects.requireNonNullElse(feedback.getPenalty(), 0.0)).sum();
     }
 
 }

@@ -102,14 +102,20 @@ export class ProgrammingExerciseGradingComponent implements AfterViewInit, OnDes
             programmingExercise.includedInOverallScore === IncludedInOverallScore.NOT_INCLUDED &&
             (programmingExercise.maxPoints === undefined || programmingExercise.maxPoints === null);
         // Points is hidden entirely for a MilestoneExercise (see MILESTONE_HIDDEN_FIELDS), so maxScoreField() is never
-        // rendered and stays undefined - the maxScoreMissingAndOptional fallback above still isn't enough on its own,
-        // since Exercise#validateScoreSettings() normalizes a null maxPoints to 0.0 server-side on create, and a
-        // re-loaded 0 no longer counts as "missing". Bypass validation entirely once the field isn't shown; there's
-        // no control left for the user to fix it with.
+        // rendered and stays undefined - and neither fallback below it holds for a milestone: a milestone is
+        // INCLUDED_COMPLETELY (it carries the sum of its user stories' points, see MilestoneExercisePointsService),
+        // and Exercise#validateScoreSettings() normalizes a null maxPoints to 0.0 server-side on create, so a
+        // re-loaded 0 no longer counts as "missing" either. Bypass val`idation entirely once the field isn't shown;
+        // there's no control left for the user to fix it with.
         const maxScoreValidOrOptional = !this.isEditFieldDisplayedRecord().points || this.maxScoreField()?.valid || maxScoreMissingAndOptional;
-        // Bonus points are only entered (and the field only rendered) when the exercise is INCLUDED_COMPLETELY,
-        // so its validity must not block the form in the other modes (the field is hidden via [hidden]).
-        const bonusPointsValidOrHidden = this.bonusPointsField()?.valid || programmingExercise.includedInOverallScore !== IncludedInOverallScore.INCLUDED_COMPLETELY;
+        // Same bypass as for Points above, for the same reason: BonusPoints is in MILESTONE_HIDDEN_FIELDS, so for a
+        // milestone the field is never rendered and the INCLUDED_COMPLETELY fallback below can't stand in for it.
+        // That fallback still covers the plain-exercise case, where bonus points are only entered (and the field only
+        // rendered, via [hidden]) when the exercise is INCLUDED_COMPLETELY.
+        const bonusPointsValidOrHidden =
+            !this.isEditFieldDisplayedRecord().bonusPoints ||
+            this.bonusPointsField()?.valid ||
+            programmingExercise.includedInOverallScore !== IncludedInOverallScore.INCLUDED_COMPLETELY;
         const maxPenaltyValidOrDisabled = this.maxPenaltyField()?.valid || !programmingExercise.staticCodeAnalysisEnabled;
         const scoreFieldsValid = maxScoreValidOrOptional && bonusPointsValidOrHidden && maxPenaltyValidOrDisabled;
         // `?? false` / `?? true`, not a bare `?.`: for a MilestoneExercise, Points/BonusPoints are hidden (see above),

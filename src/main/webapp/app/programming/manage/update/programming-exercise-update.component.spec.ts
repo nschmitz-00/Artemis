@@ -1410,6 +1410,22 @@ describe('ProgrammingExerciseUpdateComponent', () => {
             });
         });
 
+        it('should not report points reasons for a milestone, whose points fields are hidden', () => {
+            // A MilestoneExercise hides Points and BonusPoints (MILESTONE_HIDDEN_FIELDS) while staying
+            // INCLUDED_COMPLETELY, and its maxPoints is the sum of its user stories' - 0 for a group with no members
+            // yet. Neither reason has a control on screen to clear it, so neither may be reported.
+            comp.isMilestoneMode = true;
+            comp.programmingExercise.includedInOverallScore = IncludedInOverallScore.INCLUDED_COMPLETELY;
+            comp.programmingExercise.maxPoints = 0;
+            comp.programmingExercise.bonusPoints = undefined;
+
+            const reasons = comp.getInvalidReasons();
+
+            expect(reasons).not.toContainEqual({ translateKey: 'artemisApp.exercise.form.points.customMin', translateValues: {} });
+            expect(reasons).not.toContainEqual({ translateKey: 'artemisApp.exercise.form.bonusPoints.undefined', translateValues: {} });
+            expect(reasons).not.toContainEqual({ translateKey: 'artemisApp.programmingExercise.gradingSection.invalidReason', translateValues: {} });
+        });
+
         it('Check that no package name related validation error occurs for language C', () => {
             comp.programmingExercise.programmingLanguage = ProgrammingLanguage.C;
             expect(comp.getInvalidReasons()).not.toContainEqual({
