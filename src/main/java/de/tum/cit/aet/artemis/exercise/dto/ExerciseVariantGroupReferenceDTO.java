@@ -17,13 +17,18 @@ import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
  * so the edit dialog does not save back missing dates and wipe the shared timeline.
  * <p>
  * {@code type} mirrors {@link ExerciseVariantGroupDTO}'s discriminator ({@code "variant"} or {@code "milestone"}) - the
- * student-facing group view needs it to decide whether to offer the milestone's "Start exercise"/editor actions.
+ * student-facing group view needs it to decide whether to offer the milestone's "Start exercise"/editor actions, and
+ * {@code milestoneExerciseId} names the anchor exercise those actions address. The anchor is never itself part of any
+ * exercise listing ({@code MilestoneExercise.isVisibleToStudents()} is always false), so this reference is the only
+ * place a client learns its id.
  *
- * @param type {@code "variant"} or {@code "milestone"}
+ * @param type                {@code "variant"} or {@code "milestone"}
+ * @param milestoneExerciseId the id of the group's anchor {@code MilestoneExercise}; {@code null} for a variant group
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-public record ExerciseVariantGroupReferenceDTO(Long id, String title, String type, @Nullable Double maxPoints, @Nullable ZonedDateTime releaseDate,
-        @Nullable ZonedDateTime startDate, @Nullable ZonedDateTime dueDate, @Nullable ZonedDateTime assessmentDueDate, @Nullable ZonedDateTime exampleSolutionPublicationDate) {
+public record ExerciseVariantGroupReferenceDTO(Long id, String title, String type, @Nullable Long milestoneExerciseId, @Nullable Double maxPoints,
+        @Nullable ZonedDateTime releaseDate, @Nullable ZonedDateTime startDate, @Nullable ZonedDateTime dueDate, @Nullable ZonedDateTime assessmentDueDate,
+        @Nullable ZonedDateTime exampleSolutionPublicationDate) {
 
     /**
      * Maps an exercise's variant group for an exercise DTO, or {@code null} when the exercise has no group.
@@ -45,7 +50,13 @@ public record ExerciseVariantGroupReferenceDTO(Long id, String title, String typ
         if (group == null || !Hibernate.isInitialized(group)) {
             return null;
         }
-        return new ExerciseVariantGroupReferenceDTO(group.getId(), group.getTitle(), group instanceof MilestoneExerciseGroup ? "milestone" : "variant", group.getMaxPoints(),
-                group.getReleaseDate(), group.getStartDate(), group.getDueDate(), group.getAssessmentDueDate(), group.getExampleSolutionPublicationDate());
+        // Reading the id off the (possibly lazy) anchor is safe: an identifier getter is served from the proxy itself.
+        // A milestone group's timeline getters below delegate to that same anchor anyway, so any caller that may pass a
+        // milestone group has already had to fetch it.
+        Long milestoneExerciseId = group instanceof MilestoneExerciseGroup milestoneGroup && milestoneGroup.getMilestoneExercise() != null
+                ? milestoneGroup.getMilestoneExercise().getId()
+                : null;
+        return new ExerciseVariantGroupReferenceDTO(group.getId(), group.getTitle(), group instanceof MilestoneExerciseGroup ? "milestone" : "variant", milestoneExerciseId,
+                group.getMaxPoints(), group.getReleaseDate(), group.getStartDate(), group.getDueDate(), group.getAssessmentDueDate(), group.getExampleSolutionPublicationDate());
     }
 }

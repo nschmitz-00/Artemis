@@ -639,11 +639,15 @@ public class ProgrammingExerciseGradingService {
 
         Result processedResult = calculateScoreForResult(targetResult, targetExercise, true);
 
-        processedResult.setSubmission(null);
-        processedResult = resultRepository.save(processedResult);
-        processedResult.setSubmission(targetSubmission);
+        // One insert, exactly like the canonical path in processNewProgrammingExerciseResult: the result owns a non-null
+        // foreign key to its submission (Result#submission is @JoinColumn(nullable = false) since #13581), so it has to
+        // be set when the row is written. Clearing it first and repairing the association afterwards is the pre-#13581
+        // pattern, where the submission's cascade filled the column in with a follow-up update; it now fails Hibernate's
+        // not-null check on every flush. The submission row itself was already written above and did not change since,
+        // so it is deliberately not saved again - that would only cascade a pointless merge of the result just inserted.
         targetSubmission.addResult(processedResult);
-        programmingSubmissionRepository.save(targetSubmission);
+        processedResult.setSubmission(targetSubmission);
+        processedResult = resultRepository.save(processedResult);
 
         // Mirrors the normal path's LocalCIResultProcessingService.notifyUserAboutNewResult call - without this the
         // sibling's result badge never appears client-side even though the Result row is already persisted.

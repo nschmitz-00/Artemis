@@ -96,6 +96,7 @@ public interface ExerciseRepository extends ArtemisJpaRepository<Exercise, Long>
                 CASE WHEN variantGroup.id IS NULL THEN NULL
                      WHEN EXISTS (SELECT 1 FROM MilestoneExerciseGroup mg WHERE mg.id = variantGroup.id) THEN 'milestone'
                      ELSE 'variant' END,
+                (SELECT anchorGroup.milestoneExercise.id FROM MilestoneExerciseGroup anchorGroup WHERE anchorGroup.id = variantGroup.id),
                 variantGroup.maxPoints,
                 variantGroup.releaseDate,
                 variantGroup.startDate,

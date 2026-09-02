@@ -3,7 +3,7 @@ import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { FaIconComponent } from '@fortawesome/angular-fontawesome';
-import { faCircleInfo, faLayerGroup, faPlayCircle, faWrench } from '@fortawesome/free-solid-svg-icons';
+import { faCircleInfo, faLayerGroup, faPlayCircle, faRotateRight, faWrench } from '@fortawesome/free-solid-svg-icons';
 import { finalize } from 'rxjs/operators';
 import { HttpErrorResponse } from '@angular/common/http';
 import { DifficultyLevel, Exercise, IncludedInOverallScore, getExerciseUrlSegment, getIcon } from 'app/exercise/shared/entities/exercise/exercise.model';
@@ -80,6 +80,7 @@ export class CourseExerciseGroupDetailComponent {
     protected readonly faCircleInfo = faCircleInfo;
     protected readonly faPlayCircle = faPlayCircle;
     protected readonly faWrench = faWrench;
+    protected readonly faRotateRight = faRotateRight;
     protected readonly getIcon = getIcon;
     protected readonly DifficultyLevel = DifficultyLevel;
     protected readonly FeatureToggle = FeatureToggle;
@@ -94,6 +95,13 @@ export class CourseExerciseGroupDetailComponent {
     /** Whether the requesting student has started the group's anchor milestone exercise; undefined until loaded. */
     protected readonly milestoneStatus = signal<MilestoneStatusDTO | undefined>(undefined);
     protected readonly isStartingMilestone = signal(false);
+    /**
+     * Whether the milestone-status request failed. Without it the header simply renders nothing when the request fails
+     * - no button, no message - which is indistinguishable from "this group has no start action", and a 404 (the most
+     * likely failure here) is suppressed by the global alert handler, so the failure was completely invisible.
+     */
+    protected readonly milestoneStatusFailed = signal(false);
+    protected readonly isLoadingMilestoneStatus = signal(false);
     /** Milestone groups whose status has already been requested, so revisiting a group does not re-fetch it. */
     private readonly requestedMilestoneStatusGroupIds = new Set<number>();
 
@@ -320,15 +328,42 @@ export class CourseExerciseGroupDetailComponent {
             if (group?.type !== 'milestone' || groupId === undefined || this.requestedMilestoneStatusGroupIds.has(groupId)) {
                 return;
             }
-            this.requestedMilestoneStatusGroupIds.add(groupId);
-            this.exerciseVariantGroupService
-                .getMilestoneStatus(this.courseId, groupId)
-                .pipe(takeUntilDestroyed(this.destroyRef))
-                .subscribe({
-                    next: (status) => this.milestoneStatus.set(status),
-                    error: () => this.requestedMilestoneStatusGroupIds.delete(groupId),
-                });
+            untracked(() => this.loadMilestoneStatus(groupId));
         });
+    }
+
+    /**
+     * Loads whether the student has started the group's anchor milestone. The group is marked as requested up front so
+     * an unrelated re-render does not re-issue it; a failure releases that mark again and is surfaced, so the student
+     * gets a retry instead of a header that silently renders nothing.
+     */
+    private loadMilestoneStatus(groupId: number): void {
+        this.requestedMilestoneStatusGroupIds.add(groupId);
+        this.milestoneStatusFailed.set(false);
+        this.isLoadingMilestoneStatus.set(true);
+        this.exerciseVariantGroupService
+            .getMilestoneStatus(this.courseId, groupId)
+            .pipe(
+                finalize(() => this.isLoadingMilestoneStatus.set(false)),
+                takeUntilDestroyed(this.destroyRef),
+            )
+            .subscribe({
+                next: (status) => this.milestoneStatus.set(status),
+                error: (error: HttpErrorResponse) => {
+                    this.requestedMilestoneStatusGroupIds.delete(groupId);
+                    this.milestoneStatusFailed.set(true);
+                    this.alertService.error('artemisApp.exerciseVariantGroup.detail.milestoneStatusLoadFailed');
+                },
+            });
+    }
+
+    /** Retries the milestone-status request after a failure, from the button rendered in the start action's place. */
+    protected retryMilestoneStatus(): void {
+        const groupId = this.group()?.id;
+        if (groupId === undefined || this.isLoadingMilestoneStatus()) {
+            return;
+        }
+        this.loadMilestoneStatus(groupId);
     }
 
     private renderProblemStatements(exercises: Exercise[], statements: Map<number, string>): void {

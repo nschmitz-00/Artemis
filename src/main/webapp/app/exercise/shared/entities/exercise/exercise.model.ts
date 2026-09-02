@@ -70,6 +70,22 @@ export const DEFAULT_PLAGIARISM_DETECTION_CONFIG: PlagiarismDetectionConfig = {
 
 export const exerciseTypes: ExerciseType[] = [ExerciseType.TEXT, ExerciseType.MODELING, ExerciseType.PROGRAMMING, ExerciseType.FILE_UPLOAD, ExerciseType.QUIZ];
 
+/**
+ * The type an exercise behaves as wherever the client groups, filters or buckets by kind.
+ * <p>
+ * `UserStoryExercise` and `MilestoneExercise` are `ProgrammingExercise` subtypes, and the server keeps counting them as
+ * programming for scoring (see `ExerciseType.getExerciseTypeFromClass` server-side) even though the payload names them
+ * by their real discriminator. Anything that has to line up with those buckets - the type filter, the statistics chart
+ * groups - must therefore normalise first, or a user story lands in a bucket the scores never mention. Code that
+ * genuinely needs to tell a user story apart (its effort estimate, the milestone group view) reads `type` directly.
+ *
+ * @param exerciseType the exercise's own type
+ * @return the programming type for the milestone subtypes, the type itself otherwise
+ */
+export function baseExerciseType(exerciseType?: ExerciseType): ExerciseType | undefined {
+    return exerciseType === ExerciseType.USER_STORY || exerciseType === ExerciseType.MILESTONE ? ExerciseType.PROGRAMMING : exerciseType;
+}
+
 // IMPORTANT NOTICE: The following strings have to be consistent with the ones defined in Exercise.java
 export enum IncludedInOverallScore {
     INCLUDED_COMPLETELY = 'INCLUDED_COMPLETELY',
@@ -220,6 +236,7 @@ export function getIcon(exerciseType?: ExerciseType): IconProp {
         [ExerciseType.TEXT]: faFont,
         [ExerciseType.FILE_UPLOAD]: faFileUpload,
         [ExerciseType.USER_STORY]: faKeyboard,
+        [ExerciseType.MILESTONE]: faKeyboard,
     };
 
     return icons[exerciseType] ?? faQuestion;
@@ -236,6 +253,7 @@ export function getIconTooltip(exerciseType?: ExerciseType): string {
         [ExerciseType.TEXT]: 'artemisApp.exercise.isText',
         [ExerciseType.FILE_UPLOAD]: 'artemisApp.exercise.isFileUpload',
         [ExerciseType.USER_STORY]: 'artemisApp.exercise.isProgramming',
+        [ExerciseType.MILESTONE]: 'artemisApp.exercise.isProgramming',
     };
 
     return tooltips[exerciseType];

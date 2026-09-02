@@ -1,6 +1,6 @@
 import { Component, ElementRef, HostListener, computed, effect, inject, input, output, signal, untracked, viewChild, viewChildren } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { Exercise, ExerciseType, getExerciseUrlSegment } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { Exercise, ExerciseType, baseExerciseType, getExerciseUrlSegment } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { FaIconComponent } from '@fortawesome/angular-fontawesome';
 import {
     IconDefinition,
@@ -215,10 +215,7 @@ export class ExerciseHeaderActionsComponent {
     // a plain programming exercise, so the template's `@switch` and the editor-actions check are keyed off this
     // normalized type rather than the exercise's own. (URL building uses `getExerciseUrlSegment` instead, which
     // normalizes the same two types to the same route segment - see `baseResource`.)
-    readonly switchExerciseType = computed(() => {
-        const type = this.exercise().type;
-        return type === ExerciseType.USER_STORY || type === ExerciseType.MILESTONE ? ExerciseType.PROGRAMMING : type;
-    });
+    readonly switchExerciseType = computed(() => baseExerciseType(this.exercise().type));
 
     constructor() {
         effect(() => {

@@ -13,6 +13,8 @@
                 },
                 "startMilestone": "Aufgabe starten",
                 "milestoneStarted": "Gestartet",
+                "retryMilestoneStatus": "Erneut versuchen",
+                "milestoneStatusLoadFailed": "Der Meilenstein-Status konnte nicht geladen werden. Die Startaktion ist erst nach dem Laden verfügbar.",
                 "instructorActions": "Aktionen für Lehrende"
             },
             "edit": "Gruppe bearbeiten",

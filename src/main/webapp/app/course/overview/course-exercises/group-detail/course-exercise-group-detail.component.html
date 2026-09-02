@@ -28,6 +28,17 @@
                                     (click)="startMilestone()"
                                 ></button>
                             }
+                        } @else if (milestoneStatusFailed()) {
+                            <!-- Without this the header renders nothing at all when the status request fails, which reads as a missing start action. -->
+                            <button
+                                jhi-exercise-action-button
+                                [buttonIcon]="faRotateRight"
+                                [buttonLabel]="'artemisApp.exerciseVariantGroup.detail.retryMilestoneStatus' | artemisTranslate"
+                                [buttonLoading]="isLoadingMilestoneStatus()"
+                                [hideLabelMobile]="false"
+                                [outlined]="true"
+                                (click)="retryMilestoneStatus()"
+                            ></button>
                         }
                         @if (course()?.isAtLeastEditor) {
                             <div ngbDropdown class="d-inline">

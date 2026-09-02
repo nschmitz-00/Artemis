@@ -73,4 +73,26 @@ public enum ExerciseType {
             default -> throw new IllegalArgumentException("Received unexecpted exercise class name %s".formatted(exerciseClass.getSimpleName()));
         };
     }
+
+    /**
+     * The wire discriminator for an exercise class - the {@code type} property clients read, matching
+     * {@code Exercise}'s {@code @JsonSubTypes} names and {@code Exercise#getType()}.
+     * <p>
+     * Deliberately not the same as {@link #getExerciseTypeFromClass}: that one is the server-side <em>category</em>, and
+     * it flattens {@code MilestoneExercise} and {@code UserStoryExercise} into {@link #PROGRAMMING} so score bucketing
+     * and every exhaustive switch over this enum keep working. A DTO that serializes the flattened value, however, tells
+     * the client a user story is a plain programming exercise - which is wrong, because the client mirrors the real
+     * discriminators and branches on them. Projections therefore carry both: the category for the server's own logic,
+     * this string for the wire.
+     *
+     * @param exerciseClass the class to resolve the discriminator for
+     * @return the discriminator, e.g. {@code "programming"}, {@code "user-story"} or {@code "milestone"}
+     */
+    public static String getDiscriminatorFromClass(Class<? extends Exercise> exerciseClass) {
+        return switch (exerciseClass.getSimpleName()) {
+            case "MilestoneExercise" -> "milestone";
+            case "UserStoryExercise" -> "user-story";
+            default -> getExerciseTypeFromClass(exerciseClass).getValue();
+        };
+    }
 }

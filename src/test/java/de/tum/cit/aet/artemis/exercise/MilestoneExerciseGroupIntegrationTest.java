@@ -13,16 +13,20 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.test.context.support.WithMockUser;
 
 import de.tum.cit.aet.artemis.course.domain.Course;
+import de.tum.cit.aet.artemis.course.dto.CourseExercisesForOverviewDTO;
 import de.tum.cit.aet.artemis.exercise.domain.ExerciseVariantGroup;
 import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
+import de.tum.cit.aet.artemis.exercise.dto.ExerciseOverviewDTO;
 import de.tum.cit.aet.artemis.exercise.dto.ExerciseVariantGroupDTO;
 import de.tum.cit.aet.artemis.exercise.dto.MilestoneExerciseGroupDTO;
+import de.tum.cit.aet.artemis.exercise.dto.MilestoneStatusDTO;
 import de.tum.cit.aet.artemis.exercise.dto.UpdateMilestoneExerciseGroupDTO;
 import de.tum.cit.aet.artemis.exercise.repository.ExerciseVariantGroupRepository;
 import de.tum.cit.aet.artemis.exercise.repository.MilestoneExerciseGroupRepository;
 import de.tum.cit.aet.artemis.programming.AbstractProgrammingIntegrationIndependentTest;
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingLanguage;
+import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 
 /**
  * Covers {@link MilestoneExerciseGroup} and its dedicated repository/routes, alongside ordinary
@@ -201,5 +205,55 @@ class MilestoneExerciseGroupIntegrationTest extends AbstractProgrammingIntegrati
         request.delete(milestoneGroupsUrl() + "/" + milestoneGroup.getId(), HttpStatus.FORBIDDEN);
 
         assertThat(milestoneExerciseGroupRepository.findByIdAndCourseId(milestoneGroup.getId(), course.getId())).isPresent();
+    }
+
+    /**
+     * The anchor exercise is never part of any exercise listing, so this endpoint is the only way the student group view
+     * learns its id - and therefore what the group's "Start exercise" action addresses.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+    void milestoneStatusNamesTheAnchorExerciseForAStudentWhoHasNotStartedIt() throws Exception {
+        MilestoneStatusDTO status = request.get(milestoneGroupsUrl() + "/" + milestoneGroup.getId() + "/milestone-status", HttpStatus.OK, MilestoneStatusDTO.class);
+
+        assertThat(status.milestoneExerciseId()).isEqualTo(milestoneExercise.getId());
+        assertThat(status.started()).isFalse();
+        assertThat(status.participationId()).isNull();
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+    void milestoneStatusRejectsAVariantGroup() throws Exception {
+        request.get(milestoneGroupsUrl() + "/" + variantGroup.getId() + "/milestone-status", HttpStatus.NOT_FOUND, MilestoneStatusDTO.class);
+    }
+
+    /**
+     * The course overview is what the student group view builds its groups from, so a milestone group's members have to
+     * carry the anchor exercise id along with the discriminator - otherwise the view knows the group is a milestone but
+     * not which exercise its actions address.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+    void theCourseOverviewNamesTheAnchorExerciseOnAMilestoneGroupMember() throws Exception {
+        UserStoryExercise member = new UserStoryExercise();
+        member.setTitle("User story");
+        member.setShortName("userstory" + TEST_PREFIX);
+        member.setProgrammingLanguage(ProgrammingLanguage.JAVA);
+        member.setCourse(course);
+        member.setMaxPoints(10.0);
+        member.setReleaseDate(ZonedDateTime.now().minusDays(1).truncatedTo(ChronoUnit.MILLIS));
+        member.setExerciseVariantGroup(milestoneGroup);
+        member.generateAndSetProjectKey();
+        programmingExerciseRepository.save(member);
+
+        var overview = request.get("/api/course/courses/" + course.getId() + "/exercises-for-overview", HttpStatus.OK, CourseExercisesForOverviewDTO.class);
+
+        // The anchor itself is never listed: MilestoneExercise.isVisibleToStudents() is always false.
+        assertThat(overview.exercises()).extracting(ExerciseOverviewDTO::id).doesNotContain(milestoneExercise.getId());
+        assertThat(overview.exercises()).filteredOn(exercise -> exercise.id().equals(member.getId())).singleElement().satisfies(exercise -> {
+            assertThat(exercise.exerciseVariantGroup()).isNotNull();
+            assertThat(exercise.exerciseVariantGroup().type()).isEqualTo("milestone");
+            assertThat(exercise.exerciseVariantGroup().milestoneExerciseId()).isEqualTo(milestoneExercise.getId());
+        });
     }
 }
