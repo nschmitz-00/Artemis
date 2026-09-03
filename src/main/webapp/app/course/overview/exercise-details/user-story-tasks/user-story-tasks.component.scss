@@ -1,0 +1,32 @@
+// Angular CDK moves drag-drop items via inline `transform` styles but applies no transition of its own - without
+// this, siblings displaced by a drag would just snap into their new slot. A bounce (slight overshoot) reads better
+// here than an ease-out: it makes the passively-shifted tiles feel alive rather than just repositioned.
+$bounce-easing: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+.cdk-drop-list-dragging .cdk-drag {
+    transition: transform 350ms $bounce-easing;
+}
+
+// The tile actively under the pointer must track it immediately - only the *other* tiles it displaces get the bounce.
+.cdk-drop-list-dragging .cdk-drag.cdk-drag-dragging {
+    transition: none;
+}
+
+// The dropped tile's own settle-into-place animation gets the same bounce for a consistent feel.
+.cdk-drag-preview {
+    transition: transform 350ms $bounce-easing !important;
+}
+
+// Without a custom *cdkDragPlaceholder template, CDK's default placeholder is a full clone of the dragged tile left
+// behind in its original slot - undimmed, it reads as a duplicate ("the tile is still there") next to the one
+// actually following the pointer. Fading it out keeps only the reserved gap visible.
+.cdk-drag-placeholder {
+    opacity: 0.3;
+}
+
+// The drag-handle/title row lives in tum-ui-card's own [tumUiCardHeader] projection slot, outside the `tum:p-5`
+// padded body its other content renders in. Padding it with the same token (rather than a same-named but
+// differently-scaled Bootstrap px-5/pt-5 utility) keeps its left/top inset identical to the content below it.
+.task-tile-header {
+    padding: calc(var(--tumaet-ui-spacing) * 5) calc(var(--tumaet-ui-spacing) * 5) 0;
+}

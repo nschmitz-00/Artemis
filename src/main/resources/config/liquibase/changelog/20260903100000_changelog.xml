@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- The tasks a participant creates for themself while working on a UserStoryExercise (a personal or team scrum
+         board). Keyed by participation, mirroring "user_story_effort", so a team shares one board. -->
+    <changeSet id="20260903100000-1" author="niklas">
+        <createTable tableName="user_story_task">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="participation_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="title" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Optional short description. -->
+            <column name="description" type="varchar(2000)"/>
+            <column name="task_points" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="priority" type="varchar(31)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="estimated_effort_hours" type="double">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="20260903100000-2" author="niklas">
+        <!-- CASCADE: a task board is meaningless once the participation it belongs to is gone, and deleting a
+             participation is a routine operation (exercise reset, participant removal). -->
+        <addForeignKeyConstraint baseColumnNames="participation_id" baseTableName="user_story_task"
+                                 constraintName="fk_user_story_task_participation" deferrable="false" initiallyDeferred="false"
+                                 onDelete="CASCADE" onUpdate="RESTRICT" referencedColumnNames="id" referencedTableName="participation" validate="true"/>
+    </changeSet>
+</databaseChangeLog>

@@ -9,11 +9,11 @@ export interface UserStoryEffortStatus extends UserStoryEffort {
 }
 
 /**
- * Reads and writes the effort the current user reports for a user story exercise (mirrors the backend
- * {@code UserStoryEffortResource}).
+ * Reads the effort the current user has reported for a user story exercise - summed from their task board rather
+ * than entered by hand (mirrors the backend {@code UserStoryEffortResource}).
  *
- * Both endpoints act on the caller's own participation only. A tutor reads the pair off the participation while
- * assessing, so there is nothing here for them.
+ * Every endpoint acts on the caller's own participation only, except reading one specific participation for the
+ * tutor assessing it.
  */
 @Injectable({ providedIn: 'root' })
 export class UserStoryEffortService {
@@ -40,10 +40,5 @@ export class UserStoryEffortService {
     /** The pair reported on one participation, for the tutor assessing it. */
     getEffortForParticipation(participationId: number): Observable<UserStoryEffort> {
         return this.http.get<UserStoryEffort>(`api/programming/participations/${participationId}/user-story-effort`);
-    }
-
-    /** Records the pair, replacing anything reported before. Rejected by the server once the story is due. */
-    updateEffort(exerciseId: number, effort: UserStoryEffort): Observable<UserStoryEffort> {
-        return this.http.put<UserStoryEffort>(this.resourceUrl(exerciseId), effort);
     }
 }

@@ -11,8 +11,6 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -25,12 +23,11 @@ import de.tum.cit.aet.artemis.programming.dto.UserStoryEffortStatusDTO;
 import de.tum.cit.aet.artemis.programming.service.UserStoryEffortService;
 
 /**
- * REST controller for the effort a participant reports on a {@link UserStoryExercise}: what they estimated the story
- * would take, and what it actually took.
+ * REST controller for the effort a participant has reported on a {@link UserStoryExercise}: what they estimated the
+ * story would take, and what it actually took - both summed from the participant's task board, and read-only.
  * <p>
- * Both endpoints act on the requesting user's own participation only - there is no way to read or write someone else's
- * through here. A tutor reads the pair off the participation while assessing instead (it is serialized with it), and
- * therefore needs no endpoint of its own.
+ * Every endpoint acts on the requesting user's own participation only - there is no way to read someone else's
+ * through here.
  */
 @Profile(PROFILE_CORE)
 @Lazy
@@ -50,10 +47,11 @@ public class UserStoryEffortResource {
     }
 
     /**
-     * GET /user-story-exercises/:exerciseId/effort : Get the effort the requesting user has reported for the story.
+     * GET /user-story-exercises/:exerciseId/effort : Get the effort summed from the requesting user's board for the
+     * story.
      *
      * @param exerciseId the id of the user story exercise
-     * @return the ResponseEntity with status 200 (OK) and the reported pair in the body, with unset values omitted
+     * @return the ResponseEntity with status 200 (OK) and the summed pair in the body
      */
     @GetMapping("user-story-exercises/{exerciseId}/effort")
     @EnforceAtLeastStudent
@@ -64,12 +62,10 @@ public class UserStoryEffortResource {
     }
 
     /**
-     * GET /courses/:courseId/user-story-efforts : Every user story in the course the requesting user has started, with
-     * whatever effort they have reported for it.
+     * GET /courses/:courseId/user-story-efforts : Every user story in the course the requesting user has started,
+     * with the effort summed from its board.
      * <p>
-     * One request for the whole exercise overview, which marks the stories still missing an estimate. The pair is
-     * deliberately not serialized with each participation: an inverse {@code @OneToOne} cannot be proxied, so that cost
-     * a query per participation and broke the dashboard payload once the participation was detached.
+     * One request for the whole exercise overview, which marks the stories still without any tasks.
      *
      * @param courseId the id of the course
      * @return the ResponseEntity with status 200 (OK) and one entry per started story
@@ -83,37 +79,18 @@ public class UserStoryEffortResource {
     }
 
     /**
-     * GET /participations/:participationId/user-story-effort : The effort reported on one participation.
+     * GET /participations/:participationId/user-story-effort : The effort summed from one participation's board.
      * <p>
-     * For the tutor assessing that participation; the participant themself may read it too. Access is checked against
-     * the participation itself, so this grants nothing the assessment view does not already have.
+     * For the tutor assessing that participation; the participant themself may read it too. Access is checked
+     * against the participation itself, so this grants nothing the assessment view does not already have.
      *
      * @param participationId the id of the participation
-     * @return the ResponseEntity with status 200 (OK) and the reported pair in the body
+     * @return the ResponseEntity with status 200 (OK) and the summed pair in the body
      */
     @GetMapping("participations/{participationId}/user-story-effort")
     @EnforceAtLeastStudent
     public ResponseEntity<UserStoryEffortDTO> getUserStoryEffortForParticipation(@PathVariable long participationId) {
         log.debug("REST request to get the reported effort on participation {}", participationId);
         return ResponseEntity.ok(userStoryEffortService.findForParticipation(participationId));
-    }
-
-    /**
-     * PUT /user-story-exercises/:exerciseId/effort : Record the effort the requesting user reports for the story,
-     * replacing anything they reported before.
-     * <p>
-     * Either value may be left unset, so a student can record the estimate up front and the actual effort later. Both
-     * stop being writable once the story is due.
-     *
-     * @param exerciseId the id of the user story exercise
-     * @param effortDTO  the reported pair, in hours
-     * @return the ResponseEntity with status 200 (OK) and the stored pair in the body
-     */
-    @PutMapping("user-story-exercises/{exerciseId}/effort")
-    @EnforceAtLeastStudent
-    public ResponseEntity<UserStoryEffortDTO> updateUserStoryEffort(@PathVariable long exerciseId, @RequestBody UserStoryEffortDTO effortDTO) {
-        log.debug("REST request to report the effort for user story exercise {} : {}", exerciseId, effortDTO);
-        User user = userRepository.getUser();
-        return ResponseEntity.ok(userStoryEffortService.save(exerciseId, effortDTO, user));
     }
 }

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- The estimated/actual effort a student reports for a UserStoryExercise is now computed as the sum of their
+         task board's tasks (see "user_story_task") rather than entered by hand and stored here, so this table is
+         no longer written to or read from. -->
+    <changeSet id="20260903170000-1" author="niklas">
+        <dropForeignKeyConstraint baseTableName="user_story_effort" constraintName="fk_user_story_effort_participation"/>
+    </changeSet>
+
+    <changeSet id="20260903170000-2" author="niklas">
+        <dropTable tableName="user_story_effort"/>
+    </changeSet>
+</databaseChangeLog>
