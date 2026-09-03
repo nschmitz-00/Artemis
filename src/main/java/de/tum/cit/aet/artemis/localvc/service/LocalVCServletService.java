@@ -1382,7 +1382,8 @@ public class LocalVCServletService {
     }
 
     /**
-     * Whether the milestone effort gate refuses this write, and why.
+     * Whether the milestone effort gate refuses this write, and why - i.e. whether a user story the participant has
+     * started still has no tasks on its board.
      * <p>
      * Lives here because the resolution from an on-disk repository to its exercise and participation does; the decision
      * itself is {@link MilestoneEffortGateService}'s. Called from {@link LocalVCPrePushHook} for git pushes; the online
@@ -1404,7 +1405,7 @@ public class LocalVCServletService {
         catch (Exception e) {
             // Fail open, for the same reason the gate service does: a repository that cannot be resolved here (a
             // template, solution or test repository, say) must not have its pushes refused.
-            log.debug("Could not evaluate the milestone effort gate for a push by {}; allowing the push", user.getLogin(), e);
+            log.debug("Could not evaluate the milestone task gate for a push by {}; allowing the push", user.getLogin(), e);
             return Optional.empty();
         }
     }

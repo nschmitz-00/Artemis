@@ -99,6 +99,12 @@
         </ng-template>
     }
 
+    @if (showTasks()) {
+        <ng-template jhiPanel [label]="'artemisApp.courseOverview.exerciseDetails.tasks.label'" [icon]="faListCheck">
+            <jhi-user-story-tasks [exerciseId]="exercise().id!" />
+        </ng-template>
+    }
+
     @if (showDiscussion()) {
         <ng-template jhiPanel [label]="'artemisApp.metis.communication.label'" [icon]="faComment">
             @defer (on idle) {

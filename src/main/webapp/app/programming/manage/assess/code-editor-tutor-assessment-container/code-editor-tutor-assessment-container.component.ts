@@ -54,6 +54,7 @@ import { parseCorrectionRound } from 'app/assessment/shared/util/correction-roun
 import { ArtemisDatePipe } from 'app/foundation/pipes/artemis-date.pipe';
 import { UserStoryEffortService } from 'app/programming/shared/services/user-story-effort.service';
 import { UserStoryEffort } from 'app/exercise/shared/entities/participation/programming-exercise-student-participation.model';
+import { UserStoryEffortFieldComponent } from 'app/programming/overview/user-story-effort/user-story-effort-field.component';
 
 @Component({
     selector: 'jhi-code-editor-tutor-assessment',
@@ -73,6 +74,7 @@ import { UserStoryEffort } from 'app/exercise/shared/entities/participation/prog
         FeedbackSuggestionsBannerComponent,
         ArtemisDatePipe,
         ArtemisTranslatePipe,
+        UserStoryEffortFieldComponent,
     ],
 })
 export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDestroy {

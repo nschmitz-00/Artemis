@@ -416,17 +416,17 @@ public class RepositoryProgrammingExerciseParticipationResource extends Reposito
         // The online editor commits without ever reaching a git hook, so the milestone effort gate that
         // LocalVCPrePushHook applies to pushes has to be applied again here - otherwise it is bypassed by editing in the
         // browser. See MilestoneEffortGateService.
-        rejectIfMilestoneEffortIsMissing(participationId);
+        rejectIfMilestoneHasNoTasks(participationId);
         return super.commitChanges(participationId);
     }
 
     /**
-     * Refuses a commit while the participant still owes a time estimate on a user story they have started, mirroring what
+     * Refuses a commit while a user story the participant has started still has no tasks on its board, mirroring what
      * {@code LocalVCPrePushHook} does for git pushes.
      *
      * @param participationId the participation being committed to
      */
-    private void rejectIfMilestoneEffortIsMissing(Long participationId) {
+    private void rejectIfMilestoneHasNoTasks(Long participationId) {
         // Loaded with its exercise: the gate's staff exemption reads the exercise's course, which an unfetched proxy
         // cannot supply once the session has closed (open-in-view is off) - and the gate fails open, so that would
         // silently disable it here rather than surface as an error.
@@ -441,7 +441,7 @@ public class RepositoryProgrammingExerciseParticipationResource extends Reposito
         User user = userRepository.getUser();
         List<String> blockingStoryTitles = milestoneEffortGateService.findStoriesBlockingWrite(exercise, programmingParticipation, user);
         if (!blockingStoryTitles.isEmpty()) {
-            throw new BadRequestAlertException(milestoneEffortGateService.buildRejectionMessage(blockingStoryTitles), "userStoryEffort", "milestoneEffortMissing");
+            throw new BadRequestAlertException(milestoneEffortGateService.buildRejectionMessage(blockingStoryTitles), "userStoryTask", "milestoneTasksMissing");
         }
     }
 

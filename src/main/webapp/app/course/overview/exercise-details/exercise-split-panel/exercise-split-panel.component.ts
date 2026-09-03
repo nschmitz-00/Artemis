@@ -4,7 +4,7 @@ import { Exercise, ExerciseType, getIcon } from 'app/exercise/shared/entities/ex
 import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
 import { participationChildRouteSegments } from 'app/course/overview/exercise-details/participation-child-route';
 import { StudentParticipation } from 'app/exercise/shared/entities/participation/student-participation.model';
-import { faAlignLeft, faComment, faGear, faGraduationCap } from '@fortawesome/free-solid-svg-icons';
+import { faAlignLeft, faComment, faGear, faGraduationCap, faListCheck } from '@fortawesome/free-solid-svg-icons';
 import { ProblemStatementComponent } from 'app/course/overview/exercise-details/problem-statement/problem-statement.component';
 import { ExerciseSubmission, isExerciseSubmission } from 'app/exercise/shared/exercise-submission.interface';
 import { LiveQuizParticipationStatus, QuizExercise } from 'app/quiz/shared/entities/quiz-exercise.model';
@@ -32,6 +32,7 @@ import { PlagiarismCaseInfo } from 'app/plagiarism/shared/entities/PlagiarismCas
 import { Result } from 'app/exercise/shared/entities/result/result.model';
 import { ExampleSolutionInfo } from 'app/exercise/services/exercise.service';
 import { DiscussionSectionComponent } from 'app/communication/shared/discussion-section/discussion-section.component';
+import { UserStoryTasksComponent } from 'app/course/overview/exercise-details/user-story-tasks/user-story-tasks.component';
 import { ModelingEditorComponent } from 'app/modeling/shared/modeling-editor/modeling-editor.component';
 import { AccountService } from 'app/core/auth/account.service';
 import { LLMSelectionDecision } from 'app/account/user/shared/dto/updateLLMSelectionDecision.dto';
@@ -59,6 +60,7 @@ import { LLMSelectionDecision } from 'app/account/user/shared/dto/updateLLMSelec
         ArtemisTranslatePipe,
         DiscussionSectionComponent,
         PanelModule,
+        UserStoryTasksComponent,
     ],
 })
 export class ExerciseSplitPanelComponent {
@@ -94,6 +96,7 @@ export class ExerciseSplitPanelComponent {
     protected readonly faComment = faComment;
     protected readonly faGraduationCap = faGraduationCap;
     protected readonly faAlignLeft = faAlignLeft;
+    protected readonly faListCheck = faListCheck;
     protected readonly getIcon = getIcon;
     protected readonly ExerciseType = ExerciseType;
     protected readonly AssessmentType = AssessmentType;
@@ -132,6 +135,8 @@ export class ExerciseSplitPanelComponent {
         const course = this.exercise().course;
         return !!course && (isCommunicationEnabled(course) || isMessagingEnabled(course));
     });
+
+    readonly showTasks = computed(() => this.exercise().type === ExerciseType.USER_STORY);
 
     /** A UserStoryExercise is a ProgrammingExercise (shares its group's repositories/code editor), so it follows the same student-facing behavior wherever this file branches on ExerciseType.PROGRAMMING. */
     private static isProgrammingLike(type: ExerciseType | undefined): boolean {

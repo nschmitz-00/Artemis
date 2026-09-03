@@ -19,14 +19,14 @@ import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseParticipation;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParticipation;
 import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
-import de.tum.cit.aet.artemis.programming.repository.UserStoryEffortRepository;
+import de.tum.cit.aet.artemis.programming.repository.UserStoryTaskRepository;
 
 /**
  * Decides whether a participant may write to a milestone group's shared repository yet.
  * <p>
  * A milestone group's {@link UserStoryExercise}s all share the anchor {@link MilestoneExercise}'s repository, so there is
  * one place work arrives for the whole group - and one place to require that every story the participant has started
- * carries a time estimate before more work lands on top of it.
+ * has been broken down into at least one task before more work lands on top of it.
  * <p>
  * Consulted from the two paths that can write to that repository, which are enforced separately because they do not
  * share code: {@code LocalVCPrePushHook} for git pushes over HTTP and SSH, and the online code editor's commit endpoint
@@ -41,24 +41,23 @@ public class MilestoneEffortGateService {
 
     private final MilestoneExerciseGroupRepository milestoneExerciseGroupRepository;
 
-    private final UserStoryEffortRepository userStoryEffortRepository;
+    private final UserStoryTaskRepository userStoryTaskRepository;
 
     private final AuthorizationCheckService authCheckService;
 
-    public MilestoneEffortGateService(MilestoneExerciseGroupRepository milestoneExerciseGroupRepository, UserStoryEffortRepository userStoryEffortRepository,
+    public MilestoneEffortGateService(MilestoneExerciseGroupRepository milestoneExerciseGroupRepository, UserStoryTaskRepository userStoryTaskRepository,
             AuthorizationCheckService authCheckService) {
         this.milestoneExerciseGroupRepository = milestoneExerciseGroupRepository;
-        this.userStoryEffortRepository = userStoryEffortRepository;
+        this.userStoryTaskRepository = userStoryTaskRepository;
         this.authCheckService = authCheckService;
     }
 
     /**
      * The user story exercises that block the participant from writing to this repository: the ones they have started but
-     * not yet estimated.
+     * not yet broken down into any tasks.
      * <p>
      * Only stories the participant already has a participation in are asked about, so the block can always be cleared -
-     * a story that was never started has nowhere to record an estimate. Only the <em>estimated</em> effort is required:
-     * the actual effort is by definition unknowable before the work the write contains.
+     * a story that was never started has nowhere to create a task.
      * <p>
      * Returns empty - i.e. allows the write - for everything that is not a student writing to a milestone repository:
      * template/solution/test repositories, non-milestone exercises, and teaching staff, who must be able to set an
@@ -81,7 +80,7 @@ public class MilestoneEffortGateService {
             if (group == null) {
                 return List.of();
             }
-            return userStoryEffortRepository.findStartedStoryTitlesWithoutEstimateByGroupIdAndStudentLogin(group.getId(), user.getLogin());
+            return userStoryTaskRepository.findStartedStoryTitlesWithoutTasksByGroupIdAndStudentLogin(group.getId(), user.getLogin());
         }
         catch (Exception e) {
             // Deliberately fail open. This runs on the hot path of every push in the course; refusing everyone's work
@@ -99,6 +98,6 @@ public class MilestoneEffortGateService {
      * @return the message to reject the write with
      */
     public String buildRejectionMessage(List<String> blockingStoryTitles) {
-        return "Enter an estimated effort for these user stories before pushing: " + String.join(", ", blockingStoryTitles);
+        return "Break these user stories down into at least one task before pushing: " + String.join(", ", blockingStoryTitles);
     }
 }

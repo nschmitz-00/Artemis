@@ -101,7 +101,7 @@ public record LocalVCPrePushHook(LocalVCServletService localVCServletService, Us
             }
         }
 
-        // Refuse the push while the participant still owes a time estimate on a user story they have started (see
+        // Refuse the push while a user story the participant has started still has no tasks on its board (see
         // MilestoneEffortGateService). Checked before the tree walk below, so a blocked push does not pay for it.
         Optional<String> milestoneEffortRejectionReason = localVCServletService.findMilestoneEffortRejectionReason(repository, user);
         if (milestoneEffortRejectionReason.isPresent()) {

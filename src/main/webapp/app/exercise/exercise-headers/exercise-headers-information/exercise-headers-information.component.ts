@@ -1,6 +1,5 @@
 import { Component, DestroyRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { HttpErrorResponse } from '@angular/common/http';
 import { SortService } from 'app/foundation/service/sort.service';
 import dayjs from 'dayjs/esm';
 import { Exercise, ExerciseType, IncludedInOverallScore, getCourseFromExercise } from 'app/exercise/shared/entities/exercise/exercise.model';
@@ -30,9 +29,7 @@ import { NgbTooltip } from '@ng-bootstrap/ng-bootstrap';
 import { DEFAULT_ATHENA_FEEDBACK_REQUEST_LIMIT } from 'app/course/overview/exercise-details/request-feedback-button/request-feedback-button.component';
 import { UserStoryEffortService } from 'app/programming/shared/services/user-story-effort.service';
 import { UserStoryEffort } from 'app/exercise/shared/entities/participation/programming-exercise-student-participation.model';
-import { AlertService } from 'app/foundation/service/alert.service';
 import { UserStoryEffortFieldComponent } from 'app/programming/overview/user-story-effort/user-story-effort-field.component';
-import { cloneWith } from 'app/foundation/util/deep-clone.util';
 
 /**
  * Live, quiz-specific information shown in the exercise header during a live or practice quiz participation,
@@ -98,7 +95,6 @@ export class ExerciseHeadersInformationComponent {
     private readonly destroyRef = inject(DestroyRef);
     private sortService = inject(SortService);
     private readonly userStoryEffortService = inject(UserStoryEffortService);
-    private readonly alertService = inject(AlertService);
     private serverDateService = inject(ArtemisServerDateService);
 
     /** Captured once: the server time used as the reference point for all relative/absolute date displays. */
@@ -176,12 +172,6 @@ export class ExerciseHeadersInformationComponent {
      */
     protected readonly reportedEffort = signal<UserStoryEffort | undefined>(undefined);
 
-    /** Past the due date the server refuses the write, so the boxes are read-only rather than misleadingly clickable. */
-    protected readonly isEffortEditable = computed(() => {
-        const dueDate = this.exercise().dueDate;
-        return !dueDate || dayjs().isBefore(dueDate);
-    });
-
     constructor() {
         effect(() => {
             const exercise = this.exercise();
@@ -205,31 +195,9 @@ export class ExerciseHeadersInformationComponent {
     }
 
     /**
-     * Stores one of the two reported values, keeping the other as it stands, and confirms the save - without it the
-     * student has no way to tell an accepted value from a silently dropped one.
-     */
-    protected saveReportedEffort(field: 'estimatedEffort' | 'actualEffort', value: number | undefined): void {
-        const exerciseId = this.exercise().id;
-        if (exerciseId === undefined) {
-            return;
-        }
-        const effort: UserStoryEffort = cloneWith(this.reportedEffort() ?? {}, { [field]: value });
-        this.userStoryEffortService.updateEffort(exerciseId, effort).subscribe({
-            next: (saved) => {
-                this.reportedEffort.set(saved);
-                this.editingEffortField.set(undefined);
-                this.alertService.success('artemisApp.userStoryEffort.saved');
-            },
-            error: (error: HttpErrorResponse) => this.alertService.addErrorAlert(error.error?.title ?? error.message, error.error?.message, error.error?.params),
-        });
-    }
-
-    /** Which of the two effort boxes is currently being edited, if any. Owned here so the whole box is the click target. */
-    protected readonly editingEffortField = signal<'estimatedEffort' | 'actualEffort' | undefined>(undefined);
-
-    /**
-     * The two effort boxes, shown only once there is a participation to report on. An unreported value gives its box an
-     * orange border: a missing estimate is what blocks pushing to the milestone group's shared repository.
+     * The two effort boxes, shown only once there is a participation to report on, read-only. The estimated box gets
+     * an orange border while the board behind it has no tasks yet - that is what blocks pushing to the milestone
+     * group's shared repository; the actual box gets one while nothing has been logged yet.
      */
     getUserStoryEffortItems(): InformationBox[] {
         if (this.exercise()?.type !== ExerciseType.USER_STORY || this.studentParticipation()?.id === undefined) {
@@ -241,7 +209,7 @@ export class ExerciseHeadersInformationComponent {
                 title: 'artemisApp.userStoryEffort.estimatedEffortShort',
                 content: { type: 'userStoryEffort', value: 'estimatedEffort' },
                 isContentComponent: true,
-                borderColor: effort?.estimatedEffort === undefined ? 'state-warning' : undefined,
+                borderColor: !effort?.estimatedEffort ? 'state-warning' : undefined,
             },
             {
                 title: 'artemisApp.userStoryEffort.actualEffortShort',
@@ -250,14 +218,6 @@ export class ExerciseHeadersInformationComponent {
                 borderColor: effort?.actualEffort === undefined ? 'state-warning' : undefined,
             },
         ];
-    }
-
-    /** Starts editing one effort box; ignored past the due date, when the server would refuse the write anyway. */
-    protected startEditingEffort(field: 'estimatedEffort' | 'actualEffort'): void {
-        if (!this.isEffortEditable()) {
-            return;
-        }
-        this.editingEffortField.set(field);
     }
 
     /** All header information boxes, in display order: the generic exercise boxes first, then the live quiz boxes last. */

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.ZonedDateTime;
 import java.util.List;
 
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,23 +18,25 @@ import de.tum.cit.aet.artemis.exercise.repository.MilestoneExerciseGroupReposito
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParticipation;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingLanguage;
-import de.tum.cit.aet.artemis.programming.domain.UserStoryEffort;
+import de.tum.cit.aet.artemis.programming.domain.TaskPriority;
 import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
+import de.tum.cit.aet.artemis.programming.domain.UserStoryTask;
 import de.tum.cit.aet.artemis.programming.dto.UserStoryEffortDTO;
 import de.tum.cit.aet.artemis.programming.dto.UserStoryEffortStatusDTO;
-import de.tum.cit.aet.artemis.programming.repository.UserStoryEffortRepository;
+import de.tum.cit.aet.artemis.programming.repository.UserStoryTaskRepository;
 import de.tum.cit.aet.artemis.programming.service.MilestoneEffortGateService;
 
 /**
- * Covers the effort a student reports for a user story exercise, and the gate that refuses writes to a milestone group's
- * shared repository while a started story is still unestimated.
+ * Covers the effort a student reports for a user story exercise - summed from their task board rather than entered
+ * by hand - and the gate that refuses writes to a milestone group's shared repository while a started story still
+ * has no tasks.
  */
 class UserStoryEffortIntegrationTest extends AbstractProgrammingIntegrationIndependentTest {
 
     private static final String TEST_PREFIX = "userstoryeffort";
 
     @Autowired
-    private UserStoryEffortRepository userStoryEffortRepository;
+    private UserStoryTaskRepository userStoryTaskRepository;
 
     @Autowired
     private MilestoneExerciseGroupRepository milestoneExerciseGroupRepository;
@@ -96,84 +99,61 @@ class UserStoryEffortIntegrationTest extends AbstractProgrammingIntegrationIndep
         return "/api/programming/user-story-exercises/" + exerciseId + "/effort";
     }
 
-    @Test
-    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
-    void reportingEffortCreatesThenUpdatesASingleRow() throws Exception {
-        var participation = participationUtilService.addStudentParticipationForProgrammingExercise(userStory, studentLogin);
-
-        UserStoryEffortDTO created = request.putWithResponseBody(effortUrl(userStory.getId()), new UserStoryEffortDTO(3.5, null), UserStoryEffortDTO.class, HttpStatus.OK);
-        assertThat(created.estimatedEffort()).isEqualTo(3.5);
-        assertThat(created.actualEffort()).isNull();
-
-        Long rowIdAfterFirstReport = userStoryEffortRepository.findByParticipationId(participation.getId()).orElseThrow().getId();
-
-        UserStoryEffortDTO updated = request.putWithResponseBody(effortUrl(userStory.getId()), new UserStoryEffortDTO(3.5, 5.0), UserStoryEffortDTO.class, HttpStatus.OK);
-        assertThat(updated.actualEffort()).isEqualTo(5.0);
-        // Upsert, not insert: reporting again must update the same row rather than leave a second one behind.
-        assertThat(userStoryEffortRepository.findByParticipationId(participation.getId()).orElseThrow().getId()).isEqualTo(rowIdAfterFirstReport);
+    private UserStoryTask taskFor(ProgrammingExerciseStudentParticipation participation, double estimatedHours, @Nullable Double actualHours) {
+        UserStoryTask task = new UserStoryTask();
+        task.setParticipation(participation);
+        task.setTitle("Task");
+        task.setTaskPoints(1);
+        task.setPriority(TaskPriority.LOW);
+        task.setEstimatedEffortHours(estimatedHours);
+        task.setActualEffortHours(actualHours);
+        return userStoryTaskRepository.save(task);
     }
 
     @Test
     @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
-    void readingEffortReturnsAnEmptyPairBeforeAnythingIsReported() throws Exception {
+    void readingEffortReturnsAZeroEstimateAndNoActualBeforeAnyTaskExists() throws Exception {
         participationUtilService.addStudentParticipationForProgrammingExercise(userStory, studentLogin);
 
         UserStoryEffortDTO effort = request.get(effortUrl(userStory.getId()), HttpStatus.OK, UserStoryEffortDTO.class);
 
-        assertThat(effort.estimatedEffort()).isNull();
+        assertThat(effort.estimatedEffort()).isEqualTo(0.0);
         assertThat(effort.actualEffort()).isNull();
     }
 
     @Test
     @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
-    void reportingIsRejectedWithoutAParticipation() throws Exception {
-        request.putWithResponseBody(effortUrl(userStory.getId()), new UserStoryEffortDTO(1.0, null), UserStoryEffortDTO.class, HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
-    void reportingIsRejectedForANonUserStoryExercise() throws Exception {
-        request.putWithResponseBody(effortUrl(milestoneExercise.getId()), new UserStoryEffortDTO(1.0, null), UserStoryEffortDTO.class, HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
-    void outOfRangeValuesAreRejected() throws Exception {
+    void readingEffortSumsTheParticipantsTasks() throws Exception {
         var participation = participationUtilService.addStudentParticipationForProgrammingExercise(userStory, studentLogin);
+        taskFor(participation, 2.0, 1.0);
+        taskFor(participation, 3.5, null);
 
-        request.putWithResponseBody(effortUrl(userStory.getId()), new UserStoryEffortDTO(-1.0, null), UserStoryEffortDTO.class, HttpStatus.BAD_REQUEST);
-        request.putWithResponseBody(effortUrl(userStory.getId()), new UserStoryEffortDTO(null, 10_000.0), UserStoryEffortDTO.class, HttpStatus.BAD_REQUEST);
-        // Scoped to this participation: the suite shares a database, so other tests' rows are in the table too.
-        assertThat(userStoryEffortRepository.findByParticipationId(participation.getId())).isEmpty();
+        UserStoryEffortDTO effort = request.get(effortUrl(userStory.getId()), HttpStatus.OK, UserStoryEffortDTO.class);
+
+        assertThat(effort.estimatedEffort()).isEqualTo(5.5);
+        // SUM ignores the task with no actual effort logged yet rather than treating it as 0.
+        assertThat(effort.actualEffort()).isEqualTo(1.0);
     }
 
     @Test
     @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
-    void reportingIsRejectedAfterTheDueDate() throws Exception {
-        UserStoryExercise pastStory = createUserStory("us2", ZonedDateTime.now().minusDays(1));
-        participationUtilService.addStudentParticipationForProgrammingExercise(pastStory, studentLogin);
-
-        request.putWithResponseBody(effortUrl(pastStory.getId()), new UserStoryEffortDTO(1.0, null), UserStoryEffortDTO.class, HttpStatus.BAD_REQUEST);
+    void readingEffortIsRejectedWithoutAParticipation() throws Exception {
+        request.get(effortUrl(userStory.getId()), HttpStatus.BAD_REQUEST, UserStoryEffortDTO.class);
     }
 
     @Test
     @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
-    void anIndividualDueDateExtensionStillAllowsReporting() throws Exception {
-        UserStoryExercise pastStory = createUserStory("us3", ZonedDateTime.now().minusDays(1));
-        ProgrammingExerciseStudentParticipation participation = participationUtilService.addStudentParticipationForProgrammingExercise(pastStory, studentLogin);
-        participation.setIndividualDueDate(ZonedDateTime.now().plusDays(3));
-        participationRepository.save(participation);
-
-        request.putWithResponseBody(effortUrl(pastStory.getId()), new UserStoryEffortDTO(1.0, null), UserStoryEffortDTO.class, HttpStatus.OK);
+    void readingEffortIsRejectedForANonUserStoryExercise() throws Exception {
+        request.get(effortUrl(milestoneExercise.getId()), HttpStatus.BAD_REQUEST, UserStoryEffortDTO.class);
     }
 
     @Test
     @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
     void theCourseLookupReportsEveryStartedStory() throws Exception {
-        participationUtilService.addStudentParticipationForProgrammingExercise(userStory, studentLogin);
+        var participation = participationUtilService.addStudentParticipationForProgrammingExercise(userStory, studentLogin);
+        taskFor(participation, 2.0, null);
         UserStoryExercise otherStory = createUserStory("us4", ZonedDateTime.now().plusDays(7));
         participationUtilService.addStudentParticipationForProgrammingExercise(otherStory, studentLogin);
-        request.putWithResponseBody(effortUrl(userStory.getId()), new UserStoryEffortDTO(2.0, null), UserStoryEffortDTO.class, HttpStatus.OK);
 
         List<UserStoryEffortStatusDTO> statuses = request.getList("/api/programming/courses/" + course.getId() + "/user-story-efforts", HttpStatus.OK,
                 UserStoryEffortStatusDTO.class);
@@ -181,15 +161,16 @@ class UserStoryEffortIntegrationTest extends AbstractProgrammingIntegrationIndep
         assertThat(statuses).extracting(UserStoryEffortStatusDTO::exerciseId).containsExactlyInAnyOrder(userStory.getId(), otherStory.getId());
         assertThat(statuses).filteredOn(status -> status.exerciseId().equals(userStory.getId())).singleElement().extracting(UserStoryEffortStatusDTO::estimatedEffort)
                 .isEqualTo(2.0);
-        // The story with no estimate is what the overview marks.
-        assertThat(statuses).filteredOn(status -> status.exerciseId().equals(otherStory.getId())).singleElement().extracting(UserStoryEffortStatusDTO::estimatedEffort).isNull();
+        // The story with no tasks yet sums to 0, not null - there is simply nothing to add up.
+        assertThat(statuses).filteredOn(status -> status.exerciseId().equals(otherStory.getId())).singleElement().extracting(UserStoryEffortStatusDTO::estimatedEffort)
+                .isEqualTo(0.0);
     }
 
     @Test
     @WithMockUser(username = TEST_PREFIX + "tutor1", roles = "TA")
     void aTutorCanReadTheEffortOnAParticipationTheyAssess() throws Exception {
         var participation = participationUtilService.addStudentParticipationForProgrammingExercise(userStory, studentLogin);
-        userStoryEffortRepository.save(effortFor(participation, 4.0, 6.0));
+        taskFor(participation, 4.0, 6.0);
 
         UserStoryEffortDTO effort = request.get("/api/programming/participations/" + participation.getId() + "/user-story-effort", HttpStatus.OK, UserStoryEffortDTO.class);
 
@@ -201,21 +182,13 @@ class UserStoryEffortIntegrationTest extends AbstractProgrammingIntegrationIndep
     @WithMockUser(username = TEST_PREFIX + "student2", roles = "USER")
     void anotherStudentCannotReadTheEffortOnAParticipation() throws Exception {
         var participation = participationUtilService.addStudentParticipationForProgrammingExercise(userStory, studentLogin);
-        userStoryEffortRepository.save(effortFor(participation, 4.0, null));
+        taskFor(participation, 4.0, null);
 
         request.get("/api/programming/participations/" + participation.getId() + "/user-story-effort", HttpStatus.FORBIDDEN, UserStoryEffortDTO.class);
     }
 
-    private UserStoryEffort effortFor(ProgrammingExerciseStudentParticipation participation, Double estimated, Double actual) {
-        UserStoryEffort effort = new UserStoryEffort();
-        effort.setParticipation(participation);
-        effort.setEstimatedEffort(estimated);
-        effort.setActualEffort(actual);
-        return effort;
-    }
-
     @Test
-    void theGateBlocksAStartedStoryWithoutAnEstimate() {
+    void theGateBlocksAStartedStoryWithoutAnyTasks() {
         participationUtilService.addStudentParticipationForProgrammingExercise(userStory, studentLogin);
         var milestoneParticipation = participationUtilService.addStudentParticipationForProgrammingExercise(milestoneExercise, studentLogin);
         var student = userUtilService.getUserByLogin(studentLogin);
@@ -231,19 +204,18 @@ class UserStoryEffortIntegrationTest extends AbstractProgrammingIntegrationIndep
         var milestoneParticipation = participationUtilService.addStudentParticipationForProgrammingExercise(milestoneExercise, studentLogin);
         var student = userUtilService.getUserByLogin(studentLogin);
 
-        // No participation in the story, so there is nowhere to record an estimate - it must not block the push.
+        // No participation in the story, so there is nowhere to create a task - it must not block the push.
         assertThat(milestoneEffortGateService.findStoriesBlockingWrite(milestoneExercise, milestoneParticipation, student)).isEmpty();
     }
 
     @Test
-    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
-    void theGateClearsOnceTheEstimateIsReported() throws Exception {
-        participationUtilService.addStudentParticipationForProgrammingExercise(userStory, studentLogin);
+    void theGateClearsOnceATaskExists() {
+        var participation = participationUtilService.addStudentParticipationForProgrammingExercise(userStory, studentLogin);
         var milestoneParticipation = participationUtilService.addStudentParticipationForProgrammingExercise(milestoneExercise, studentLogin);
         var student = userUtilService.getUserByLogin(studentLogin);
         assertThat(milestoneEffortGateService.findStoriesBlockingWrite(milestoneExercise, milestoneParticipation, student)).isNotEmpty();
 
-        request.putWithResponseBody(effortUrl(userStory.getId()), new UserStoryEffortDTO(2.0, null), UserStoryEffortDTO.class, HttpStatus.OK);
+        taskFor(participation, 2.0, null);
 
         assertThat(milestoneEffortGateService.findStoriesBlockingWrite(milestoneExercise, milestoneParticipation, student)).isEmpty();
     }

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- The real time a participant has logged on a task so far. Nullable: unset until they enter it for the first
+         time, unlike the estimate which is required up front. -->
+    <changeSet id="20260903160000-1" author="niklas">
+        <addColumn tableName="user_story_task">
+            <column name="actual_effort_hours" type="double"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

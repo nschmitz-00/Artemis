@@ -4,21 +4,15 @@ import org.jspecify.annotations.Nullable;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-import de.tum.cit.aet.artemis.programming.domain.UserStoryEffort;
-
 /**
- * The effort a participant reports for a user story exercise, in hours. Used in both directions: the student reads their
- * own pair and writes it back.
- * <p>
- * Either value may be {@code null} - a student may record the estimate and come back for the actual effort later.
+ * The effort a participant has reported for a user story exercise, in hours - summed from their task board rather
+ * than entered by hand (see {@code UserStoryTaskRepository#sumEffortByParticipationId}).
  *
- * @param estimatedEffort hours the participant expected the story to take
- * @param actualEffort    hours the story actually took
+ * @param estimatedEffort hours the participant's tasks estimate the story to take; {@code 0} for a board with no
+ *                            tasks yet, never {@code null}
+ * @param actualEffort    hours the tasks report actually spent so far, {@code null} until at least one task has any
+ *                            logged
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-public record UserStoryEffortDTO(@Nullable Double estimatedEffort, @Nullable Double actualEffort) {
-
-    public static UserStoryEffortDTO of(@Nullable UserStoryEffort effort) {
-        return effort == null ? new UserStoryEffortDTO(null, null) : new UserStoryEffortDTO(effort.getEstimatedEffort(), effort.getActualEffort());
-    }
+public record UserStoryEffortDTO(Double estimatedEffort, @Nullable Double actualEffort) {
 }

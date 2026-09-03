@@ -305,7 +305,9 @@ export class CourseExercisesComponent implements SidebarView {
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: (efforts) => {
-                    const missingEstimate = new Set(efforts.filter((effort) => effort.estimatedEffort === undefined).map((effort) => effort.exerciseId));
+                    // The estimate is summed from the story's tasks and so is never undefined - 0 (a board with no
+                    // tasks yet) is what "missing" means now.
+                    const missingEstimate = new Set(efforts.filter((effort) => !effort.estimatedEffort).map((effort) => effort.exerciseId));
                     const mark = (card: SidebarCardElement): SidebarCardElement =>
                         cloneWith(card, {
                             effortMissing: typeof card.id === 'number' && missingEstimate.has(card.id),

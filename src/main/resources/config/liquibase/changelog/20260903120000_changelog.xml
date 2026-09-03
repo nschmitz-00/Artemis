@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- The progress of a task, shifted NEW -> IN_PROGRESS -> DONE by its participant. Defaults to NEW so existing rows
+         (and inserts that omit it) start at the beginning of the workflow. -->
+    <changeSet id="20260903120000-1" author="niklas">
+        <addColumn tableName="user_story_task">
+            <column name="state" type="varchar(31)" defaultValue="NEW">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

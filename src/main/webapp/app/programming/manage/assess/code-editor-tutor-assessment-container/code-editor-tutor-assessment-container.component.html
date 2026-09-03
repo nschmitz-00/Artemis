@@ -62,12 +62,12 @@
         @if (exercise()?.type === USER_STORY) {
             <div class="d-flex gap-3 mb-2" id="user-story-effort-assessment">
                 <span>
-                    <span jhiTranslate="artemisApp.userStoryEffort.estimatedEffort"></span>:
-                    <strong>{{ reportedEffort()?.estimatedEffort ?? ('artemisApp.userStoryEffort.notReported' | artemisTranslate) }}</strong>
+                    <span jhiTranslate="artemisApp.userStoryEffort.estimatedEffortShort"></span>:
+                    <strong><jhi-user-story-effort-field [value]="reportedEffort()?.estimatedEffort" /></strong>
                 </span>
                 <span>
-                    <span jhiTranslate="artemisApp.userStoryEffort.actualEffort"></span>:
-                    <strong>{{ reportedEffort()?.actualEffort ?? ('artemisApp.userStoryEffort.notReported' | artemisTranslate) }}</strong>
+                    <span jhiTranslate="artemisApp.userStoryEffort.actualEffortShort"></span>:
+                    <strong><jhi-user-story-effort-field [value]="reportedEffort()?.actualEffort" /></strong>
                 </span>
             </div>
         }
