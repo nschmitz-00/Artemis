@@ -7,6 +7,7 @@ import { ProblemStatementAnalysis } from 'app/programming/manage/instructions-ed
 import { ProgrammingExerciseService } from 'app/programming/manage/services/programming-exercise.service';
 import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
 import { Participation } from 'app/exercise/shared/entities/participation/participation.model';
+import { ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { ProgrammingExerciseParticipationService } from 'app/programming/manage/services/programming-exercise-participation.service';
 import { ProgrammingExerciseGradingService } from 'app/programming/manage/services/programming-exercise-grading.service';
 import { Result } from 'app/exercise/shared/entities/result/result.model';
@@ -336,7 +337,7 @@ export class ProgrammingExerciseEditableInstructionComponent implements AfterVie
                         // If there are test cases, map them to their names, sort them and use them for the markdown editor.
                         if (testCases) {
                             const sortedTestCaseNames = testCases
-                                .filter((testCase) => testCase.active)
+                                .filter((testCase) => this.isRelevantTestCase(testCase))
                                 .map((testCase) => testCase.testName!)
                                 .sort();
                             return of(sortedTestCaseNames);
@@ -355,6 +356,19 @@ export class ProgrammingExerciseEditableInstructionComponent implements AfterVie
                 )
                 .subscribe();
         }
+    }
+
+    /**
+     * Whether a test case should be offered in the editor (test case autocompletion and problem statement analysis).
+     * <p>
+     * For a regular exercise `active` means "still produced by the test suite", so an inactive one is stale and hiding
+     * it is right. A UserStoryExercise flips the meaning: its test cases are duplicated from its milestone's shared
+     * suite and only become active once one of its own tasks references them (see
+     * UserStoryExerciseService.updateRelevantTestCases), so filtering on `active` there would hide exactly the tests
+     * the instructor is about to reference - including, on a freshly created story, every single one of them.
+     */
+    private isRelevantTestCase(testCase: ProgrammingExerciseTestCase): boolean {
+        return this.exercise().type === ExerciseType.USER_STORY || !!testCase.active;
     }
 
     /**

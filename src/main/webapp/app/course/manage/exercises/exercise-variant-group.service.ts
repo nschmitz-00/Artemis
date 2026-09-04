@@ -27,6 +27,13 @@ export interface ExerciseVariantGroupDTO {
     dueDate?: dayjs.Dayjs;
     assessmentDueDate?: dayjs.Dayjs;
     exampleSolutionPublicationDate?: dayjs.Dayjs;
+    /**
+     * Only set when {@link type} is `'milestone'` — the anchor MilestoneExercise's own language/project type, which
+     * every member of the group inherits. The user story create form hides both fields, so these are what lets it seed
+     * a new story's problem statement from the milestone's readme template instead of the client-side default.
+     */
+    programmingLanguage?: ProgrammingLanguage;
+    projectType?: ProjectType;
     exerciseIds?: number[];
 }
 
@@ -401,6 +408,8 @@ export function toCourseExerciseGroup(dto: ExerciseVariantGroupDTO, exercisesByI
         dueDate: dto.dueDate,
         assessmentDueDate: dto.assessmentDueDate,
         exampleSolutionPublicationDate: dto.exampleSolutionPublicationDate,
+        programmingLanguage: dto.programmingLanguage,
+        projectType: dto.projectType,
         exercises: (dto.exerciseIds ?? []).map((id) => exercisesById.get(id)).filter((exercise): exercise is Exercise => exercise !== undefined),
     };
 }

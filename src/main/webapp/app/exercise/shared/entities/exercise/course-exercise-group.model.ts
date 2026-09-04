@@ -1,5 +1,6 @@
 import dayjs from 'dayjs/esm';
 import { Exercise } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { ProgrammingLanguage, ProjectType } from 'app/programming/shared/entities/programming-exercise.model';
 import { convertDateFromServer } from 'app/foundation/util/date.utils';
 
 /**
@@ -33,6 +34,15 @@ export class CourseExerciseGroup {
      * calculation: if the summed exercise points exceed the cap, the contribution is capped here.
      */
     maxPoints?: number;
+
+    /**
+     * Only set when {@link type} is `'milestone'` — the anchor MilestoneExercise's own language/project type, which
+     * every member inherits. Served by the milestone group endpoint (see {@link ExerciseVariantGroupDTO}); the
+     * student-side groups rebuilt by {@link buildGroupsFromExercises} leave them undefined, which is fine: only the
+     * user story create form reads them, to seed the right problem statement template.
+     */
+    programmingLanguage?: ProgrammingLanguage;
+    projectType?: ProjectType;
 
     exercises?: Exercise[];
 }

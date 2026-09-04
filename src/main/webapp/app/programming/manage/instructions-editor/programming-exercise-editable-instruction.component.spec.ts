@@ -25,6 +25,7 @@ import { ProgrammingExerciseParticipationService } from 'app/programming/manage/
 import { IProgrammingExerciseGradingService, ProgrammingExerciseGradingService } from 'app/programming/manage/services/programming-exercise-grading.service';
 import { Result } from 'app/exercise/shared/entities/result/result.model';
 import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
+import { ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { ProgrammingExerciseInstructionAnalysisComponent } from 'app/programming/manage/instructions-editor/analysis/programming-exercise-instruction-analysis.component';
 import { ProgrammingExerciseEditableInstructionComponent } from 'app/programming/manage/instructions-editor/programming-exercise-editable-instruction.component';
 import { ProgrammingExerciseInstructionComponent } from 'app/programming/shared/instructions-render/programming-exercise-instruction.component';
@@ -379,6 +380,20 @@ describe('ProgrammingExerciseEditableInstructionComponent', () => {
 
         expect(subscribeForTestCaseSpy).toHaveBeenNthCalledWith(1, exercise.id);
         expect(comp.exerciseTestCases()).toHaveLength(0);
+
+        fixture.destroy();
+    });
+
+    it('should also offer inactive test cases for a user story, where inactive only means "not referenced yet"', () => {
+        // A UserStoryExercise's test cases are duplicated from its milestone's shared suite and only become active
+        // once one of its own tasks references them, so hiding the inactive ones would hide everything the
+        // instructor still has to reference.
+        setRequiredInputs(fixture, { ...exercise, type: ExerciseType.USER_STORY } as ProgrammingExercise);
+        fixture.detectChanges();
+
+        (gradingService as MockProgrammingExerciseGradingService).nextTestCases(testCases);
+
+        expect(comp.exerciseTestCases()).toEqual(['test1', 'test2', 'test3']);
 
         fixture.destroy();
     });

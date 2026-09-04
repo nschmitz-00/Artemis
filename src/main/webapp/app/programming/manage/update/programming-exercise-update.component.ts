@@ -380,6 +380,8 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
     readonly courseId = signal<number>(undefined!);
 
     rerenderSubject = new Subject<void>();
+    /** Sequence number of the latest problem statement template request - see loadProgrammingLanguageTemplate. */
+    private problemStatementTemplateRequestId = 0;
     // Created once rather than per `asObservable()` call, because getProgrammingExerciseCreationConfig() hands this to
     // the child components on every change-detection pass and a new wrapper each pass is a new input identity.
     private readonly rerenderObservable = this.rerenderSubject.asObservable();
@@ -1215,6 +1217,9 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
      * programmingExercise.exerciseVariantGroup so ExerciseGroupTimelineLockComponent (see [lockedToGroup]="variantLock.locked()"
      * in the template) shows the group's timeline read-only immediately, before the exercise itself is ever saved -
      * the same lock that already applies once an existing UserStoryExercise is loaded for editing.
+     * <p>
+     * Also mirrors the group's Language/Version-Control settings and re-seeds the problem statement from the matching
+     * readme template - see applyMilestoneLanguageForUserStory.
      */
     protected selectMilestoneGroupForUserStory(groupId: number | undefined): void {
         this.selectedMilestoneGroupId = groupId;
@@ -1244,7 +1249,56 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
             dueDate: group?.dueDate,
             assessmentDueDate: group?.assessmentDueDate,
             exampleSolutionPublicationDate: group?.exampleSolutionPublicationDate,
+            // The group's milestone owns these (they are hidden on this form and overwritten server-side anyway), but
+            // the problem statement template is picked by them - see applyMilestoneLanguageForUserStory below.
+            programmingLanguage: group?.programmingLanguage ?? this.programmingExercise.programmingLanguage,
+            projectType: group?.projectType ?? this.programmingExercise.projectType,
         });
+        this.applyMilestoneLanguageForUserStory(group);
+    }
+
+    /**
+     * Re-seeds a new UserStoryExercise's problem statement from the readme template of the group's milestone, now that
+     * its programming language and project type are known.
+     * <p>
+     * Without this the statement keeps the one ngOnInit loaded from the client-side default of a brand-new
+     * ProgrammingExercise (JAVA/PLAIN_GRADLE): PROGRAMMING_LANGUAGE and PROJECT_TYPE are hidden for a user story (see
+     * USER_STORY_HIDDEN_FIELDS), so unlike a plain programming exercise nothing else ever reloads the template. The
+     * Gradle and Maven templates spell the example test names differently (`testBubbleSort()` vs `testBubbleSort`,
+     * mirroring what Gradle and Maven Surefire actually report), so on a Maven milestone every story would be born with
+     * task references matching no test case at all - leaving the tasks unlinked and, because a user story's test cases
+     * are only activated by the tasks that reference them (UserStoryExerciseService.updateRelevantTestCases), leaving
+     * it without a single active test case.
+     * <p>
+     * The selected/edited values are set directly rather than through the selectedProgrammingLanguage/selectedProjectType
+     * setters: the language setter resets the project type to projectTypes[0] and clears the build options, which would
+     * throw away exactly the milestone configuration being applied here.
+     */
+    private applyMilestoneLanguageForUserStory(group: CourseExerciseGroup | undefined): void {
+        if (!this.isCreate || group?.programmingLanguage === undefined) {
+            return;
+        }
+        this.selectedProgrammingLanguageValue = this.programmingExercise.programmingLanguage!;
+        // Same normalization as ngOnInit: the *_MAVEN/*_GRADLE pair is one selectable option plus the "with
+        // dependencies" checkbox.
+        if (this.programmingExercise.projectType === ProjectType.MAVEN_MAVEN) {
+            this.selectedProjectTypeValue = ProjectType.PLAIN_MAVEN;
+            this.withDependenciesValue = true;
+        } else if (this.programmingExercise.projectType === ProjectType.GRADLE_GRADLE) {
+            this.selectedProjectTypeValue = ProjectType.PLAIN_GRADLE;
+            this.withDependenciesValue = true;
+        } else {
+            this.selectedProjectTypeValue = this.programmingExercise.projectType;
+            this.withDependenciesValue = false;
+        }
+        // Anything the instructor already typed wins over the template - loadProgrammingLanguageTemplate would
+        // overwrite the statement outright.
+        if (this.hasUnsavedChanges) {
+            return;
+        }
+        this.loadProgrammingLanguageTemplate(this.programmingExercise.programmingLanguage!);
+        // Rerender the instructions as the template has changed.
+        this.rerenderSubject.next();
     }
 
     /**
@@ -1502,12 +1556,22 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
         this.problemStatementLoaded = false;
         this.programmingExercise.programmingLanguage = language;
         this.programmingExerciseLanguageForAi.set(language);
+        // Only the newest request may write the statement: a user story create page fires one from ngOnInit with the
+        // client defaults and a second one as soon as its milestone group resolves (see
+        // applyMilestoneLanguageForUserStory), and the responses are not guaranteed to come back in order.
+        const requestId = ++this.problemStatementTemplateRequestId;
         this.fileService.getTemplateFile(this.programmingExercise.programmingLanguage, this.programmingExercise.projectType).subscribe({
             next: (file) => {
+                if (requestId !== this.problemStatementTemplateRequestId) {
+                    return;
+                }
                 this.programmingExercise.problemStatement = file;
                 this.problemStatementLoaded = true;
             },
             error: () => {
+                if (requestId !== this.problemStatementTemplateRequestId) {
+                    return;
+                }
                 this.programmingExercise.problemStatement = '';
                 this.problemStatementLoaded = true;
             },
