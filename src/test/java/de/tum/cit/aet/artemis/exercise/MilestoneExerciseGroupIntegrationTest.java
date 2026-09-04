@@ -1,6 +1,7 @@
 package de.tum.cit.aet.artemis.exercise;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
@@ -11,6 +12,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+
+import com.fasterxml.jackson.databind.JsonNode;
 
 import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.course.dto.CourseExercisesForOverviewDTO;
@@ -310,5 +315,32 @@ class MilestoneExerciseGroupIntegrationTest extends AbstractProgrammingIntegrati
             assertThat(exercise.exerciseVariantGroup().type()).isEqualTo("milestone");
             assertThat(exercise.exerciseVariantGroup().milestoneExerciseId()).isEqualTo(milestoneExercise.getId());
         });
+    }
+
+    /**
+     * The instructor-facing exercise endpoint serializes the {@code Exercise} entity rather than a DTO, so its embedded
+     * group goes through {@link MilestoneExerciseGroup} itself. It has to expose the same flat
+     * {@code milestoneExerciseId} the DTO path does (see the overview test above): the user story detail page reads it
+     * to load the anchor's template/solution build status, since the user story's own participations never get one.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "tutor1", roles = "TA")
+    void theExerciseEndpointNamesTheAnchorExerciseOnAUserStoryExercise() throws Exception {
+        UserStoryExercise member = new UserStoryExercise();
+        member.setTitle("User story");
+        member.setShortName("userstoryentity" + TEST_PREFIX);
+        member.setProgrammingLanguage(ProgrammingLanguage.JAVA);
+        member.setCourse(course);
+        member.setMaxPoints(10.0);
+        member.setExerciseVariantGroup(milestoneGroup);
+        member.generateAndSetProjectKey();
+        programmingExerciseRepository.save(member);
+
+        MvcResult result = request.performMvcRequest(MockMvcRequestBuilders.get("/api/programming/programming-exercises/" + member.getId())).andExpect(status().isOk()).andReturn();
+        JsonNode group = request.getObjectMapper().readTree(result.getResponse().getContentAsString()).get("exerciseVariantGroup");
+
+        assertThat(group).isNotNull();
+        assertThat(group.get("type").asText()).isEqualTo("milestone");
+        assertThat(group.get("milestoneExerciseId").asLong()).isEqualTo(milestoneExercise.getId());
     }
 }

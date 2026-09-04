@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, OnDestroy, OnInit, ViewEncapsulation, inject, signal, viewChild } from '@angular/core';
+import { Component, OnDestroy, OnInit, ViewEncapsulation, computed, inject, signal, viewChild } from '@angular/core';
 import { SafeHtml } from '@angular/platform-browser';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FaIconComponent } from '@fortawesome/angular-fontawesome';
@@ -47,7 +47,7 @@ import { FeatureOverlayComponent } from 'app/shared-ui/components/feature-overla
 import { ActionType, EntitySummary } from 'app/shared-ui/delete-dialog/delete-dialog.model';
 import { DeleteButtonDirective } from 'app/shared-ui/delete-dialog/directive/delete-button.directive';
 import { DetailOverviewListComponent, DetailOverviewSection, DetailType } from 'app/shared-ui/detail-overview-list/detail-overview-list.component';
-import { Detail, ProgrammingDiffReportDetail } from 'app/shared-ui/detail-overview-list/detail.model';
+import { Detail, ProgrammingDiffReportDetail, ProgrammingTestStatusDetail } from 'app/shared-ui/detail-overview-list/detail.model';
 import { FeatureToggleHideDirective } from 'app/foundation/feature-toggle/feature-toggle-hide.directive';
 import { FeatureToggleLinkDirective } from 'app/foundation/feature-toggle/feature-toggle-link.directive';
 import { FeatureToggleDirective } from 'app/foundation/feature-toggle/feature-toggle.directive';
@@ -213,6 +213,34 @@ export class ProgrammingExerciseDetailComponent implements OnInit, OnDestroy {
 
     readonly exerciseDetailSections = signal<DetailOverviewSection[]>([]);
 
+    /**
+     * A {@code MilestoneExercise} anchors a milestone exercise group: it owns the group's shared template/solution/test
+     * repositories and is the only exercise of the group that ever runs a build. It is reached through its own
+     * 'milestone-exercise-groups/:exerciseId' route, but detected from the payload's discriminator rather than the URL
+     * (same reasoning as {@code ProgrammingExerciseUpdateComponent.isMilestoneMode}), so the page also behaves
+     * correctly if a milestone is ever opened through the generic programming-exercise path.
+     */
+    readonly isMilestoneExercise = computed(() => this.programmingExercise()?.type === ExerciseType.MILESTONE);
+
+    /** A {@code UserStoryExercise} member of such a group - see {@link milestoneAnchor}. */
+    readonly isUserStoryExercise = computed(() => this.programmingExercise()?.type === ExerciseType.USER_STORY);
+
+    /**
+     * The group's anchor {@code MilestoneExercise}, loaded with its template/solution participations when this page
+     * shows a {@code UserStoryExercise}. A user story's own template/solution participations are copies that merely
+     * point at the milestone's repository URIs (see {@code UserStoryExerciseService.applyMilestoneConfig}) and never
+     * receive a submission, so the build status has to be read from the anchor instead.
+     */
+    private readonly milestoneAnchor = signal<ProgrammingExercise | undefined>(undefined);
+
+    /**
+     * Where the "Edit" button goes. A milestone is configured through the milestone group form, not the generic
+     * programming-exercise edit page (see the 'milestone-exercise-groups/:exerciseId/edit' route).
+     */
+    readonly editRouterLink = computed(() =>
+        this.isMilestoneExercise() ? [this.shortBaseResource(), 'milestone-exercise-groups', this.programmingExercise().id, 'edit'] : [this.baseResource(), 'edit'],
+    );
+
     private diffRunId = 0;
     private lastUpdateTime = 0;
     private readonly UPDATE_DEBOUNCE_MS = 1000;
@@ -286,9 +314,26 @@ export class ProgrammingExerciseDetailComponent implements OnInit, OnDestroy {
             );
         }
 
+        // A UserStoryExercise's own template/solution participations are copies pointing at the milestone group's
+        // shared repository URIs and never receive a submission - only the anchor MilestoneExercise ever runs a build
+        // (see UserStoryExerciseService.applyMilestoneConfig and LocalCIEventListenerService). So load the anchor
+        // alongside, and render its build status instead of the user story's permanently empty one.
+        const milestoneExerciseId = programmingExercise.type === ExerciseType.USER_STORY ? programmingExercise.exerciseVariantGroup?.milestoneExerciseId : undefined;
+
         this.templateAndSolutionParticipationSubscription = this.programmingExerciseService
             .findWithTemplateAndSolutionParticipationAndLatestResults(programmingExercise.id!)
             .pipe(
+                switchMap((exerciseWithParticipations) =>
+                    milestoneExerciseId === undefined
+                        ? of(exerciseWithParticipations)
+                        : this.programmingExerciseService.findWithTemplateAndSolutionParticipationAndLatestResults(milestoneExerciseId).pipe(
+                              tap((anchorResponse) => this.milestoneAnchor.set(anchorResponse.body ?? undefined)),
+                              // The user story's own page must still render if the anchor cannot be loaded; it then
+                              // falls back to the user story's participations, exactly as before.
+                              catchError(() => of(undefined)),
+                              map(() => exerciseWithParticipations),
+                          ),
+                ),
                 tap((exerciseWithParticipations) => {
                     // Only update the template and solution participations, preserving all other exercise properties
                     this.programmingExercise().templateParticipation = exerciseWithParticipations.body!.templateParticipation;
@@ -313,6 +358,7 @@ export class ProgrammingExerciseDetailComponent implements OnInit, OnDestroy {
                             this.programmingExercise().solutionParticipation!.buildPlanId!,
                         );
                     }
+                    this.setAnchorBuildPlanUrls(profileInfo.buildPlanURLTemplate);
                     if (programmingExercise.programmingLanguage) {
                         this.supportsAuxiliaryRepositories =
                             this.programmingLanguageFeatureService.getProgrammingLanguageFeature(programmingExercise.programmingLanguage)?.auxiliaryRepositoriesSupported ?? false;
@@ -344,6 +390,25 @@ export class ProgrammingExerciseDetailComponent implements OnInit, OnDestroy {
         this.exerciseStatisticsSubscription = this.statisticsService.getExerciseStatistics(exerciseId).subscribe((statistics: ExerciseManagementStatisticsDto) => {
             this.doughnutStats.set(statistics);
         });
+    }
+
+    /**
+     * Mirrors the build plan URL construction above onto the milestone anchor's participations, using the anchor's own
+     * project key - the user story has a project key of its own that no build plan was ever created under.
+     * No-op unless this page shows a user story whose anchor was loaded, and on LocalCI setups (no URL template).
+     *
+     * @param buildPlanUrlTemplate the CI's build plan URL template from the profile info, if the CI provides one
+     */
+    private setAnchorBuildPlanUrls(buildPlanUrlTemplate?: string): void {
+        const anchor = this.milestoneAnchor();
+        if (!anchor?.projectKey || !buildPlanUrlTemplate) {
+            return;
+        }
+        for (const participation of [anchor.templateParticipation, anchor.solutionParticipation]) {
+            if (participation?.buildPlanId) {
+                participation.buildPlanUrl = createBuildPlanUrl(buildPlanUrlTemplate, anchor.projectKey, participation.buildPlanId);
+            }
+        }
     }
 
     private ensureExerciseDetailsInitialized() {
@@ -516,9 +581,71 @@ export class ProgrammingExerciseDetailComponent implements OnInit, OnDestroy {
         };
     }
 
+    /**
+     * The exercise whose template/solution participations actually carry a build: the group's anchor
+     * {@code MilestoneExercise} for a {@code UserStoryExercise} that has one loaded, the exercise itself otherwise.
+     *
+     * @param exercise the exercise this page shows
+     * @return the exercise to read build plan ids, build plan URLs and results from
+     */
+    private buildStatusSourceExercise(exercise: ProgrammingExercise): ProgrammingExercise {
+        return this.milestoneAnchorFor(exercise) ?? exercise;
+    }
+
+    /**
+     * The loaded milestone anchor, but only where it applies - i.e. only when this page shows a user story.
+     *
+     * @param exercise the exercise this page shows
+     * @return the anchor, or undefined when there is none to substitute
+     */
+    private milestoneAnchorFor(exercise: ProgrammingExercise): ProgrammingExercise | undefined {
+        return exercise.type === ExerciseType.USER_STORY ? this.milestoneAnchor() : undefined;
+    }
+
+    /**
+     * The "Template Result"/"Solution Result" row: the latest build of that repository, live-updating over the
+     * exercise's websocket topic.
+     * <p>
+     * For a {@code UserStoryExercise} the row is built from the group's anchor {@code MilestoneExercise} instead - the
+     * user story's own template/solution participations are copies that point at the milestone's repositories but never
+     * receive a submission, so reading them shows a permanently empty result. Passing the anchor as the row's
+     * {@code exercise} is what makes the whole row correct: {@code jhi-updating-result} and
+     * {@code jhi-programming-exercise-instructor-status} subscribe to {@code /topic/exercise/{exerciseId}/newResults},
+     * and the milestone's is the only topic those builds are ever published on.
+     * <p>
+     * That mirrored row is read-only: the milestone detail page stays the single place to trigger a build or browse the
+     * submissions of the shared repositories.
+     *
+     * @param exercise the exercise this page shows
+     * @param type     which of the two participations to render
+     * @return the detail row
+     */
+    private getTestStatusDetail(exercise: ProgrammingExercise, type: ProgrammingExerciseParticipationType): ProgrammingTestStatusDetail {
+        const anchor = this.milestoneAnchorFor(exercise);
+        const sourceExercise = anchor ?? exercise;
+        const isTemplate = type === ProgrammingExerciseParticipationType.TEMPLATE;
+        const participation = isTemplate ? sourceExercise.templateParticipation : sourceExercise.solutionParticipation;
+        return {
+            type: DetailType.ProgrammingTestStatus,
+            title: isTemplate ? 'artemisApp.programmingExercise.templateResult' : 'artemisApp.programmingExercise.solutionResult',
+            titleHelpText: anchor ? 'artemisApp.programmingExercise.detail.milestoneSharedResultTooltip' : undefined,
+            data: {
+                exercise: sourceExercise,
+                participation,
+                loading: isTemplate ? this.loadingTemplateParticipationResults : this.loadingSolutionParticipationResults,
+                submissionRouterLink: anchor || !participation ? undefined : this.getParticipationSubmissionLink(participation.id!),
+                onParticipationChange: () => this.onParticipationChange(),
+                readOnly: !!anchor,
+                type,
+            },
+        };
+    }
+
     getExerciseDetailsLanguageSection(exercise: ProgrammingExercise): DetailOverviewSection {
         const buildPlanPhases = parseBuildPlanPhases(exercise.buildConfig?.buildPlanConfiguration);
         const diffReportDetail = this.getDiffReportDetail();
+        // Build plans live on the milestone anchor for a user story, for the same reason its build status does.
+        const buildPlanSource = this.buildStatusSourceExercise(exercise);
         return {
             headline: 'artemisApp.programmingExercise.wizardMode.detailedSteps.languageStepTitle',
             details: [
@@ -582,42 +709,20 @@ export class ProgrammingExerciseDetailComponent implements OnInit, OnDestroy {
                     type: DetailType.Link,
                     title: 'artemisApp.programmingExercise.templateBuildPlanId',
                     data: {
-                        href: exercise.templateParticipation?.buildPlanUrl,
-                        text: exercise.templateParticipation?.buildPlanId,
+                        href: buildPlanSource.templateParticipation?.buildPlanUrl,
+                        text: buildPlanSource.templateParticipation?.buildPlanId,
                     },
                 },
                 !this.localCIEnabled() && {
                     type: DetailType.Link,
                     title: 'artemisApp.programmingExercise.solutionBuildPlanId',
                     data: {
-                        href: exercise.solutionParticipation?.buildPlanUrl,
-                        text: exercise.solutionParticipation?.buildPlanId,
+                        href: buildPlanSource.solutionParticipation?.buildPlanUrl,
+                        text: buildPlanSource.solutionParticipation?.buildPlanId,
                     },
                 },
-                {
-                    type: DetailType.ProgrammingTestStatus,
-                    title: 'artemisApp.programmingExercise.templateResult',
-                    data: {
-                        exercise,
-                        participation: exercise.templateParticipation,
-                        loading: this.loadingTemplateParticipationResults,
-                        submissionRouterLink: exercise.templateParticipation && this.getParticipationSubmissionLink(exercise.templateParticipation.id!),
-                        onParticipationChange: () => this.onParticipationChange(),
-                        type: ProgrammingExerciseParticipationType.TEMPLATE,
-                    },
-                },
-                {
-                    type: DetailType.ProgrammingTestStatus,
-                    title: 'artemisApp.programmingExercise.solutionResult',
-                    data: {
-                        exercise,
-                        participation: exercise.solutionParticipation,
-                        loading: this.loadingSolutionParticipationResults,
-                        submissionRouterLink: exercise.solutionParticipation && this.getParticipationSubmissionLink(exercise.solutionParticipation.id!),
-                        onParticipationChange: () => this.onParticipationChange(),
-                        type: ProgrammingExerciseParticipationType.SOLUTION,
-                    },
-                },
+                this.getTestStatusDetail(exercise, ProgrammingExerciseParticipationType.TEMPLATE),
+                this.getTestStatusDetail(exercise, ProgrammingExerciseParticipationType.SOLUTION),
                 diffReportDetail,
                 !!buildPlanPhases?.dockerImage && {
                     type: DetailType.Text,

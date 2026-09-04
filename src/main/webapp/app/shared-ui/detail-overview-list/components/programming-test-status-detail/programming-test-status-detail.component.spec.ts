@@ -70,6 +70,45 @@ describe('ProgrammingTestStatusDetailComponent', () => {
         expect(fixture.debugElement.query(By.css('jhi-updating-result'))).not.toBeNull();
     });
 
+    /** A participation whose latest result sits on its LAST submission, the shape the service actually produces. */
+    function participationWithResultOnLastSubmission(): TemplateProgrammingExerciseParticipation {
+        return {
+            id: 1,
+            submissions: [
+                { id: 10, results: [] },
+                { id: 11, results: [{ id: 20, successful: true }] },
+            ],
+        } as TemplateProgrammingExerciseParticipation;
+    }
+
+    it('should show the status and trigger-build actions when only the last submission carries the result', async () => {
+        const detail = detailWith();
+        detail.data.exercise = { isAtLeastEditor: true } as ProgrammingExercise;
+        detail.data.participation = participationWithResultOnLastSubmission();
+        fixture.componentRef.setInput('detail', detail);
+
+        await fixture.whenStable();
+
+        expect(fixture.debugElement.query(By.css('jhi-programming-exercise-instructor-status'))).not.toBeNull();
+        expect(fixture.debugElement.query(By.css('jhi-programming-exercise-instructor-trigger-build-button'))).not.toBeNull();
+        expect(fixture.debugElement.query(By.css('a'))).not.toBeNull();
+    });
+
+    it('should keep the status but hide the actions when the detail is read-only', async () => {
+        const detail = detailWith();
+        detail.data.exercise = { isAtLeastEditor: true } as ProgrammingExercise;
+        detail.data.participation = participationWithResultOnLastSubmission();
+        detail.data.readOnly = true;
+        fixture.componentRef.setInput('detail', detail);
+
+        await fixture.whenStable();
+
+        expect(fixture.debugElement.query(By.css('jhi-updating-result'))).not.toBeNull();
+        expect(fixture.debugElement.query(By.css('jhi-programming-exercise-instructor-status'))).not.toBeNull();
+        expect(fixture.debugElement.query(By.css('jhi-programming-exercise-instructor-trigger-build-button'))).toBeNull();
+        expect(fixture.debugElement.query(By.css('a'))).toBeNull();
+    });
+
     it('should not render anything when there is no participation', async () => {
         fixture.componentRef.setInput('detail', {
             type: DetailType.ProgrammingTestStatus,

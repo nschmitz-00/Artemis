@@ -14,6 +14,7 @@ import org.jspecify.annotations.Nullable;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 
@@ -56,6 +57,25 @@ public class MilestoneExerciseGroup extends ExerciseVariantGroup {
 
     public void setMilestoneExercise(MilestoneExercise milestoneExercise) {
         this.milestoneExercise = milestoneExercise;
+    }
+
+    /**
+     * The anchor exercise's id as a flat JSON property, so that a group serialized as an <b>entity</b> (e.g. the
+     * {@code exerciseVariantGroup} embedded in {@code GET /programming-exercises/:id}) carries the same
+     * {@code milestoneExerciseId} the client already gets from {@link de.tum.cit.aet.artemis.exercise.dto.ExerciseVariantGroupReferenceDTO}.
+     * Without it, a client reading the entity path would have to dig into the nested {@code milestoneExercise} object
+     * while one reading a DTO reads the flat id - two shapes for the same reference.
+     * <p>
+     * Derived and read-only: it is not a mapped field (this entity uses field access, so Hibernate ignores this getter),
+     * and {@code Access.READ_ONLY} keeps an inbound payload that echoes the property back from failing to bind. Degrades
+     * to {@code null} for an unfetched anchor via {@link #isMilestoneExerciseAvailable()}, like the timeline getters below.
+     *
+     * @return the anchor {@link MilestoneExercise}'s id, or {@code null} if it is unset or was not fetched
+     */
+    @Nullable
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    public Long getMilestoneExerciseId() {
+        return isMilestoneExerciseAvailable() ? milestoneExercise.getId() : null;
     }
 
     /**

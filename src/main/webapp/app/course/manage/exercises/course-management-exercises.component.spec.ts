@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { HttpErrorResponse, HttpResponse, provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { of, throwError } from 'rxjs';
@@ -535,6 +535,28 @@ describe('Course Management Exercises Component', () => {
             expect(comp.canDeleteGroups()).toBe(true);
             comp.course.set({ ...course, isAtLeastInstructor: false });
             expect(comp.canDeleteGroups()).toBe(false);
+        });
+    });
+
+    describe('milestone group actions', () => {
+        it('should navigate to the anchor milestone exercise detail page', () => {
+            comp.ngOnInit();
+            const router = TestBed.inject(Router);
+            const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+            comp.openMilestoneDetails({ id: 10, title: 'Sprint 1', type: 'milestone', milestoneExerciseId: 55 });
+
+            expect(navigateSpy).toHaveBeenCalledWith(['/course-management', 1, 'milestone-exercise-groups', 55]);
+        });
+
+        it('should do nothing for a group without an anchor milestone exercise', () => {
+            comp.ngOnInit();
+            const router = TestBed.inject(Router);
+            const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+            comp.openMilestoneDetails({ id: 10, title: 'Variants', type: 'variant' });
+
+            expect(navigateSpy).not.toHaveBeenCalled();
         });
     });
 

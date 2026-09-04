@@ -115,6 +115,12 @@ export interface ProgrammingTestStatusDetail extends DetailBase {
         onParticipationChange: () => void;
         type: ProgrammingExerciseParticipationType;
         submissionRouterLink?: (string | number | undefined)[];
+        /**
+         * Hides the actions that change or navigate away from the participation (trigger build, browse submissions),
+         * leaving the result and its status icon. Set when the row mirrors a participation the page does not own - a
+         * user story showing its milestone group's shared template/solution build status, for example.
+         */
+        readOnly?: boolean;
     };
 }
 export interface ProgrammingDiffReportDetail extends DetailBase {
