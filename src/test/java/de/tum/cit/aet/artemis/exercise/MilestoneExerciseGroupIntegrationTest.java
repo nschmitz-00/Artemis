@@ -28,6 +28,7 @@ import de.tum.cit.aet.artemis.exercise.repository.MilestoneExerciseGroupReposito
 import de.tum.cit.aet.artemis.programming.AbstractProgrammingIntegrationIndependentTest;
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingLanguage;
+import de.tum.cit.aet.artemis.programming.domain.ProjectType;
 import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 
 /**
@@ -153,6 +154,23 @@ class MilestoneExerciseGroupIntegrationTest extends AbstractProgrammingIntegrati
         assertThat(group.milestoneExerciseId()).isEqualTo(milestoneExercise.getId());
         assertThat(group.dueDate()).isNotNull();
         assertThat(group.dueDate().toInstant()).isEqualTo(milestoneExercise.getDueDate().toInstant());
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "editor1", roles = "EDITOR")
+    void milestoneGroupEndpointExposesTheAnchorsLanguageAndProjectType() throws Exception {
+        // The user story create form hides both fields, so the group DTO is the only place it can learn them - and it
+        // needs them to seed a new story's problem statement from the milestone's own readme template: the Gradle and
+        // Maven templates spell the example test names differently (testBubbleSort() vs testBubbleSort).
+        milestoneExercise.setProjectType(ProjectType.PLAIN_MAVEN);
+        programmingExerciseRepository.save(milestoneExercise);
+
+        List<MilestoneExerciseGroupDTO> groups = request.getList(milestoneGroupsUrl(), HttpStatus.OK, MilestoneExerciseGroupDTO.class);
+
+        assertThat(groups).singleElement().satisfies(group -> {
+            assertThat(group.programmingLanguage()).isEqualTo(ProgrammingLanguage.JAVA);
+            assertThat(group.projectType()).isEqualTo(ProjectType.PLAIN_MAVEN);
+        });
     }
 
     @Test

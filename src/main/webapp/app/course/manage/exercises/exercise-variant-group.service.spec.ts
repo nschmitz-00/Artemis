@@ -16,7 +16,7 @@ import {
     toUpdateGroupPayload,
 } from 'app/course/manage/exercises/exercise-variant-group.service';
 import { Exercise, ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
-import { ProgrammingExercise, ProgrammingLanguage } from 'app/programming/shared/entities/programming-exercise.model';
+import { ProgrammingExercise, ProgrammingLanguage, ProjectType } from 'app/programming/shared/entities/programming-exercise.model';
 import { ProgrammingExerciseBuildConfig } from 'app/programming/shared/entities/programming-exercise-build.config';
 import { ExerciseCategory } from 'app/exercise/shared/entities/exercise/exercise-category.model';
 
@@ -178,6 +178,22 @@ describe('ExerciseVariantGroupService', () => {
             expect(mapped.dueDate).toBe(dto.dueDate);
             // Unknown ids (999) are dropped instead of producing holes.
             expect(mapped.exercises).toEqual([one]);
+        });
+
+        it('carries the milestone language and project type, which the user story create form needs', () => {
+            const dto: ExerciseVariantGroupDTO = {
+                id: 7,
+                title: 'Milestone 1',
+                type: 'milestone',
+                milestoneExerciseId: 42,
+                programmingLanguage: ProgrammingLanguage.JAVA,
+                projectType: ProjectType.PLAIN_MAVEN,
+            };
+
+            const mapped = toCourseExerciseGroup(dto, new Map());
+
+            expect(mapped.programmingLanguage).toBe(ProgrammingLanguage.JAVA);
+            expect(mapped.projectType).toBe(ProjectType.PLAIN_MAVEN);
         });
     });
     describe('createUserStoryExercise', () => {

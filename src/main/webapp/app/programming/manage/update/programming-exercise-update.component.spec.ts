@@ -60,6 +60,8 @@ import { DialogService } from 'primeng/dynamicdialog';
 import { AssessmentType } from 'app/assessment/shared/entities/assessment-type.model';
 import { ExerciseVariantGroupService } from 'app/course/manage/exercises/exercise-variant-group.service';
 import { EXERCISE_MANAGEMENT_VIEW_STORAGE_KEY } from 'app/course/manage/exercises/course-exercise-cards';
+import { CourseExerciseGroup } from 'app/exercise/shared/entities/exercise/course-exercise-group.model';
+import { FileService } from 'app/foundation/service/file.service';
 
 vi.mock('y-monaco', () => ({
     // Use a real `function` (not an arrow) so the production code can invoke it with `new`.
@@ -80,6 +82,7 @@ type ProgrammingExerciseUpdateInternals = ProgrammingExerciseUpdateComponent & {
     exerciseLanguageComponent: Signal<ProgrammingExerciseLanguageComponent | undefined>;
     exerciseGradingComponent: Signal<ProgrammingExerciseGradingComponent | undefined>;
     exercisePlagiarismComponent: Signal<ExerciseUpdatePlagiarismComponent | undefined>;
+    selectMilestoneGroupForUserStory(groupId: number | undefined): void;
 };
 const internals = (c: ProgrammingExerciseUpdateComponent): ProgrammingExerciseUpdateInternals => c as ProgrammingExerciseUpdateInternals;
 
@@ -392,6 +395,79 @@ describe('ProgrammingExerciseUpdateComponent', () => {
                 fixture.changeDetectorRef.detectChanges();
                 expect(comp.programmingExercise.projectType).toBe(ProjectType.PLAIN_GRADLE);
             });
+        });
+    });
+
+    describe('create user story', () => {
+        let fileService: FileService;
+        let templateSpy: ReturnType<typeof vi.spyOn>;
+
+        const milestoneGroup: CourseExerciseGroup = {
+            id: 7,
+            title: 'Milestone 1',
+            type: 'milestone',
+            milestoneExerciseId: 42,
+            programmingLanguage: ProgrammingLanguage.JAVA,
+            projectType: ProjectType.PLAIN_MAVEN,
+        };
+
+        beforeEach(() => {
+            fileService = TestBed.inject(FileService);
+            templateSpy = vi.spyOn(fileService, 'getTemplateFile').mockReturnValue(of('maven readme with (testBubbleSort)'));
+            comp.isUserStoryMode = true;
+            comp.isCreate = true;
+            comp.courseId.set(courseId);
+            // What the resolver hands a create page: the client defaults of JAVA/PLAIN_GRADLE.
+            comp.programmingExercise = new ProgrammingExercise(course, undefined);
+            comp.userStoryMilestoneGroups.set([milestoneGroup]);
+        });
+
+        it('should seed the problem statement from the milestone project type, not from the client default', () => {
+            internals(comp).selectMilestoneGroupForUserStory(7);
+
+            expect(comp.programmingExercise.projectType).toBe(ProjectType.PLAIN_MAVEN);
+            expect(templateSpy).toHaveBeenCalledWith(ProgrammingLanguage.JAVA, ProjectType.PLAIN_MAVEN);
+            expect(comp.programmingExercise.problemStatement).toBe('maven readme with (testBubbleSort)');
+        });
+
+        it('should not overwrite a problem statement the instructor already edited', () => {
+            comp.hasUnsavedChanges = true;
+            comp.programmingExercise.problemStatement = 'my own statement';
+
+            internals(comp).selectMilestoneGroupForUserStory(7);
+
+            expect(templateSpy).not.toHaveBeenCalled();
+            expect(comp.programmingExercise.problemStatement).toBe('my own statement');
+            // The group's configuration still applies - only the statement is left alone.
+            expect(comp.programmingExercise.projectType).toBe(ProjectType.PLAIN_MAVEN);
+        });
+
+        it('should keep the milestone template when the default one answers late', () => {
+            // ngOnInit fires a template request with the client defaults before the milestone group has resolved, so
+            // both are in flight at once and their responses may arrive in either order.
+            const defaultTemplate = new Subject<string>();
+            const milestoneTemplate = new Subject<string>();
+            templateSpy.mockReturnValueOnce(defaultTemplate).mockReturnValueOnce(milestoneTemplate);
+
+            // What ngOnInit does with the resolver's client defaults, before the milestone group is known.
+            comp.selectedProgrammingLanguage = ProgrammingLanguage.JAVA;
+            internals(comp).selectMilestoneGroupForUserStory(7);
+
+            milestoneTemplate.next('maven readme');
+            defaultTemplate.next('gradle readme');
+
+            expect(comp.programmingExercise.problemStatement).toBe('maven readme');
+        });
+
+        it('should not touch the problem statement of an existing user story', () => {
+            comp.isCreate = false;
+            comp.programmingExercise.id = 11;
+            comp.programmingExercise.problemStatement = 'saved statement';
+
+            internals(comp).selectMilestoneGroupForUserStory(7);
+
+            expect(templateSpy).not.toHaveBeenCalled();
+            expect(comp.programmingExercise.problemStatement).toBe('saved statement');
         });
     });
 
