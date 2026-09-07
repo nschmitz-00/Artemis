@@ -577,6 +577,13 @@ public class ProgrammingExerciseGradingService {
      * uses to duplicate the test-case rows themselves), then scored with the existing {@link #calculateScoreForResult}
      * using only {@code targetExercise}'s own active test cases - no CI rerun required, since the source build already
      * ran every test in the shared suite.
+     * <p>
+     * {@code sourceResult} may arrive either fresh from the build pipeline (its feedback still in memory) or loaded
+     * from the database and already detached - the backfill path reads it back through
+     * {@code ResultRepository.findLatestResultWithFeedbacksForParticipation}, whose entity graph covers the generic
+     * {@code feedbacks} and the submission but not {@code testCaseFeedbacks}. Since this runs without an open session
+     * (open-in-view is off), iterating that collection blindly throws {@code LazyInitializationException}; hence the
+     * hydration on entry below.
      *
      * @param sourceResult        the already-graded result to derive a sibling result from (the milestone's, or an
      *                                existing sibling's latest result when backfilling a newly created UserStoryExercise)
@@ -585,6 +592,7 @@ public class ProgrammingExerciseGradingService {
      * @return the newly saved, scored result for {@code targetParticipation}
      */
     public Result fanOutResultToUserStoryExercise(Result sourceResult, UserStoryExercise targetExercise, ProgrammingExerciseStudentParticipation targetParticipation) {
+        hydrateTestCaseFeedbackForCopy(sourceResult);
         ProgrammingSubmission sourceSubmission = (ProgrammingSubmission) sourceResult.getSubmission();
 
         // provisionPendingSubmissionsForUserStoryExercises already created (and notified) a pending submission for
@@ -909,6 +917,29 @@ public class ProgrammingExerciseGradingService {
         if (!Hibernate.isInitialized(result.getScaFeedbacks())) {
             result.setScaFeedbacks(scaFeedbackRepository.findByResultIds(List.of(result.getId())));
         }
+    }
+
+    /**
+     * Same idea as {@link #hydrateTypedFeedback(Result)}, but for a result whose test-case feedback is about to be
+     * <b>copied</b> rather than merely re-scored - see {@link #fanOutResultToUserStoryExercise}.
+     * <p>
+     * Two deliberate differences:
+     * <ul>
+     * <li>The message is fetched as well. {@code hydrateTypedFeedback} only needs {@code testCase} because its callers
+     * just recompute a score, but {@link de.tum.cit.aet.artemis.assessment.service.FeedbackService#copyTestCaseFeedback}
+     * also reads {@link TestCaseFeedback#getMessage()}, itself a LAZY association - carrying a detached, uninitialized
+     * proxy of it into a new row is not something to rely on.</li>
+     * <li>SCA feedback is left alone: the fan-out never copies it (static code analysis is priced once, on the
+     * milestone), so loading it would be wasted work.</li>
+     * </ul>
+     *
+     * @param result the result to hydrate; unsaved or already-initialized results are left untouched
+     */
+    private void hydrateTestCaseFeedbackForCopy(Result result) {
+        if (result.getId() == null || Hibernate.isInitialized(result.getTestCaseFeedbacks())) {
+            return;
+        }
+        result.setTestCaseFeedbacks(testCaseFeedbackRepository.findWithTestCaseAndMessageByResultId(result.getId()));
     }
 
     /**

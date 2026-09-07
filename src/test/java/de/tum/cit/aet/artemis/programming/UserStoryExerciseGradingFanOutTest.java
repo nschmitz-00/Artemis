@@ -21,6 +21,7 @@ import de.tum.cit.aet.artemis.assessment.domain.Result;
 import de.tum.cit.aet.artemis.assessment.domain.ScaFeedback;
 import de.tum.cit.aet.artemis.assessment.domain.TestCaseFeedback;
 import de.tum.cit.aet.artemis.assessment.domain.Visibility;
+import de.tum.cit.aet.artemis.assessment.service.FeedbackMessageService;
 import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
 import de.tum.cit.aet.artemis.exercise.domain.InitializationState;
@@ -52,6 +53,8 @@ class UserStoryExerciseGradingFanOutTest extends AbstractProgrammingIntegrationI
 
     private static final String TEST_PREFIX = "userstoryfanout";
 
+    private static final String FAILURE_MESSAGE = "org.opentest4j.AssertionFailedError: expected:<1> but was:<2>";
+
     @Autowired
     private ExerciseVariantGroupRepository exerciseVariantGroupRepository;
 
@@ -66,6 +69,9 @@ class UserStoryExerciseGradingFanOutTest extends AbstractProgrammingIntegrationI
 
     @Autowired
     private MilestoneScoreScheduleService milestoneScoreScheduleService;
+
+    @Autowired
+    private FeedbackMessageService feedbackMessageService;
 
     private Course course;
 
@@ -517,9 +523,52 @@ class UserStoryExerciseGradingFanOutTest extends AbstractProgrammingIntegrationI
         assertThat(participationService.provisionParticipationsForNewUserStoryExercise(newUserStory)).isEmpty();
         assertThat(programmingExerciseStudentParticipationRepository.findAllByExerciseIdAndStudentLogin(newUserStory.getId(), studentLogin)).hasSize(1);
 
-        // The caller (ExerciseVariantGroupResource) derives the initial score from the student's latest milestone result.
+        // The caller (MilestoneExerciseService.backfillExistingParticipantsForNewUserStoryExercise) derives the initial
+        // score from the student's latest milestone result.
         Result backfilledResult = gradingService.fanOutResultToUserStoryExercise(sourceResult, newUserStory, newParticipation);
         assertThat(backfilledResult.getScore()).isEqualTo(100.0);
         assertThat(backfilledResult.getSubmission().getParticipation().getId()).isEqualTo(newParticipation.getId());
+    }
+
+    /**
+     * Regression test: the backfill hands the fan-out a result it read back from the database, not one it just built.
+     * That result is detached and its {@code testCaseFeedbacks} are not covered by the loader's entity graph, so
+     * copying them used to die with {@code LazyInitializationException} - which meant a user story could not be added
+     * to a milestone group any student had already been graded in. The test above misses this because it passes an
+     * in-memory result whose collections are ordinary sets.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void backfillFansOutAResultLoadedFromTheDatabase() {
+        ProgrammingExerciseTestCase milestoneTestA = createTestCase(milestoneExercise, "testA");
+        ProgrammingExerciseTestCase milestoneTestB = createTestCase(milestoneExercise, "testB");
+        ProgrammingExerciseStudentParticipation milestoneParticipation = participationFor(milestoneExercise);
+
+        // A failure message makes the copy dereference TestCaseFeedback#getMessage(), a LAZY association of its own -
+        // hydrating only the test case would just move the failure one line down.
+        TestCaseFeedback failedFeedback = testCaseFeedback(milestoneTestB, false);
+        failedFeedback.setMessage(feedbackMessageService.getOrCreate(FAILURE_MESSAGE));
+        buildSourceResult(milestoneParticipation, "commit-1", List.of(testCaseFeedback(milestoneTestA, true), failedFeedback));
+
+        // The story is added to the group only now, after the student was already graded on the milestone.
+        UserStoryExercise newUserStory = createUserStoryExercise("new");
+        createTestCase(newUserStory, "testA");
+        createTestCase(newUserStory, "testB");
+        List<ProgrammingExerciseStudentParticipation> created = participationService.provisionParticipationsForNewUserStoryExercise(newUserStory);
+        assertThat(created).hasSize(1);
+
+        // Exactly how MilestoneExerciseService.backfillExistingParticipantsForNewUserStoryExercise reads the source
+        // result. Deliberately not reloadWithTypedFeedback, which hydrates the typed collections by hand and would
+        // hide the very thing under test.
+        Result detachedSourceResult = resultRepository.findLatestResultWithFeedbacksForParticipation(milestoneParticipation.getId(), true).orElseThrow();
+
+        Result backfilledResult = gradingService.fanOutResultToUserStoryExercise(detachedSourceResult, newUserStory, created.getFirst());
+
+        // 50.0 rather than 0.0 is what proves both feedback rows actually made it across: an empty copy would score 0.
+        assertThat(backfilledResult.getScore()).isEqualTo(50.0);
+        assertThat(backfilledResult.getTestCaseFeedbacks()).hasSize(2)
+                .allSatisfy(feedback -> assertThat(feedback.getTestCase().getExercise().getId()).isEqualTo(newUserStory.getId()));
+        assertThat(backfilledResult.getTestCaseFeedbacks()).filteredOn(feedback -> Boolean.FALSE.equals(feedback.isPositive())).singleElement()
+                .satisfies(feedback -> assertThat(feedback.getMessageText()).isEqualTo(FAILURE_MESSAGE));
     }
 }
