@@ -3,7 +3,7 @@
         "exerciseVariantGroup": {
             "milestoneDetail": {
                 "title": "Milestone",
-                "action": "Repositories"
+                "action": "Show Details"
             },
             "detail": {
                 "variants": "Variants",

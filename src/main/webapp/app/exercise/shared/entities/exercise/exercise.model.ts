@@ -86,6 +86,21 @@ export function baseExerciseType(exerciseType?: ExerciseType): ExerciseType | un
     return exerciseType === ExerciseType.USER_STORY || exerciseType === ExerciseType.MILESTONE ? ExerciseType.PROGRAMMING : exerciseType;
 }
 
+/**
+ * Whether the exercise behaves as a programming exercise, i.e. it is backed by a repository that is built by the CI.
+ * <p>
+ * True for the `MilestoneExercise` and `UserStoryExercise` subtypes as well, which serialize under their own
+ * discriminator. Use this wherever the question is "does this exercise have a build?" - the result badge, the build
+ * status subscription, the result string - so a milestone or user story is not silently treated as a non-programming
+ * exercise. Code that genuinely has to tell the subtypes apart reads `type` directly.
+ *
+ * @param exerciseType the exercise's own type
+ * @return true for programming exercises and their milestone subtypes
+ */
+export function isProgrammingExerciseType(exerciseType?: ExerciseType): boolean {
+    return baseExerciseType(exerciseType) === ExerciseType.PROGRAMMING;
+}
+
 // IMPORTANT NOTICE: The following strings have to be consistent with the ones defined in Exercise.java
 export enum IncludedInOverallScore {
     INCLUDED_COMPLETELY = 'INCLUDED_COMPLETELY',

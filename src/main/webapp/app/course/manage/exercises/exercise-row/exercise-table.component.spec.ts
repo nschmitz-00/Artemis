@@ -213,8 +213,9 @@ describe('ExerciseTableComponent', () => {
         });
 
         it('offers a no-group option followed by all groups', () => {
+            fixture.componentRef.setInput('exercises', [member]);
             fixture.componentRef.setInput('groups', [group]);
-            const options = component.groupOptions();
+            const options = component.rows()[0].groupOptions;
             expect(options).toHaveLength(2);
             expect(options[0].value).toBe(NO_GROUP_OPTION_VALUE);
             expect(options[1].value).toBe(10);

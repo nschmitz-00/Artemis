@@ -15,6 +15,7 @@ import {
     faCheckDouble,
     faCircleInfo,
     faCode,
+    faEye,
     faFileExport,
     faFileImport,
     faLayerGroup,
@@ -107,6 +108,7 @@ export class CourseManagementExercisesComponent implements OnInit {
     protected readonly faFileExport = faFileExport;
     protected readonly faCircleInfo = faCircleInfo;
     protected readonly faCode = faCode;
+    protected readonly faEye = faEye;
     protected readonly faPen = faPen;
     protected readonly faPencilAlt = faPencilAlt;
     protected readonly faTrash = faTrash;

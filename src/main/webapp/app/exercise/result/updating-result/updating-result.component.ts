@@ -7,7 +7,7 @@ import { ParticipationWebsocketService } from 'app/course/shared/services/partic
 import { RepositoryService } from 'app/programming/shared/services/repository.service';
 import dayjs from 'dayjs/esm';
 import { BuildTimingInfo, ProgrammingSubmissionService, ProgrammingSubmissionState } from 'app/programming/shared/services/programming-submission.service';
-import { Exercise, ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { Exercise, isProgrammingExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
 import { ResultService } from 'app/exercise/result/result.service';
 import { Submission, SubmissionType } from 'app/exercise/shared/entities/submission/submission.model';
@@ -99,7 +99,7 @@ export class UpdatingResultComponent implements OnInit, OnDestroy {
 
                 this.subscribeForNewResults();
                 // Currently submissions are only used for programming exercises to visualize the build process.
-                if (this.exercise()?.type === ExerciseType.PROGRAMMING || this.exercise()?.type === ExerciseType.USER_STORY) {
+                if (isProgrammingExerciseType(this.exercise()?.type)) {
                     this.subscribeForNewSubmissions();
                 }
 

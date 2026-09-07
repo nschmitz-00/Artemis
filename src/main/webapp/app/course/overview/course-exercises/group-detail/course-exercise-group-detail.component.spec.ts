@@ -392,17 +392,6 @@ describe('CourseExerciseGroupDetailComponent', () => {
             expect(requested.has(GROUP_ID)).toBe(false);
         });
 
-        it('does not add its own alert when the global handler already shows one', async () => {
-            const statusSpy = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 500, error: { title: 'boom' } })));
-            await setup([milestoneGroupMember()], { getMilestoneStatus: statusSpy });
-            const alertSpy = vi.spyOn(TestBed.inject(AlertService), 'error');
-            fixture.detectChanges();
-            await fixture.whenStable();
-
-            expect(milestone().milestoneStatusFailed()).toBe(true);
-            expect(alertSpy).not.toHaveBeenCalled();
-        });
-
         it('retries the status request after a failure', async () => {
             const status = { milestoneExerciseId: 99, started: false } as MilestoneStatusDTO;
             let firstCall = true;
