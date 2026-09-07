@@ -40,6 +40,33 @@ export const routes: Routes = [
         canActivate: [UserRouteAccessService],
     },
     {
+        // The anchor MilestoneExercise owns the group's shared template/solution/test repositories and is the only
+        // exercise of the group that ever runs a build, so it gets the same detail page a normal programming exercise
+        // has (repository URIs, build plan links, template/solution build status). Declared after the 'new' and 'edit'
+        // routes above, which would otherwise be swallowed by this route's ':exerciseId' segment.
+        path: 'milestone-exercise-groups/:exerciseId',
+        loadComponent: () => import('app/programming/manage/detail/programming-exercise-detail.component').then((m) => m.ProgrammingExerciseDetailComponent),
+        resolve: {
+            programmingExercise: ProgrammingExerciseResolve,
+        },
+        data: {
+            authorities: IS_AT_LEAST_TUTOR,
+            pageTitle: 'artemisApp.exerciseVariantGroup.milestoneDetail.title',
+        },
+        canActivate: [UserRouteAccessService],
+    },
+    {
+        // jhi-code-button navigates to the repository view relatively (['.', 'repository', type], see
+        // programming-repository-buttons-detail.component.html), so the milestone detail page needs its own copy of
+        // the repository sub-routes below the programming-exercise ones.
+        path: 'milestone-exercise-groups/:exerciseId/repository/:repositoryType',
+        children: repositorySubRoutes,
+    },
+    {
+        path: 'milestone-exercise-groups/:exerciseId/repository/:repositoryType/:repositoryId',
+        children: repositorySubRoutes,
+    },
+    {
         // UserStory create reuses the same programming-exercise update page as a normal exercise (see
         // ProgrammingExerciseUpdateComponent.isUserStoryMode), minus everything the milestone group already owns
         // (language, package, build config, static code analysis, timeline, ...) - only title/short name/categories/

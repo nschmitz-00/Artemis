@@ -15,6 +15,7 @@ import {
     faCheckDouble,
     faCircleInfo,
     faCode,
+    faEye,
     faFileExport,
     faFileImport,
     faLayerGroup,
@@ -106,6 +107,8 @@ export class CourseManagementExercisesComponent implements OnInit {
     protected readonly faFileImport = faFileImport;
     protected readonly faFileExport = faFileExport;
     protected readonly faCircleInfo = faCircleInfo;
+    protected readonly faCode = faCode;
+    protected readonly faEye = faEye;
     protected readonly faPen = faPen;
     protected readonly faPencilAlt = faPencilAlt;
     protected readonly faTrash = faTrash;
@@ -479,6 +482,18 @@ export class CourseManagementExercisesComponent implements OnInit {
             return;
         }
         this.openGroupEditDialog(group, false);
+    }
+
+    /**
+     * Opens the anchor {@code MilestoneExercise}'s detail page, which is where the group's shared template/solution/test
+     * repositories and their build status live - the milestone is the only exercise of the group that is ever built.
+     */
+    openMilestoneDetails(group: CourseExerciseGroup): void {
+        const courseId = this.courseId();
+        if (courseId === undefined || group.milestoneExerciseId === undefined) {
+            return;
+        }
+        void this.router.navigate(['/course-management', courseId, 'milestone-exercise-groups', group.milestoneExerciseId]);
     }
 
     /**

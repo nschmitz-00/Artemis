@@ -249,6 +249,13 @@ describe('ResultService', () => {
             }
         });
 
+        // MilestoneExercise and UserStoryExercise are ProgrammingExercise subtypes serialized under their own
+        // discriminator; they must get the programming result string, not the generic "x of y points" one.
+        it.each([ExerciseType.MILESTONE, ExerciseType.USER_STORY])('should return the programming result string for a %s exercise', (type) => {
+            const subtypeExercise: ProgrammingExercise = { ...programmingExercise, type };
+            expect(resultService.getResultString(result2, subtypeExercise, participation2)).toBe('artemisApp.result.resultString.programming');
+        });
+
         it.each([true, false])('should return correct string for programming exercise with no tests', (short: boolean) => {
             const expectedProgrammingString = short ? 'artemisApp.result.resultString.programmingShort' : 'artemisApp.result.resultString.programming';
             expect(resultService.getResultString(result2, programmingExercise, participation2, short)).toBe(expectedProgrammingString);

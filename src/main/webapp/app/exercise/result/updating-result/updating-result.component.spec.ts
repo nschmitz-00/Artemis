@@ -196,6 +196,14 @@ describe('UpdatingResultComponent', () => {
         expect(comp.isBuilding()).toBe(false);
     });
 
+    // MilestoneExercise and UserStoryExercise are ProgrammingExercise subtypes with their own discriminator; the
+    // milestone detail page renders a milestone directly, and without them the build progress bar never appears.
+    it.each([ExerciseType.MILESTONE, ExerciseType.USER_STORY])('should subscribe to fetching the latest pending submission when the exerciseType is %s', (type) => {
+        fixture.componentRef.setInput('exercise', { id: 99, type } as Exercise);
+        cleanInitializeGraded();
+        expect(getLatestPendingSubmissionStub).toHaveBeenCalledExactlyOnceWith(comp.participation()?.id, comp.exercise()?.id, true);
+    });
+
     it('should set the isBuilding attribute to true if exerciseType is PROGRAMMING and there is a latest pending submission', () => {
         // LocalCI is disabled
         vi.spyOn(profileService, 'isProfileActive').mockImplementation(() => false);

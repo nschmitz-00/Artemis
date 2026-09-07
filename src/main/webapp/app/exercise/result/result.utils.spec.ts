@@ -46,6 +46,21 @@ describe('ResultUtils', () => {
             const status = evaluateTemplateStatus(programmingExercise, participationWithExercise, ratedProgrammingResult, false);
             expect(status).toBe(ResultTemplateStatus.HAS_RESULT);
         });
+
+        // MilestoneExercise and UserStoryExercise are ProgrammingExercise subtypes that serialize under their own
+        // discriminator, so they must not fall through to NO_RESULT the way a genuinely unknown type would - the
+        // milestone detail page renders a milestone exercise directly (regression guard).
+        it.each([ExerciseType.MILESTONE, ExerciseType.USER_STORY])('returns HAS_RESULT for a %s exercise', (type) => {
+            const exercise = { id: 7, type } as Exercise;
+            const participation = { id: 19, type: ParticipationType.PROGRAMMING, exercise } as Participation;
+            expect(evaluateTemplateStatus(exercise, participation, ratedProgrammingResult, false)).toBe(ResultTemplateStatus.HAS_RESULT);
+        });
+
+        it.each([ExerciseType.MILESTONE, ExerciseType.USER_STORY])('returns IS_BUILDING for a building %s exercise', (type) => {
+            const exercise = { id: 7, type } as Exercise;
+            const participation = { id: 19, type: ParticipationType.PROGRAMMING, exercise } as Participation;
+            expect(evaluateTemplateStatus(exercise, participation, undefined, true)).toBe(ResultTemplateStatus.IS_BUILDING);
+        });
     });
 
     describe('evaluateTemplateStatus computes each status', () => {
@@ -197,6 +212,19 @@ describe('ResultUtils', () => {
             participation: { exercise: { type: ExerciseType.PROGRAMMING } } as Participation,
             templateStatus: ResultTemplateStatus.IS_BUILDING,
             expected: false,
+        },
+        // The ProgrammingExercise subtypes count as programming here too, otherwise the hint is silently suppressed.
+        {
+            result: { feedbacks: [{ type: FeedbackType.AUTOMATIC, text: STATIC_CODE_ANALYSIS_FEEDBACK_IDENTIFIER }], testCaseCount: 0 },
+            participation: { exercise: { type: ExerciseType.MILESTONE } } as Participation,
+            templateStatus: ResultTemplateStatus.HAS_RESULT,
+            expected: true,
+        },
+        {
+            result: { feedbacks: [{ type: FeedbackType.AUTOMATIC, text: STATIC_CODE_ANALYSIS_FEEDBACK_IDENTIFIER }], testCaseCount: 0 },
+            participation: { exercise: { type: ExerciseType.USER_STORY } } as Participation,
+            templateStatus: ResultTemplateStatus.HAS_RESULT,
+            expected: true,
         },
     ])('should correctly determine if compilation is tested', ({ result, participation, templateStatus, expected }) => {
         expect(isOnlyCompilationTested(result, participation, templateStatus!)).toBe(expected);

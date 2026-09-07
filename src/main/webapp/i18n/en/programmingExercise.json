@@ -52,7 +52,8 @@
             "detail": {
                 "title": "Programming Exercise",
                 "showTemplateSubmissions": "Show Template Submissions",
-                "showSolutionSubmissions": "Show Solution Submissions"
+                "showSolutionSubmissions": "Show Solution Submissions",
+                "milestoneSharedResultTooltip": "Build status of the milestone group's shared repository. All user stories of the group are built from it — manage it on the milestone page."
             },
             "versionHistory": {
                 "snapshot": {

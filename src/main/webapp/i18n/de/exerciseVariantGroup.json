@@ -1,6 +1,10 @@
 {
     "artemisApp": {
         "exerciseVariantGroup": {
+            "milestoneDetail": {
+                "title": "Milestone",
+                "action": "Details anzeigen"
+            },
             "detail": {
                 "variants": "Varianten",
                 "milestoneVariants": "Items",

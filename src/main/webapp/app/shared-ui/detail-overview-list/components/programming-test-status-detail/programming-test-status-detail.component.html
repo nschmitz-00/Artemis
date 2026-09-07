@@ -14,18 +14,21 @@
                 class="me-2"
             />
         }
-        @if (data.participation.submissions?.first()?.results?.length) {
+        <!-- Any submission may carry the result: findWithTemplateAndSolutionParticipationAndLatestResults attaches the
+             latest one to the LAST submission, so checking only the first hides the status of a repository that has
+             been built more than once. -->
+        @if (hasResult(data.participation)) {
             <jhi-programming-exercise-instructor-status
                 class="repository-status-icon me-2"
                 [participationType]="data.type"
                 [participation]="data.participation"
                 [exercise]="data.exercise"
             />
-            @if (data.exercise.isAtLeastEditor) {
+            @if (data.exercise.isAtLeastEditor && !data.readOnly) {
                 <jhi-programming-exercise-instructor-trigger-build-button [exercise]="data.exercise" [participation]="data.participation" />
             }
         }
-        @if (data.exercise.isAtLeastEditor && data.participation.id) {
+        @if (data.exercise.isAtLeastEditor && data.participation.id && !data.readOnly) {
             <a [routerLink]="data.submissionRouterLink" [queryParams]="{ isTmpOrSolutionProgrParticipation: true }" class="ms-2">
                 @switch (data.type) {
                     @case (ProgrammingExerciseParticipationType.TEMPLATE) {

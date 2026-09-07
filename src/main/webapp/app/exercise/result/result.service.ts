@@ -7,7 +7,7 @@ import { ResultWithPointsPerGradingCriterion } from 'app/exercise/shared/entitie
 import { createRequestOption } from 'app/foundation/util/request.util';
 import { Feedback } from 'app/assessment/shared/entities/feedback.model';
 import { StudentParticipation, isPracticeMode } from 'app/exercise/shared/entities/participation/student-participation.model';
-import { Exercise, ExerciseType, getCourseFromExercise } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { Exercise, ExerciseType, getCourseFromExercise, isProgrammingExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { map, tap } from 'rxjs/operators';
 import { ParticipationService } from 'app/exercise/participation/participation.service';
 import { convertDateFromClient, convertDateFromServer } from 'app/foundation/util/date.utils';
@@ -99,7 +99,7 @@ export class ResultService implements IResultService {
     private getResultStringDefinedParameters(result: Result, exercise: Exercise, participation: Participation | undefined, short: boolean | undefined): string {
         const relativeScore = roundValueSpecifiedByCourseSettings(result.score, getCourseFromExercise(exercise));
         const points = roundValueSpecifiedByCourseSettings((result.score! * exercise.maxPoints!) / 100, getCourseFromExercise(exercise));
-        if (exercise.type !== ExerciseType.PROGRAMMING) {
+        if (!isProgrammingExerciseType(exercise.type)) {
             if (isAthenaAIResult(result)) {
                 return this.getResultStringNonProgrammingExerciseWithAIFeedback(result, relativeScore, points, short);
             }

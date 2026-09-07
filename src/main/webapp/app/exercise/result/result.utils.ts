@@ -10,7 +10,7 @@ import { faCheckCircle, faQuestionCircle, faTimesCircle } from '@fortawesome/fre
 import { faCircleNotch } from '@fortawesome/free-solid-svg-icons';
 import { isParticipationInDueTime } from 'app/exercise/participation/participation.utils';
 import { getExerciseDueDate } from 'app/exercise/util/exercise.utils';
-import { Exercise, ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { Exercise, ExerciseType, isProgrammingExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { Participation, ParticipationType, getLatestSubmission } from 'app/exercise/shared/entities/participation/participation.model';
 import dayjs from 'dayjs/esm';
 import { ResultWithPointsPerGradingCriterion } from 'app/exercise/shared/entities/result/result-with-points-per-grading-criterion.model';
@@ -245,8 +245,8 @@ export const evaluateTemplateStatus = (
         }
     }
 
-    // Evaluate status for programming, user story and quiz exercises
-    if (exerciseType === ExerciseType.PROGRAMMING || exerciseType === ExerciseType.USER_STORY || exerciseType === ExerciseType.QUIZ) {
+    // Evaluate status for programming (including its milestone and user story subtypes) and quiz exercises
+    if (isProgrammingExerciseType(exerciseType) || exerciseType === ExerciseType.QUIZ) {
         if (isQueued) {
             return ResultTemplateStatus.IS_QUEUED;
         } else if (isBuilding) {
@@ -287,7 +287,7 @@ const getSubmissionUnderReview = (result: Result | undefined, participation: Par
  */
 export const isOnlyCompilationTested = (result: Result | undefined, participation: Participation | undefined, templateStatus: ResultTemplateStatus): boolean => {
     const zeroTests = !result?.testCaseCount;
-    const isProgrammingExercise: boolean = participation?.exercise?.type === ExerciseType.PROGRAMMING || participation?.exercise?.type === ExerciseType.USER_STORY;
+    const isProgrammingExercise: boolean = isProgrammingExerciseType(participation?.exercise?.type);
     return (
         templateStatus !== ResultTemplateStatus.NO_RESULT &&
         templateStatus !== ResultTemplateStatus.IS_BUILDING &&

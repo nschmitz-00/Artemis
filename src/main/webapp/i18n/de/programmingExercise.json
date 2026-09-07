@@ -52,7 +52,8 @@
             "detail": {
                 "title": "Programmieraufgabe",
                 "showTemplateSubmissions": "Zeige Template-Abgaben",
-                "showSolutionSubmissions": "Zeige Lösungsabgaben"
+                "showSolutionSubmissions": "Zeige Lösungsabgaben",
+                "milestoneSharedResultTooltip": "Build-Status des gemeinsamen Repositorys der Milestone-Gruppe. Alle User Stories der Gruppe werden daraus gebaut — verwaltet wird es auf der Milestone-Seite."
             },
             "versionHistory": {
                 "snapshot": {

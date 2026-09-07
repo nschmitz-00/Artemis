@@ -41,6 +41,7 @@ import { ProgrammingExerciseDetailComponent } from 'app/programming/manage/detai
 import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
 import { MockActivatedRoute } from 'test/helpers/mocks/activated-route/mock-activated-route';
 import { Course } from 'app/course/shared/entities/course.model';
+import { ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { provideTranslateService } from '@ngx-translate/core';
 import { StatisticsService } from 'app/exercise/statistics-graph/service/statistics.service';
 import { ExerciseManagementStatisticsDto } from 'app/exercise/statistics/exercise-management-statistics-dto';
@@ -409,6 +410,76 @@ describe('ProgrammingExerciseDetailComponent', () => {
             computeCanAccessParticipationsAndScores();
 
             expect(comp.canAccessParticipationsAndScores()).toBe(true);
+        });
+    });
+
+    describe('milestone exercise groups', () => {
+        const milestoneAnchor = {
+            id: 55,
+            projectKey: 'MS55',
+            templateParticipation: { id: 91 } as TemplateProgrammingExerciseParticipation,
+            solutionParticipation: { id: 92 } as SolutionProgrammingExerciseParticipation,
+        } as ProgrammingExercise;
+
+        /** Finds a detail row of the language section by its i18n title key. */
+        const languageDetail = (title: string) => comp.getExerciseDetailsLanguageSection(comp.programmingExercise()).details.find((detail) => detail && detail.title === title);
+
+        it('should route the edit button to the milestone group form for a milestone exercise', async () => {
+            const milestone = new ProgrammingExercise(new Course(), undefined);
+            milestone.id = 55;
+            milestone.type = ExerciseType.MILESTONE;
+            TestBed.inject(ActivatedRoute).snapshot.data = { programmingExercise: milestone };
+
+            comp.ngOnInit();
+            await new Promise((r) => setTimeout(r, 0));
+
+            expect(comp.isMilestoneExercise()).toBe(true);
+            expect(comp.editRouterLink()).toEqual([comp.shortBaseResource(), 'milestone-exercise-groups', 55, 'edit']);
+        });
+
+        it('should show the milestone anchor build status read-only on a user story exercise', async () => {
+            const userStory = new ProgrammingExercise(new Course(), undefined);
+            userStory.id = 77;
+            userStory.type = ExerciseType.USER_STORY;
+            userStory.exerciseVariantGroup = { id: 7, type: 'milestone', milestoneExerciseId: 55 };
+            TestBed.inject(ActivatedRoute).snapshot.data = { programmingExercise: userStory };
+
+            findWithTemplateAndSolutionParticipationStub.mockImplementation((exerciseId: number) =>
+                of(new HttpResponse<ProgrammingExercise>({ body: exerciseId === 55 ? milestoneAnchor : mockProgrammingExercise })),
+            );
+
+            comp.ngOnInit();
+            await new Promise((r) => setTimeout(r, 0));
+
+            // The user story's own participations are still loaded (the repository rows use them), plus the anchor's.
+            expect(findWithTemplateAndSolutionParticipationStub).toHaveBeenCalledWith(77);
+            expect(findWithTemplateAndSolutionParticipationStub).toHaveBeenCalledWith(55);
+
+            const templateResult = languageDetail('artemisApp.programmingExercise.templateResult');
+            expect(templateResult).toBeDefined();
+            expect(templateResult!.data.exercise).toBe(milestoneAnchor);
+            expect(templateResult!.data.participation).toBe(milestoneAnchor.templateParticipation);
+            expect(templateResult!.data.readOnly).toBe(true);
+            expect(templateResult!.data.submissionRouterLink).toBeUndefined();
+            expect(templateResult!.titleHelpText).toBe('artemisApp.programmingExercise.detail.milestoneSharedResultTooltip');
+
+            const solutionResult = languageDetail('artemisApp.programmingExercise.solutionResult');
+            expect(solutionResult!.data.participation).toBe(milestoneAnchor.solutionParticipation);
+            expect(solutionResult!.data.readOnly).toBe(true);
+        });
+
+        it('should keep the build status actionable on a plain programming exercise', async () => {
+            const programmingExercise = new ProgrammingExercise(new Course(), undefined);
+            programmingExercise.id = 123;
+            TestBed.inject(ActivatedRoute).snapshot.data = { programmingExercise };
+
+            comp.ngOnInit();
+            await new Promise((r) => setTimeout(r, 0));
+
+            const templateResult = languageDetail('artemisApp.programmingExercise.templateResult');
+            expect(templateResult!.data.readOnly).toBe(false);
+            expect(templateResult!.data.submissionRouterLink).toBeDefined();
+            expect(templateResult!.titleHelpText).toBeUndefined();
         });
     });
 
