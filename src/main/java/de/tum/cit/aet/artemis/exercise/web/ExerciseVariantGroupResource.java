@@ -198,6 +198,14 @@ public class ExerciseVariantGroupResource {
      * details endpoint: exam exercises are excluded and each member is checked with
      * {@link AuthorizationCheckService#isAllowedToSeeCourseExercise}, so an unreleased variant's statement is not leaked
      * to students while teaching assistants and instructors still see it.
+     * <p>
+     * Serves milestone groups as well - the group detail page renders both kinds - hence the lookup that does not
+     * exclude them, unlike the sibling endpoints above. This one only ever reads the group's members, never its own
+     * timeline, which is the whole reason that exclusion exists (see
+     * {@link ExerciseVariantGroupRepository#findAnyByIdAndCourseIdWithExercises}). For a milestone group the members are
+     * exactly its {@code UserStoryExercise}s: the anchor {@code MilestoneExercise} is referenced by the group rather
+     * than assigned to it, so it is never part of {@code getExercises()} and its own problem statement - which is the
+     * group's description, not a member preview - is served by the milestone-status endpoint instead.
      *
      * @param groupId  the id of the group whose member problem statements to retrieve
      * @param courseId the id of the course the group belongs to
@@ -208,7 +216,7 @@ public class ExerciseVariantGroupResource {
     public ResponseEntity<List<ExerciseProblemStatementDTO>> getExerciseVariantGroupProblemStatements(@PathVariable Long groupId, @PathVariable Long courseId) {
         log.debug("REST request to get problem statements of ExerciseVariantGroup {} in course {}", groupId, courseId);
         User user = userRepository.getUserWithAuthorities();
-        ExerciseVariantGroup group = exerciseVariantGroupRepository.findByIdAndCourseIdElseThrow(groupId, courseId);
+        ExerciseVariantGroup group = exerciseVariantGroupRepository.findAnyByIdAndCourseIdWithExercisesElseThrow(groupId, courseId);
         // The members are fetched with a lazy course and open-in-view is off; set the known path course on each so the
         // visibility check below resolves without a LazyInitializationException and without an extra per-exercise query.
         Course course = courseRepository.findByIdElseThrow(courseId);

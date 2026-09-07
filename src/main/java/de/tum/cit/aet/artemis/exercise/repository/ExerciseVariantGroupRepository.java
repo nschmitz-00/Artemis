@@ -60,6 +60,35 @@ public interface ExerciseVariantGroupRepository extends ArtemisJpaRepository<Exe
     }
 
     /**
+     * {@link #findByIdAndCourseId} without the milestone exclusion: this one resolves a group of <em>either</em> type,
+     * with its members fetched.
+     * <p>
+     * Only for callers that read nothing but {@code exercises}. The exclusion on the query above exists because a
+     * {@link de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup}'s timeline getters delegate to its anchor
+     * exercise, which a base-type query like this cannot fetch (the {@code TREAT} needed for that restricts the whole
+     * query to the subtype, dropping every other group) - so the anchor is still unfetched here and those getters still
+     * read as "no dates". A caller that touches the group's own fields, or maps it to a DTO that does, must therefore
+     * keep using {@link #findByIdAndCourseId} and let {@code MilestoneExerciseGroupRepository} serve milestone groups.
+     *
+     * @param groupId  the id of the group to load, of either type
+     * @param courseId the id of the course the group must belong to
+     * @return the matching group with its members initialized, or empty if none matches
+     */
+    @Query("""
+            SELECT DISTINCT evg
+            FROM Course c
+                JOIN c.exerciseVariantGroups evg
+                LEFT JOIN FETCH evg.exercises
+            WHERE c.id = :courseId
+                AND evg.id = :groupId
+            """)
+    Optional<ExerciseVariantGroup> findAnyByIdAndCourseIdWithExercises(@Param("groupId") Long groupId, @Param("courseId") Long courseId);
+
+    default ExerciseVariantGroup findAnyByIdAndCourseIdWithExercisesElseThrow(Long groupId, Long courseId) throws EntityNotFoundException {
+        return getValueElseThrow(findAnyByIdAndCourseIdWithExercises(groupId, courseId), groupId);
+    }
+
+    /**
      * Loads the group <em>without</em> its member exercises. Used for deletion: pulling the members into the persistence
      * context would make Hibernate's flush fail with a {@code TransientPropertyValueException} (the managed exercises
      * would still reference the removed group). With the members left unloaded, the {@code ON DELETE SET NULL} foreign
