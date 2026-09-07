@@ -17,10 +17,13 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import de.tum.cit.aet.artemis.assessment.domain.AssessmentType;
+import de.tum.cit.aet.artemis.assessment.domain.Result;
 import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.course.dto.CourseExercisesForOverviewDTO;
 import de.tum.cit.aet.artemis.exercise.domain.ExerciseVariantGroup;
 import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
+import de.tum.cit.aet.artemis.exercise.domain.SubmissionType;
 import de.tum.cit.aet.artemis.exercise.dto.CreateUserStoryExerciseDTO;
 import de.tum.cit.aet.artemis.exercise.dto.ExerciseOverviewDTO;
 import de.tum.cit.aet.artemis.exercise.dto.ExerciseVariantGroupDTO;
@@ -32,7 +35,10 @@ import de.tum.cit.aet.artemis.exercise.repository.ExerciseVariantGroupRepository
 import de.tum.cit.aet.artemis.exercise.repository.MilestoneExerciseGroupRepository;
 import de.tum.cit.aet.artemis.programming.AbstractProgrammingIntegrationIndependentTest;
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
+import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
+import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParticipation;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingLanguage;
+import de.tum.cit.aet.artemis.programming.domain.ProgrammingSubmission;
 import de.tum.cit.aet.artemis.programming.domain.ProjectType;
 import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 
@@ -315,6 +321,72 @@ class MilestoneExerciseGroupIntegrationTest extends AbstractProgrammingIntegrati
             assertThat(exercise.exerciseVariantGroup().type()).isEqualTo("milestone");
             assertThat(exercise.exerciseVariantGroup().milestoneExerciseId()).isEqualTo(milestoneExercise.getId());
         });
+    }
+
+    /**
+     * A milestone group's points are the ones its anchor {@link MilestoneExercise} carries - {@code MilestoneScoreService}
+     * writes {@code sum(user story points) - static code analysis penalty} (or {@code 0} on a BLOCKING category) onto its
+     * result. The per-group breakdown the group detail page shows therefore has to report the anchor's value, and the
+     * course total has to count the group through the anchor as well; summing the user stories instead would both ignore
+     * the penalty and, since the score calculation deliberately skips milestone group members, leave the whole group out
+     * of the course score.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+    void theCourseOverviewScoresAMilestoneGroupThroughItsAnchorExercise() throws Exception {
+        // The anchor's maxPoints mirror the sum of its members' - MilestoneExercisePointsService keeps them in sync.
+        milestoneExercise.setMaxPoints(10.0);
+        milestoneExercise.setAssessmentType(AssessmentType.AUTOMATIC);
+        milestoneExercise = (MilestoneExercise) programmingExerciseRepository.save(milestoneExercise);
+
+        UserStoryExercise member = new UserStoryExercise();
+        member.setTitle("User story");
+        member.setShortName("usscored" + TEST_PREFIX);
+        member.setProgrammingLanguage(ProgrammingLanguage.JAVA);
+        member.setCourse(course);
+        member.setMaxPoints(10.0);
+        member.setAssessmentType(AssessmentType.AUTOMATIC);
+        member.setReleaseDate(milestoneExercise.getReleaseDate());
+        member.setDueDate(milestoneExercise.getDueDate());
+        member.setExerciseVariantGroup(milestoneGroup);
+        member.generateAndSetProjectKey();
+        member = (UserStoryExercise) programmingExerciseRepository.save(member);
+
+        // The story scored full marks while the anchor was aggregated down to 60% - exactly the divergence a static code
+        // analysis penalty produces. Only the anchor's 6.0 may reach the client.
+        addRatedResult(member, 100.0);
+        addRatedResult(milestoneExercise, 60.0);
+
+        var overview = request.get("/api/course/courses/" + course.getId() + "/exercises-for-overview", HttpStatus.OK, CourseExercisesForOverviewDTO.class);
+
+        // The anchor is projected for the score calculation only; it is never rendered (MilestoneExercise.isVisibleToStudents()).
+        assertThat(overview.exercises()).extracting(ExerciseOverviewDTO::id).doesNotContain(milestoneExercise.getId()).contains(member.getId());
+        assertThat(overview.achievedPointsPerVariantGroup()).containsEntry(milestoneGroup.getId(), 6.0);
+        assertThat(overview.totalScores().maxPoints()).isEqualTo(10.0);
+        assertThat(overview.totalScores().studentScores().absoluteScore()).isEqualTo(6.0);
+    }
+
+    /** Gives {@code student1} a participation on the exercise with one rated, completed result at the given percentage. */
+    private void addRatedResult(ProgrammingExercise exercise, double score) {
+        ProgrammingExerciseStudentParticipation participation = participationUtilService.addStudentParticipationForProgrammingExercise(exercise, TEST_PREFIX + "student1");
+
+        ProgrammingSubmission submission = new ProgrammingSubmission();
+        submission.setParticipation(participation);
+        submission.setCommitHash("commit-" + exercise.getId());
+        submission.setType(SubmissionType.MANUAL);
+        submission.setSubmissionDate(ZonedDateTime.now().truncatedTo(ChronoUnit.MILLIS));
+        submission.setSubmitted(true);
+        submission = programmingSubmissionRepository.save(submission);
+
+        Result result = new Result();
+        result.setAssessmentType(AssessmentType.AUTOMATIC);
+        result.setCompletionDate(ZonedDateTime.now().truncatedTo(ChronoUnit.MILLIS));
+        result.setSuccessful(true);
+        result.setExerciseId(exercise.getId());
+        result.setSubmission(submission);
+        result.setScore(score);
+        result.setRated(true);
+        resultRepository.save(result);
     }
 
     /**

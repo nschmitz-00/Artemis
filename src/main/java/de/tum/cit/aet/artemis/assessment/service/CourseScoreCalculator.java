@@ -5,6 +5,7 @@ import static de.tum.cit.aet.artemis.core.util.RoundingUtil.roundToNDecimalPlace
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -181,25 +182,67 @@ public final class CourseScoreCalculator {
      * Calculates the plagiarism-adjusted points a student earns per variant group, keyed by group id. Groups with a
      * configured {@code maxPoints} are capped at it; groups without one contribute their raw sum. A course-wide
      * {@link PlagiarismVerdict#PLAGIARISM} verdict zeroes the whole course (empty map).
+     * <p>
+     * A <b>milestone</b> group is credited from its anchor {@code MilestoneExercise} rather than from its user stories,
+     * because the anchor is what carries the group's authoritative points: {@code MilestoneScoreService} stores
+     * {@code sum(user story points) - static code analysis penalty} on it, and {@code 0} outright when the shared
+     * codebase violates a {@code BLOCKING} category. Summing the stories instead would report a number the student's
+     * course score never agrees with. The stories are skipped for exactly that reason - but only for the groups whose
+     * anchor is actually present in {@code context}; a caller that cannot supply one keeps the member-sum behaviour
+     * rather than silently reporting nothing.
+     * <p>
+     * The anchor deliberately bypasses {@link #hasCountablePoints}. That gate answers "do these points count towards the
+     * course score yet", which is decided separately in {@link #calculateCourseScoreForStudent}; this map is the
+     * per-group breakdown the group detail page shows, and it has to agree with the user story results the student is
+     * already looking at on that same page. Gating it would blank the total while the individual stories below it show
+     * points - for instance for the whole time an automatically assessed group's final build date is still ahead.
      *
-     * @param context      the course-level part of the calculation, from {@link #createContext}
-     * @param studentInput every projected input specific to the student
+     * @param context                   the course-level part of the calculation, from {@link #createContext}
+     * @param studentInput              every projected input specific to the student
+     * @param groupIdByAnchorExerciseId the milestone group id per anchor {@code MilestoneExercise} id; empty when the
+     *                                      caller has no milestone anchors to offer
      * @return the plagiarism-adjusted points per variant group id, capped where a cap is configured; empty when no
      *         variant group contributes
      */
-    public static Map<Long, Double> calculateAchievedPointsPerVariantGroup(CourseScoreContextDTO context, StudentCourseScoreInputDTO studentInput) {
+    public static Map<Long, Double> calculateAchievedPointsPerVariantGroup(CourseScoreContextDTO context, StudentCourseScoreInputDTO studentInput,
+            Map<Long, Long> groupIdByAnchorExerciseId) {
         Map<Long, PlagiarismCaseScoreDTO> plagiarismCasesForStudent = plagiarismCasesForStudent(studentInput);
         if (studentHasVerdict(plagiarismCasesForStudent.values(), PlagiarismVerdict.PLAGIARISM)) {
             return Map.of();
         }
         Map<Long, CourseGradeScoreDTO> gradeScorePerExercise = ratedGradeScoresPerExercise(studentInput.gradeScores());
+        Set<Long> groupsCreditedFromAnchor = context.exercises().stream().map(exercise -> groupIdByAnchorExerciseId.get(exercise.id())).filter(Objects::nonNull)
+                .collect(Collectors.toSet());
 
         var achievedPointsPerGroup = new VariantGroupCappedSum();
-        context.exercises().stream().filter(exercise -> exercise.variantGroupId() != null).filter(exercise -> hasCountablePoints(exercise, context.calculationTime()))
-                .forEach(exercise -> Optional.ofNullable(gradeScorePerExercise.get(exercise.id()))
-                        .ifPresent(gradeScore -> achievedPointsPerGroup.add(exercise.variantGroupId(), exercise.variantGroupMaxPoints(),
-                                calculatePointsAchievedFromExercise(exercise, gradeScore.score(), plagiarismCasesForStudent.get(exercise.id()), context.settings()))));
+        for (ExerciseCourseScoreDTO exercise : context.exercises()) {
+            Long anchoredGroupId = groupIdByAnchorExerciseId.get(exercise.id());
+            if (anchoredGroupId != null) {
+                // A milestone group is never capped (MilestoneExerciseGroup.setMaxPoints is a no-op), hence the null cap.
+                addAchievedPoints(achievedPointsPerGroup, anchoredGroupId, null, exercise, gradeScorePerExercise, plagiarismCasesForStudent, context.settings());
+                continue;
+            }
+            if (exercise.variantGroupId() == null || groupsCreditedFromAnchor.contains(exercise.variantGroupId())) {
+                continue;
+            }
+            if (hasCountablePoints(exercise, context.calculationTime())) {
+                addAchievedPoints(achievedPointsPerGroup, exercise.variantGroupId(), exercise.variantGroupMaxPoints(), exercise, gradeScorePerExercise, plagiarismCasesForStudent,
+                        context.settings());
+            }
+        }
         return achievedPointsPerGroup.cappedPointsPerGroup();
+    }
+
+    /**
+     * Credits the variant group with the exercise's plagiarism-adjusted points, if the student holds a rated grade score
+     * for that exercise. A missing grade score contributes nothing rather than a zero, so a group whose exercises the
+     * student never attempted stays out of the map entirely.
+     */
+    private static void addAchievedPoints(VariantGroupCappedSum achievedPointsPerGroup, Long variantGroupId, @Nullable Double variantGroupMaxPoints,
+            ExerciseCourseScoreDTO exercise, Map<Long, CourseGradeScoreDTO> gradeScorePerExercise, Map<Long, PlagiarismCaseScoreDTO> plagiarismCasesForStudent,
+            CourseScoreSettingsDTO settings) {
+        Optional.ofNullable(gradeScorePerExercise.get(exercise.id())).ifPresent(gradeScore -> achievedPointsPerGroup.add(variantGroupId, variantGroupMaxPoints,
+                calculatePointsAchievedFromExercise(exercise, gradeScore.score(), plagiarismCasesForStudent.get(exercise.id()), settings)));
     }
 
     private static Map<Long, CourseGradeScoreDTO> ratedGradeScoresPerExercise(Collection<CourseGradeScoreDTO> gradeScores) {

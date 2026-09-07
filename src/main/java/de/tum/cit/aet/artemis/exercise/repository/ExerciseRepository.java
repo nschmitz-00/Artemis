@@ -67,9 +67,9 @@ public interface ExerciseRepository extends ArtemisJpaRepository<Exercise, Long>
      * @param userLogin         the requesting user's login for the LTI-launch check
      * @return the projected exercise details
      */
-    // MilestoneExercise is excluded unconditionally: it's the anchor a MilestoneExerciseGroup's user story exercises share
-    // repositories/build plan with, never something anyone works on directly, and its own javadoc says it must never be
-    // rendered - see MilestoneExercise.isVisibleToStudents(), the corresponding gate for direct per-exercise access.
+    // MilestoneExercise rows are deliberately included, even though a milestone is never rendered to anyone (see
+    // MilestoneExercise.isVisibleToStudents(), the corresponding gate for direct per-exercise access): it is the only
+    // exercise of its group that carries the group's points.
     @Query("""
             SELECT NEW de.tum.cit.aet.artemis.exercise.dto.ExerciseForCourseOverviewDTO(
                 TYPE(exercise),
@@ -107,7 +107,6 @@ public interface ExerciseRepository extends ArtemisJpaRepository<Exercise, Long>
                 LEFT JOIN ProgrammingExercise programmingExercise ON exercise.id = programmingExercise.id
                 LEFT JOIN exercise.exerciseVariantGroup variantGroup
             WHERE exercise.course.id = :courseId
-                AND TYPE(exercise) <> MilestoneExercise
                 AND (:includeUnreleased = TRUE OR exercise.releaseDate IS NULL OR exercise.releaseDate <= :calculationTime)
                 AND (:requireLtiLaunch = FALSE OR EXISTS (
                     SELECT launch

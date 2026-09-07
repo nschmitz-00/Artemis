@@ -127,9 +127,12 @@ public class CourseOverviewExerciseService {
         Map<ExerciseType, CourseScoresDTO> scoresByType = calculateScoresByType(settings, scoreExercises, calculationTime, studentInput,
                 overviewParticipations.basicPresentationScoreCountByType());
         Set<ParticipationResultDTO> participationResults = buildParticipationResults(overviewParticipations.rowsByParticipationId(), gradeScores);
-        Map<Long, Double> achievedPointsPerVariantGroup = CourseScoreCalculator.calculateAchievedPointsPerVariantGroup(totalContext, studentInput);
+        Map<Long, Double> achievedPointsPerVariantGroup = CourseScoreCalculator.calculateAchievedPointsPerVariantGroup(totalContext, studentInput,
+                milestoneGroupIdByAnchorExerciseId(exerciseDetails));
 
-        Set<ExerciseOverviewDTO> exercises = exerciseDetails.stream()
+        // The milestone anchors were projected for the score calculation above and must not reach the client: a
+        // MilestoneExercise is never rendered (see MilestoneExercise.isVisibleToStudents()); its group is what students see.
+        Set<ExerciseOverviewDTO> exercises = exerciseDetails.stream().filter(exercise -> !exercise.isMilestoneAnchor())
                 .map(exercise -> exercise.toOverviewDTO(categoriesByExercise.getOrDefault(exercise.id(), Set.of()), teamAssignmentByExercise.get(exercise.id()),
                         overviewParticipations.participationsByExerciseId().getOrDefault(exercise.id(), Set.of()), calculationTime, startedQuizExerciseIds.contains(exercise.id())))
                 .collect(Collectors.toSet());
@@ -137,6 +140,22 @@ public class CourseOverviewExerciseService {
         return new CourseExercisesForOverviewDTO(exercises, totalScores, scoresByType.get(ExerciseType.TEXT), scoresByType.get(ExerciseType.PROGRAMMING),
                 scoresByType.get(ExerciseType.MODELING), scoresByType.get(ExerciseType.FILE_UPLOAD), scoresByType.get(ExerciseType.QUIZ), participationResults,
                 achievedPointsPerVariantGroup);
+    }
+
+    /**
+     * Maps each milestone group's anchor {@code MilestoneExercise} id to its group id, read off the group reference the
+     * members already carry - no extra query. The anchor's own row cannot supply this: a {@code MilestoneExercise} has no
+     * {@code exerciseVariantGroup} of its own, the group points at it instead (see {@code MilestoneExerciseGroup}).
+     * <p>
+     * A milestone group without any user story yields no entry, which is correct: with no members it has no points and
+     * cannot be opened on the group detail page either, since that page rebuilds the groups from their members.
+     *
+     * @param exerciseDetails the projected rows of the whole course
+     * @return the group id per anchor milestone exercise id
+     */
+    private static Map<Long, Long> milestoneGroupIdByAnchorExerciseId(List<ExerciseForCourseOverviewDTO> exerciseDetails) {
+        return exerciseDetails.stream().filter(exercise -> exercise.variantGroupMilestoneExerciseId() != null && exercise.variantGroupId() != null)
+                .collect(Collectors.toMap(ExerciseForCourseOverviewDTO::variantGroupMilestoneExerciseId, ExerciseForCourseOverviewDTO::variantGroupId, (first, ignored) -> first));
     }
 
     private Map<Long, Set<String>> loadCategories(Set<Long> exerciseIds) {
