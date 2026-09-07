@@ -136,7 +136,7 @@ export class ExerciseSplitPanelComponent {
         return !!course && (isCommunicationEnabled(course) || isMessagingEnabled(course));
     });
 
-    readonly showTasks = computed(() => this.exercise().type === ExerciseType.USER_STORY);
+    readonly showTasks = computed(() => this.exercise().type === ExerciseType.USER_STORY && this.studentParticipation()?.id !== undefined);
 
     /** A UserStoryExercise is a ProgrammingExercise (shares its group's repositories/code editor), so it follows the same student-facing behavior wherever this file branches on ExerciseType.PROGRAMMING. */
     private static isProgrammingLike(type: ExerciseType | undefined): boolean {

@@ -81,13 +81,11 @@ const MILESTONE_HIDDEN_FIELDS: ProgrammingExerciseInputField[] = [
     ProgrammingExerciseInputField.POINTS,
     ProgrammingExerciseInputField.BONUS_POINTS,
     ProgrammingExerciseInputField.INCLUDE_EXERCISE_IN_COURSE_SCORE_CALCULATION,
-    ProgrammingExerciseInputField.ASSESSMENT_DUE_DATE,
     ProgrammingExerciseInputField.COMPLAINT_ON_AUTOMATIC_ASSESSMENT,
     ProgrammingExerciseInputField.MANUAL_FEEDBACK_REQUESTS,
     ProgrammingExerciseInputField.ASSESSMENT_INSTRUCTIONS,
     ProgrammingExerciseInputField.PRESENTATION_SCORE,
     ProgrammingExerciseInputField.PLAGIARISM_CONTROL,
-    ProgrammingExerciseInputField.EXAMPLE_SOLUTION_PUBLICATION_DATE,
 ];
 
 /**
