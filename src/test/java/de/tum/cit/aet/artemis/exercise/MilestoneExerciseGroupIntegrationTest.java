@@ -7,6 +7,7 @@ import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +27,7 @@ import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
 import de.tum.cit.aet.artemis.exercise.domain.SubmissionType;
 import de.tum.cit.aet.artemis.exercise.dto.CreateUserStoryExerciseDTO;
 import de.tum.cit.aet.artemis.exercise.dto.ExerciseOverviewDTO;
+import de.tum.cit.aet.artemis.exercise.dto.ExerciseProblemStatementDTO;
 import de.tum.cit.aet.artemis.exercise.dto.ExerciseVariantGroupDTO;
 import de.tum.cit.aet.artemis.exercise.dto.MilestoneExerciseGroupDTO;
 import de.tum.cit.aet.artemis.exercise.dto.MilestoneStatusDTO;
@@ -414,5 +416,65 @@ class MilestoneExerciseGroupIntegrationTest extends AbstractProgrammingIntegrati
         assertThat(group).isNotNull();
         assertThat(group.get("type").asText()).isEqualTo("milestone");
         assertThat(group.get("milestoneExerciseId").asLong()).isEqualTo(milestoneExercise.getId());
+    }
+
+    private String problemStatementsUrl(long groupId) {
+        return variantGroupsUrl() + "/" + groupId + "/problem-statements";
+    }
+
+    /** Adds a user story to the milestone group. Kept minimal on purpose - only what the preview endpoint reads. */
+    private UserStoryExercise addUserStoryMember(String shortNameSuffix, @Nullable ZonedDateTime releaseDate, @Nullable String problemStatement) {
+        UserStoryExercise member = new UserStoryExercise();
+        member.setTitle("User story " + shortNameSuffix);
+        member.setShortName("us" + shortNameSuffix + TEST_PREFIX);
+        member.setProgrammingLanguage(ProgrammingLanguage.JAVA);
+        member.setCourse(course);
+        member.setMaxPoints(10.0);
+        member.setReleaseDate(releaseDate);
+        member.setProblemStatement(problemStatement);
+        member.setExerciseVariantGroup(milestoneGroup);
+        member.generateAndSetProjectKey();
+        return (UserStoryExercise) programmingExerciseRepository.save(member);
+    }
+
+    /**
+     * The group detail page renders milestone groups too, and asks for its member previews through the same batch
+     * endpoint variant groups use. That endpoint used to resolve the group through a lookup that excludes milestone
+     * groups, so the request 404'd and every user story card fell back to "no problem statement configured".
+     * <p>
+     * Relaxing that lookup must not relax the visibility filter, hence the unreleased member.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+    void theProblemStatementsEndpointServesAMilestoneGroupsUserStories() throws Exception {
+        UserStoryExercise released = addUserStoryMember("released", ZonedDateTime.now().minusDays(1).truncatedTo(ChronoUnit.MILLIS), "Implement the login form");
+        UserStoryExercise unreleased = addUserStoryMember("unreleased", ZonedDateTime.now().plusDays(5).truncatedTo(ChronoUnit.MILLIS), "Implement the logout");
+
+        List<ExerciseProblemStatementDTO> statements = request.getList(problemStatementsUrl(milestoneGroup.getId()), HttpStatus.OK, ExerciseProblemStatementDTO.class);
+
+        assertThat(statements).singleElement().satisfies(statement -> {
+            assertThat(statement.exerciseId()).isEqualTo(released.getId());
+            assertThat(statement.problemStatement()).isEqualTo("Implement the login form");
+        });
+        assertThat(statements).extracting(ExerciseProblemStatementDTO::exerciseId).doesNotContain(unreleased.getId());
+    }
+
+    /**
+     * The anchor's problem statement is the group's <em>description</em>, not a member preview - the group view gets it
+     * from the milestone-status endpoint instead. It must therefore never appear among the member previews, and that has
+     * to hold for a role that sees everything: for a student it would be filtered out anyway, since
+     * {@code MilestoneExercise.isVisibleToStudents()} is always false, which would make the assertion prove nothing.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "editor1", roles = "EDITOR")
+    void theProblemStatementsEndpointNeverReturnsTheAnchorExercise() throws Exception {
+        milestoneExercise.setProblemStatement("The group description");
+        milestoneExercise = (MilestoneExercise) programmingExerciseRepository.save(milestoneExercise);
+        UserStoryExercise first = addUserStoryMember("first", null, "Implement the login form");
+        UserStoryExercise second = addUserStoryMember("second", null, "Implement the logout");
+
+        List<ExerciseProblemStatementDTO> statements = request.getList(problemStatementsUrl(milestoneGroup.getId()), HttpStatus.OK, ExerciseProblemStatementDTO.class);
+
+        assertThat(statements).extracting(ExerciseProblemStatementDTO::exerciseId).containsExactlyInAnyOrder(first.getId(), second.getId());
     }
 }
