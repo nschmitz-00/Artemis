@@ -40,11 +40,14 @@ import de.tum.cit.aet.artemis.exercise.domain.Exercise;
 import de.tum.cit.aet.artemis.exercise.domain.ExerciseType;
 import de.tum.cit.aet.artemis.exercise.domain.ExerciseVariantGroup;
 import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
+import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
 import de.tum.cit.aet.artemis.exercise.domain.participation.Participation;
 import de.tum.cit.aet.artemis.exercise.domain.participation.StudentParticipation;
 import de.tum.cit.aet.artemis.exercise.dto.CourseGradeScoreDTO;
+import de.tum.cit.aet.artemis.exercise.dto.MilestoneGroupAnchorDTO;
 import de.tum.cit.aet.artemis.exercise.dto.ParticipationResultDTO;
 import de.tum.cit.aet.artemis.exercise.repository.ExerciseRepository;
+import de.tum.cit.aet.artemis.exercise.repository.MilestoneExerciseGroupRepository;
 import de.tum.cit.aet.artemis.exercise.repository.StudentParticipationRepository;
 import de.tum.cit.aet.artemis.exercise.service.ExerciseDateService;
 import de.tum.cit.aet.artemis.iris.api.IrisSettingsApi;
@@ -79,15 +82,19 @@ public class CourseScoreCalculationService {
 
     private final UserCourseNotificationStatusRepository userCourseNotificationStatusRepository;
 
+    private final MilestoneExerciseGroupRepository milestoneExerciseGroupRepository;
+
     public CourseScoreCalculationService(StudentParticipationRepository studentParticipationRepository, ExerciseRepository exerciseRepository,
             Optional<PlagiarismCaseApi> plagiarismCaseApi, PresentationPointsCalculationService presentationPointsCalculationService,
-            UserCourseNotificationStatusRepository userCourseNotificationStatusRepository, Optional<IrisSettingsApi> irisSettingsApi) {
+            UserCourseNotificationStatusRepository userCourseNotificationStatusRepository, Optional<IrisSettingsApi> irisSettingsApi,
+            MilestoneExerciseGroupRepository milestoneExerciseGroupRepository) {
         this.studentParticipationRepository = studentParticipationRepository;
         this.exerciseRepository = exerciseRepository;
         this.plagiarismCaseApi = plagiarismCaseApi;
         this.presentationPointsCalculationService = presentationPointsCalculationService;
         this.userCourseNotificationStatusRepository = userCourseNotificationStatusRepository;
         this.irisSettingsApi = irisSettingsApi;
+        this.milestoneExerciseGroupRepository = milestoneExerciseGroupRepository;
     }
 
     /**
@@ -329,6 +336,14 @@ public class CourseScoreCalculationService {
      * configured {@code maxPoints} are capped at it; groups without one contribute their raw sum. A course-wide
      * {@link PlagiarismVerdict#PLAGIARISM} verdict zeroes the whole course (empty map); otherwise each contribution runs
      * through {@link #calculatePointsAchievedFromExercise}, applying the per-exercise plagiarism deduction.
+     * <p>
+     * The participation-based twin of {@code CourseScoreCalculator.calculateAchievedPointsPerVariantGroup}, and it credits
+     * milestone groups the same way: from the group's anchor {@code MilestoneExercise}, which carries the group's
+     * authoritative points ({@code sum(user story points) - static code analysis penalty}, or {@code 0} on a
+     * {@code BLOCKING} category - see {@code MilestoneScoreService}), rather than from the raw sum of its user stories.
+     * The anchor is not reachable from the exercises themselves - it has no {@code exerciseVariantGroup} of its own - so
+     * the link is resolved through the repository; it also bypasses {@link #hasCountablePoints}, for the reason
+     * documented on the calculator's method.
      *
      * @param userId                  the id of the student whose per-group points are calculated
      * @param participationsOfStudent the student's graded participations (exercises must still be attached)
@@ -342,20 +357,50 @@ public class CourseScoreCalculationService {
             return Map.of();
         }
         var plagiarismCasesForStudent = plagiarismMapping.getPlagiarismCasesForStudent(userId);
+        Map<Long, Long> groupIdByAnchorExerciseId = milestoneGroupIdByAnchorExerciseId(participationsOfStudent);
+        Set<Long> groupsCreditedFromAnchor = participationsOfStudent.stream().map(participation -> groupIdByAnchorExerciseId.get(participation.getExercise().getId()))
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+
         var achievedPointsPerVariantGroup = new VariantGroupCappedSum();
         for (StudentParticipation participation : participationsOfStudent) {
             Exercise exercise = participation.getExercise();
+            Long anchoredGroupId = groupIdByAnchorExerciseId.get(exercise.getId());
             ExerciseVariantGroup variantGroup = exercise.getExerciseVariantGroup();
-            if (variantGroup == null || !hasCountablePoints(ExerciseCourseScoreDTO.from(exercise))) {
+            boolean skip = anchoredGroupId == null
+                    && (variantGroup == null || groupsCreditedFromAnchor.contains(variantGroup.getId()) || !hasCountablePoints(ExerciseCourseScoreDTO.from(exercise)));
+            if (skip) {
                 continue;
             }
             Result result = getResultForParticipation(participation, exercise.getDueDate());
             if (result != null && result.isRated()) {
                 double pointsAchievedFromExercise = calculatePointsAchievedFromExercise(exercise, result, plagiarismCasesForStudent.get(exercise.getId()));
-                achievedPointsPerVariantGroup.add(variantGroup.getId(), variantGroup.getMaxPoints(), pointsAchievedFromExercise);
+                if (anchoredGroupId != null) {
+                    // A milestone group is never capped - MilestoneExerciseGroup.setMaxPoints is a no-op - hence the null cap.
+                    achievedPointsPerVariantGroup.add(anchoredGroupId, null, pointsAchievedFromExercise);
+                }
+                else {
+                    achievedPointsPerVariantGroup.add(variantGroup.getId(), variantGroup.getMaxPoints(), pointsAchievedFromExercise);
+                }
             }
         }
         return achievedPointsPerVariantGroup.cappedPointsPerGroup();
+    }
+
+    /**
+     * Resolves the anchor {@code MilestoneExercise} of every milestone group the student participates in, as a map from
+     * anchor exercise id to group id. One query, and none at all for a course without milestone groups.
+     *
+     * @param participationsOfStudent the student's graded participations (exercises must still be attached)
+     * @return the group id per anchor milestone exercise id
+     */
+    private Map<Long, Long> milestoneGroupIdByAnchorExerciseId(Collection<StudentParticipation> participationsOfStudent) {
+        Set<Long> milestoneGroupIds = participationsOfStudent.stream().map(participation -> participation.getExercise().getExerciseVariantGroup())
+                .filter(MilestoneExerciseGroup.class::isInstance).map(ExerciseVariantGroup::getId).collect(Collectors.toSet());
+        if (milestoneGroupIds.isEmpty()) {
+            return Map.of();
+        }
+        return milestoneExerciseGroupRepository.findAnchorsByGroupIds(milestoneGroupIds).stream()
+                .collect(Collectors.toMap(MilestoneGroupAnchorDTO::milestoneExerciseId, MilestoneGroupAnchorDTO::groupId, (first, ignored) -> first));
     }
 
     /**

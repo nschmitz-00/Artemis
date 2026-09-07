@@ -59,6 +59,17 @@ public record ExerciseForCourseOverviewDTO(ExerciseType type, String typeDiscrim
     }
 
     /**
+     * Whether this row is a {@code MilestoneExercise} - the anchor of a {@code MilestoneExerciseGroup}, which carries the
+     * whole group's points but is never rendered to anyone. It is projected for the score calculation only, so every
+     * caller that builds the rendered exercise list has to filter it out (see {@code CourseOverviewExerciseService}).
+     *
+     * @return true if this row is a milestone anchor
+     */
+    public boolean isMilestoneAnchor() {
+        return "milestone".equals(typeDiscriminator);
+    }
+
+    /**
      * Builds the wire DTO after its two collections and the user's team assignment have been loaded independently.
      */
     public ExerciseOverviewDTO toOverviewDTO(Set<String> categories, @Nullable Long studentAssignedTeamId, Set<ParticipationOverviewDTO> studentParticipations,

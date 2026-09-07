@@ -3,6 +3,7 @@ package de.tum.cit.aet.artemis.exercise.repository;
 import static de.tum.cit.aet.artemis.core.config.Constants.PROFILE_CORE;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Repository;
 import de.tum.cit.aet.artemis.core.exception.EntityNotFoundException;
 import de.tum.cit.aet.artemis.core.repository.base.ArtemisJpaRepository;
 import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
+import de.tum.cit.aet.artemis.exercise.dto.MilestoneGroupAnchorDTO;
 import de.tum.cit.aet.artemis.exercise.dto.MilestoneScoreTargetDTO;
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 
@@ -279,6 +281,28 @@ public interface MilestoneExerciseGroupRepository extends ArtemisJpaRepository<M
             WHERE e.id = :userStoryExerciseId
             """)
     Optional<Long> findMilestoneExerciseIdByUserStoryExerciseId(@Param("userStoryExerciseId") long userStoryExerciseId);
+
+    /**
+     * Resolves the anchor {@code MilestoneExercise} of every milestone group among the given group ids, as a scalar
+     * (anchor exercise id, group id) pair.
+     * <p>
+     * The score calculation needs this link and cannot derive it from the exercises it works with: a
+     * {@code MilestoneExercise} has no {@code exerciseVariantGroup} of its own, and reading it off an already-loaded
+     * {@link MilestoneExerciseGroup} would mean dereferencing the {@code LAZY} {@code milestoneExercise} association,
+     * which silently reads as "not set" once the loading session has closed (see {@link MilestoneExerciseGroup}).
+     * <p>
+     * Ids that are not milestone groups simply produce no row, so callers can pass every variant group id they hold.
+     *
+     * @param groupIds the variant group ids to resolve anchors for
+     * @return one pair per milestone group among {@code groupIds} that has an anchor
+     */
+    @Query("""
+            SELECT NEW de.tum.cit.aet.artemis.exercise.dto.MilestoneGroupAnchorDTO(g.milestoneExercise.id, g.id)
+            FROM MilestoneExerciseGroup g
+            WHERE g.id IN :groupIds
+                AND g.milestoneExercise IS NOT NULL
+            """)
+    List<MilestoneGroupAnchorDTO> findAnchorsByGroupIds(@Param("groupIds") Collection<Long> groupIds);
 
     /**
      * Counts a group's members without loading them, for the "cannot delete a non-empty milestone group" guard. The

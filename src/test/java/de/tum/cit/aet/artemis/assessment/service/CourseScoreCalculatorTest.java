@@ -66,7 +66,7 @@ class CourseScoreCalculatorTest {
 
         assertThat(scores.absoluteScore()).isEqualTo(5.0);
         assertThat(scores.absoluteScoreTotal()).isEqualTo(7.5);
-        assertThat(CourseScoreCalculator.calculateAchievedPointsPerVariantGroup(context, input)).containsExactlyEntriesOf(java.util.Map.of(11L, 5.0));
+        assertThat(CourseScoreCalculator.calculateAchievedPointsPerVariantGroup(context, input, Map.of())).containsExactlyEntriesOf(Map.of(11L, 5.0));
     }
 
     @Test
@@ -76,7 +76,7 @@ class CourseScoreCalculatorTest {
         StudentCourseScoreInputDTO input = input(List.of(grade(1L, 100.0, true)), List.of(new PlagiarismCaseScoreDTO(STUDENT_ID, 1L, PlagiarismVerdict.PLAGIARISM, 0)), 0.0, 0);
 
         assertThat(CourseScoreCalculator.calculateCourseScoreForStudent(context, input)).isEqualTo(new StudentScoresDTO(0.0, 0.0, 0.0, 0.0, 0.0));
-        assertThat(CourseScoreCalculator.calculateAchievedPointsPerVariantGroup(context, input)).isEmpty();
+        assertThat(CourseScoreCalculator.calculateAchievedPointsPerVariantGroup(context, input, Map.of())).isEmpty();
     }
 
     @Test
@@ -121,7 +121,7 @@ class CourseScoreCalculatorTest {
         assertThat(context.maxAndReachablePoints()).isEqualTo(new de.tum.cit.aet.artemis.assessment.dto.MaxAndReachablePointsDTO(0.0, 0.0, 0.0));
         assertThat(context.usesGradedPresentations()).isFalse();
         assertThat(scores).isEqualTo(new StudentScoresDTO(0.0, 0.0, 0.0, 0.0, 0.0));
-        assertThat(CourseScoreCalculator.calculateAchievedPointsPerVariantGroup(context, input(List.of(), List.of(), 100.0, 3))).isEmpty();
+        assertThat(CourseScoreCalculator.calculateAchievedPointsPerVariantGroup(context, input(List.of(), List.of(), 100.0, 3), Map.of())).isEmpty();
     }
 
     @Test
@@ -219,7 +219,7 @@ class CourseScoreCalculatorTest {
         assertThat(context.maxAndReachablePoints().reachablePoints()).isEqualTo(10.0);
         assertThat(scores.absoluteScore()).isEqualTo(10.0);
         assertThat(scores.absoluteScoreTotal()).isEqualTo(10.0);
-        assertThat(CourseScoreCalculator.calculateAchievedPointsPerVariantGroup(context, input)).containsExactlyEntriesOf(Map.of(11L, 10.0));
+        assertThat(CourseScoreCalculator.calculateAchievedPointsPerVariantGroup(context, input, Map.of())).containsExactlyEntriesOf(Map.of(11L, 10.0));
     }
 
     @Test
@@ -277,9 +277,44 @@ class CourseScoreCalculatorTest {
     }
 
     @Test
-    void shouldStillReportPointsAchievedWithinAMilestoneGroup() {
-        // The per-group breakdown must keep seeing the stories even though the course score reaches them through the
-        // milestone - it is what the group detail page shows a student.
+    void shouldReportAMilestoneGroupsPointsFromItsAnchorRatherThanItsStories() {
+        // The anchor carries the group's authoritative points - MilestoneScoreService stores sum(story points) minus the
+        // static code analysis penalty on it - so the group detail page has to show that, not the raw sum of the stories.
+        // Here both stories are perfect (4.0 together) while the anchor was penalised down to 75% of its 4.0 max.
+        ExerciseCourseScoreDTO anchor = scoreExercise(1L, ExerciseType.PROGRAMMING, IncludedInOverallScore.INCLUDED_COMPLETELY, AssessmentType.AUTOMATIC,
+                CALCULATION_TIME.minusDays(2), CALCULATION_TIME.minusDays(1), null, 4.0, null, null, false);
+        ExerciseCourseScoreDTO story1 = scoreExercise(2L, ExerciseType.PROGRAMMING, IncludedInOverallScore.INCLUDED_COMPLETELY, AssessmentType.AUTOMATIC,
+                CALCULATION_TIME.minusDays(2), CALCULATION_TIME.minusDays(1), null, 2.0, 9L, null, true);
+        ExerciseCourseScoreDTO story2 = scoreExercise(3L, ExerciseType.PROGRAMMING, IncludedInOverallScore.INCLUDED_COMPLETELY, AssessmentType.AUTOMATIC,
+                CALCULATION_TIME.minusDays(2), CALCULATION_TIME.minusDays(1), null, 2.0, 9L, null, true);
+
+        CourseScoreContextDTO context = CourseScoreCalculator.createContext(SETTINGS, null, Set.of(anchor, story1, story2), CALCULATION_TIME);
+        var achievedPerGroup = CourseScoreCalculator.calculateAchievedPointsPerVariantGroup(context,
+                input(List.of(grade(1L, 75.0, true), grade(2L, 100.0, true), grade(3L, 100.0, true)), List.of(), 0.0, 0), Map.of(1L, 9L));
+
+        assertThat(achievedPerGroup).containsExactlyEntriesOf(Map.of(9L, 3.0));
+    }
+
+    @Test
+    void shouldReportAMilestoneGroupEvenWhileItsFinalBuildIsStillAhead() {
+        // hasCountablePoints is deliberately not applied to the anchor: the student is looking at their user story
+        // results on the very page this map feeds, so blanking the total until the final build date has passed would
+        // contradict what is on screen. Whether the points count towards the course score is decided separately.
+        ExerciseCourseScoreDTO anchor = scoreExercise(1L, ExerciseType.PROGRAMMING, IncludedInOverallScore.INCLUDED_COMPLETELY, AssessmentType.AUTOMATIC,
+                CALCULATION_TIME.plusDays(2), CALCULATION_TIME.plusDays(3), CALCULATION_TIME.plusDays(2), 4.0, null, null, false);
+        ExerciseCourseScoreDTO story = scoreExercise(2L, ExerciseType.PROGRAMMING, IncludedInOverallScore.INCLUDED_COMPLETELY, AssessmentType.AUTOMATIC,
+                CALCULATION_TIME.plusDays(2), CALCULATION_TIME.plusDays(3), CALCULATION_TIME.plusDays(2), 4.0, 9L, null, true);
+
+        CourseScoreContextDTO context = CourseScoreCalculator.createContext(SETTINGS, null, Set.of(anchor, story), CALCULATION_TIME);
+        var achievedPerGroup = CourseScoreCalculator.calculateAchievedPointsPerVariantGroup(context, input(List.of(grade(1L, 50.0, true)), List.of(), 0.0, 0), Map.of(1L, 9L));
+
+        assertThat(achievedPerGroup).containsExactlyEntriesOf(Map.of(9L, 2.0));
+    }
+
+    @Test
+    void shouldFallBackToTheStorySumWhenNoMilestoneAnchorIsSupplied() {
+        // A caller that cannot resolve the anchor (no milestone rows in its projection) must still get a breakdown
+        // rather than silently nothing.
         ExerciseCourseScoreDTO story1 = scoreExercise(2L, ExerciseType.PROGRAMMING, IncludedInOverallScore.INCLUDED_COMPLETELY, AssessmentType.AUTOMATIC,
                 CALCULATION_TIME.minusDays(2), CALCULATION_TIME.minusDays(1), null, 2.0, 9L, null, true);
         ExerciseCourseScoreDTO story2 = scoreExercise(3L, ExerciseType.PROGRAMMING, IncludedInOverallScore.INCLUDED_COMPLETELY, AssessmentType.AUTOMATIC,
@@ -287,7 +322,7 @@ class CourseScoreCalculatorTest {
 
         CourseScoreContextDTO context = CourseScoreCalculator.createContext(SETTINGS, null, Set.of(story1, story2), CALCULATION_TIME);
         var achievedPerGroup = CourseScoreCalculator.calculateAchievedPointsPerVariantGroup(context,
-                input(List.of(grade(2L, 100.0, true), grade(3L, 50.0, true)), List.of(), 0.0, 0));
+                input(List.of(grade(2L, 100.0, true), grade(3L, 50.0, true)), List.of(), 0.0, 0), Map.of());
 
         assertThat(achievedPerGroup).containsEntry(9L, 3.0);
     }
