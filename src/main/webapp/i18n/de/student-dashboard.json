@@ -325,7 +325,7 @@
                     "priorityLow": "Niedrig",
                     "priorityMedium": "Mittel",
                     "priorityHigh": "Hoch",
-                    "estimatedEffort": "Geschätzter Aufwand",
+                    "estimatedEffort": "Geschätzter Aufwand in h",
                     "actualEffort": "Tatsächlichen Aufwand erfassen",
                     "actualEffortUnset": "Nicht erfasst",
                     "stateLabel": "Status",

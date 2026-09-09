@@ -30,14 +30,7 @@
         <div class="d-flex flex-wrap gap-3">
             <div>
                 <label class="fw-semibold d-block mb-1" for="task-edit-points" jhiTranslate="artemisApp.courseOverview.exerciseDetails.tasks.points"></label>
-                <tum-ui-input-number
-                    inputId="task-edit-points"
-                    [ngModel]="draftTaskPoints()"
-                    (ngModelChange)="draftTaskPoints.set($event)"
-                    [min]="0"
-                    [maxFractionDigits]="0"
-                    [showButtons]="true"
-                />
+                <tum-ui-select inputId="task-edit-points" class="w-20" [options]="taskPointsOptions" [ngModel]="draftTaskPoints()" (ngModelChange)="draftTaskPoints.set($event)" />
             </div>
             <div>
                 <label class="fw-semibold d-block mb-1" for="task-edit-effort" jhiTranslate="artemisApp.courseOverview.exerciseDetails.tasks.estimatedEffort"></label>
@@ -45,8 +38,8 @@
                     id="task-edit-effort"
                     tumUiInput
                     class="w-20"
-                    [ngModel]="draftEstimatedEffortText()"
-                    (ngModelChange)="draftEstimatedEffortText.set($event)"
+                    [value]="draftEstimatedEffortText()"
+                    (input)="onEffortInput($event)"
                     placeholder="hh:mm"
                     [tumUiInputInvalid]="draftEstimatedEffortHours() === undefined"
                 />

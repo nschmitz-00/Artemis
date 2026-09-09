@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { TranslateService } from '@ngx-translate/core';
 import { MockTranslateService } from 'test/helpers/mocks/service/mock-translate.service';
@@ -48,7 +48,7 @@ describe('UserStoryTaskEditModalComponent', () => {
         expect(component['draftDescription']()).toBe('Cover the happy path');
         expect(component['draftTaskPoints']()).toBe(3);
         expect(component['draftPriority']()).toBe('HIGH');
-        expect(component['draftEstimatedEffortText']()).toBe('2:00h');
+        expect(component['draftEstimatedEffortText']()).toBe('02:00');
         expect(component['draftEstimatedEffortHours']()).toBe(2);
         expect(component['draftState']()).toBe('IN_PROGRESS');
         expect(component['isSaveDisabled']()).toBe(false);
@@ -82,6 +82,24 @@ describe('UserStoryTaskEditModalComponent', () => {
 
         expect(component['draftEstimatedEffortHours']()).toBeUndefined();
         expect(component['isSaveDisabled']()).toBe(true);
+    });
+
+    it('should auto-insert the ":" and jump the caret past it once 2 hour digits are typed', () => {
+        fixture.detectChanges();
+        const inputElement = { value: '1', selectionStart: 1, setSelectionRange: vi.fn() } as unknown as HTMLInputElement;
+
+        component['onEffortInput']({ target: inputElement } as unknown as Event);
+
+        expect(inputElement.value).toBe('1');
+        expect(component['draftEstimatedEffortText']()).toBe('1');
+
+        inputElement.value = '12';
+        inputElement.selectionStart = 2;
+        component['onEffortInput']({ target: inputElement } as unknown as Event);
+
+        expect(inputElement.value).toBe('12:');
+        expect(inputElement.setSelectionRange).toHaveBeenLastCalledWith(3, 3);
+        expect(component['draftEstimatedEffortText']()).toBe('12:');
     });
 
     it('should emit a new task with trimmed fields on save when creating', () => {

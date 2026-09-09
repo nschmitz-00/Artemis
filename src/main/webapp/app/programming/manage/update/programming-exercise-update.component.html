@@ -89,6 +89,7 @@
                 (criteriaGenerated)="editForm.form.markAsDirty()"
                 [lockedToGroup]="variantLock.locked()"
                 (lockedClick)="variantLock.openModal()"
+                [isMilestoneMode]="isMilestoneMode"
             />
             @if (isEditFieldDisplayedRecord().plagiarismControl && !isExamMode()) {
                 <jhi-feature-overlay [enabled]="plagiarismEnabled()" placement="right">

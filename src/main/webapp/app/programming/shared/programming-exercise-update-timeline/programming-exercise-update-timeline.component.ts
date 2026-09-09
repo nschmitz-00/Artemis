@@ -55,6 +55,13 @@ export class ProgrammingExerciseUpdateTimelineComponent implements OnInit {
     lockedToGroup = input<boolean>(false);
     /** Emitted when the user clicks the timeline while {@link lockedToGroup} is set. */
     lockedClick = output<void>();
+    /**
+     * True for a MilestoneExercise. Manual assessment (assessmentType) is toggled per UserStoryExercise instead, so the
+     * milestone hides that toggle entirely and always shows the Assessment Due Date picker regardless of assessmentType
+     * - the date is shared across the group and set once here, then copied onto every member (see
+     * UserStoryExerciseService.syncAllMembersConfig).
+     */
+    isMilestoneMode = input<boolean>(false);
 
     releaseDate = model<Dayjs | undefined>();
     startDate = model<Dayjs | undefined>();
@@ -146,7 +153,11 @@ export class ProgrammingExerciseUpdateTimelineComponent implements OnInit {
                 this.allowComplaintsForAutomaticAssessments.set(false);
                 this.allowFeedbackRequests.set(false);
             } else if (this.assessmentType() === AssessmentType.AUTOMATIC) {
-                this.assessmentDueDate.set(undefined);
+                // A milestone always keeps its Assessment Due Date regardless of assessmentType - that field toggles
+                // per UserStoryExercise instead, and the milestone's own assessmentType is otherwise unused.
+                if (!this.isMilestoneMode()) {
+                    this.assessmentDueDate.set(undefined);
+                }
                 // Do NOT reset allowComplaintsForAutomaticAssessments here: AUTOMATIC is the only assessment type
                 // where this setting is meaningful, and this effect also runs on load, so resetting it would wipe
                 // the persisted value every time the exercise editor is opened (issue #13070).
@@ -276,11 +287,19 @@ export class ProgrammingExerciseUpdateTimelineComponent implements OnInit {
     }
 
     private computeIsSemiAutomaticAssessmentToggleVisible(): boolean {
+        // The toggle lives on UserStoryExercise level instead - see isMilestoneMode.
+        if (this.isMilestoneMode()) {
+            return false;
+        }
         const isInputDisplayedAccordingToCurrentModeRecord = this.isInputDisplayedAccordingToCurrentOfSimpleOrAdvancedModeRecord();
         return !isInputDisplayedAccordingToCurrentModeRecord || isInputDisplayedAccordingToCurrentModeRecord.assessmentDueDate;
     }
 
     private computeIfDatePickableForSemiAutomaticAssessmentDueDateVisible(): boolean {
+        // A milestone always exposes the Assessment Due Date picker - see isMilestoneMode.
+        if (this.isMilestoneMode()) {
+            return true;
+        }
         const isSemiAutomaticAssessmentToggleVisible = this.isSemiAutomaticAssessmentToggleVisible();
         const isSemiAutomaticAssessmentToggleEnabled = this.isSemiAutomaticAssessmentToggleEnabled();
         const assessmentTypeIsSemiAutomatic = this.assessmentType() === AssessmentType.SEMI_AUTOMATIC;

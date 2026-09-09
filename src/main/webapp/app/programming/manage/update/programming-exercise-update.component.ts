@@ -316,8 +316,11 @@ export class ProgrammingExerciseUpdateComponent implements AfterViewInit, OnDest
      * Whether this page is configuring a MilestoneExercise rather than a plain programming exercise - set from the URL
      * (see the 'milestone-exercise-groups' segment check in ngOnInit), matching how isImportFromExistingExercise/isEdit/
      * isCreate are already detected here. A MilestoneExercise is configured on this same page/layout as a plain
-     * programming exercise, minus Points/Assessment (see isEditFieldDisplayedRecord/MILESTONE_HIDDEN_FIELDS) - those stay
-     * independently configured per UserStoryExercise member. Its Problem Statement stays editable: it doubles as the
+     * programming exercise, minus Points and most Assessment settings (see isEditFieldDisplayedRecord/
+     * MILESTONE_HIDDEN_FIELDS) - those stay independently configured per UserStoryExercise member. Assessment Due Date
+     * is the exception: it is shared across the group, so it stays set here - always shown, without the manual-
+     * assessment toggle that gates it for a plain exercise (see ProgrammingExerciseUpdateTimelineComponent.
+     * isMilestoneMode) - and copied onto every member. Its Problem Statement stays editable: it doubles as the
      * milestone group's description in the student group view (see CourseExerciseGroupDetailComponent).
      */
     get isMilestoneMode(): boolean {
