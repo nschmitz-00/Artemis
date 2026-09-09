@@ -1,13 +1,22 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, model, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { TumUiButtonComponent, TumUiDialogComponent, TumUiInputDirective, TumUiInputNumberComponent, TumUiSelectButtonComponent } from '@tumaet/ui-angular';
+import { TumUiButtonComponent, TumUiDialogComponent, TumUiInputDirective, TumUiSelectButtonComponent, TumUiSelectComponent } from '@tumaet/ui-angular';
 import { TaskPriority, TaskState, UserStoryTask } from 'app/exercise/shared/entities/participation/programming-exercise-student-participation.model';
 import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pipe';
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
 import { cloneWith } from 'app/foundation/util/deep-clone.util';
-import { formatEffortHours, parseEffortHours } from 'app/course/overview/exercise-details/user-story-tasks/task-effort-format.util';
+import { parseEffortHours, splitEffortHours } from 'app/course/overview/exercise-details/user-story-tasks/task-effort-format.util';
 
 const MAX_TITLE_LENGTH = 255;
+
+/** Task points are estimated on the (deduplicated) Fibonacci scale used for agile planning poker. */
+const TASK_POINTS_FIBONACCI_OPTIONS: number[] = [1, 2, 3, 5, 8, 13];
+
+/** Renders decimal hours as a zero-padded "hh:mm" for the masked effort input - fixed-width so the auto-jump-past-":" logic can rely on a 2-digit hour segment. */
+function formatEffortForInput(hours: number): string {
+    const { hours: wholeHours, minutes } = splitEffortHours(hours);
+    return `${wholeHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+}
 
 interface PriorityOption {
     value: TaskPriority;
@@ -31,7 +40,7 @@ interface StateOption {
         FormsModule,
         TumUiDialogComponent,
         TumUiInputDirective,
-        TumUiInputNumberComponent,
+        TumUiSelectComponent,
         TumUiSelectButtonComponent,
         TumUiButtonComponent,
         ArtemisTranslatePipe,
@@ -41,6 +50,7 @@ interface StateOption {
 })
 export class UserStoryTaskEditModalComponent {
     protected readonly MAX_TITLE_LENGTH = MAX_TITLE_LENGTH;
+    protected readonly taskPointsOptions = TASK_POINTS_FIBONACCI_OPTIONS;
 
     /** Two-way visibility, driven by the parent. */
     readonly visible = model<boolean>(false);
@@ -84,7 +94,6 @@ export class UserStoryTaskEditModalComponent {
         () =>
             !this.isTitleValid() ||
             this.draftTaskPoints() === undefined ||
-            this.draftTaskPoints()! < 0 ||
             this.draftPriority() === undefined ||
             this.draftEstimatedEffortHours() === undefined ||
             this.draftState() === undefined,
@@ -97,7 +106,7 @@ export class UserStoryTaskEditModalComponent {
             this.draftDescription.set(t?.description ?? '');
             this.draftTaskPoints.set(t?.taskPoints);
             this.draftPriority.set(t?.priority);
-            this.draftEstimatedEffortText.set(t?.estimatedEffortHours !== undefined ? formatEffortHours(t.estimatedEffortHours) : '');
+            this.draftEstimatedEffortText.set(t?.estimatedEffortHours !== undefined ? formatEffortForInput(t.estimatedEffortHours) : '');
             // A new task always starts at NEW - the picker only matters for an existing one.
             this.draftState.set(t?.state ?? 'NEW');
         });
@@ -119,5 +128,26 @@ export class UserStoryTaskEditModalComponent {
 
     onCancel(): void {
         this.visible.set(false);
+    }
+
+    /**
+     * Keeps {@link draftEstimatedEffortText} formatted as "hh:mm" while typing: the ":" is (re-)inserted as soon as
+     * the hour segment has 2 digits, and the caret is moved past it so the minutes can be typed right after -
+     * without the user having to type the ":" themselves.
+     */
+    protected onEffortInput(event: Event): void {
+        const inputElement = event.target as HTMLInputElement;
+        const caretBefore = inputElement.selectionStart ?? inputElement.value.length;
+        const digitsBeforeCaret = (inputElement.value.slice(0, caretBefore).match(/\d/g) ?? []).length;
+
+        const digits = inputElement.value.replace(/\D/g, '').slice(0, 4);
+        const formatted = digits.length < 2 ? digits : `${digits.slice(0, 2)}:${digits.slice(2)}`;
+
+        const caretDigits = Math.min(digitsBeforeCaret, digits.length);
+        const caret = caretDigits + (caretDigits >= 2 ? 1 : 0);
+
+        inputElement.value = formatted;
+        inputElement.setSelectionRange(caret, caret);
+        this.draftEstimatedEffortText.set(formatted);
     }
 }

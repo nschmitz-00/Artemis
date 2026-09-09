@@ -325,7 +325,7 @@
                     "priorityLow": "Low",
                     "priorityMedium": "Medium",
                     "priorityHigh": "High",
-                    "estimatedEffort": "Estimated effort",
+                    "estimatedEffort": "Estimated effort in h",
                     "actualEffort": "Log actual effort",
                     "actualEffortUnset": "Not logged",
                     "stateLabel": "State",

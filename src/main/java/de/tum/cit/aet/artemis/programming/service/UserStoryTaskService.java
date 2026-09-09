@@ -47,6 +47,9 @@ public class UserStoryTaskService {
 
     private static final int MAX_TITLE_LENGTH = 255;
 
+    /** Task points are estimated on the (deduplicated) Fibonacci scale used for agile planning poker - see the client's matching dropdown. */
+    private static final Set<Integer> TASK_POINTS_FIBONACCI_OPTIONS = Set.of(1, 2, 3, 5, 8, 13);
+
     private final UserStoryTaskRepository userStoryTaskRepository;
 
     private final ExerciseRepository exerciseRepository;
@@ -235,8 +238,8 @@ public class UserStoryTaskService {
         if (title.isEmpty() || title.length() > MAX_TITLE_LENGTH) {
             throw new BadRequestAlertException("The task title must be between 1 and " + MAX_TITLE_LENGTH + " characters", ENTITY_NAME, "titleInvalid");
         }
-        if (taskDTO.taskPoints() == null || taskDTO.taskPoints() < 0) {
-            throw new BadRequestAlertException("The task points must not be negative", ENTITY_NAME, "taskPointsInvalid");
+        if (taskDTO.taskPoints() == null || !TASK_POINTS_FIBONACCI_OPTIONS.contains(taskDTO.taskPoints())) {
+            throw new BadRequestAlertException("The task points must be one of the Fibonacci scale values " + TASK_POINTS_FIBONACCI_OPTIONS, ENTITY_NAME, "taskPointsInvalid");
         }
         if (taskDTO.priority() == null) {
             throw new BadRequestAlertException("The task priority must be set", ENTITY_NAME, "priorityMissing");

@@ -64,6 +64,8 @@ export class ProgrammingExerciseGradingComponent implements AfterViewInit, OnDes
     lockedToGroup = input<boolean>(false);
     /** Emitted when the user clicks the locked timeline so the host can open the group-edit dialog. */
     lockedClick = output<void>();
+    /** True for a MilestoneExercise - forwarded to the timeline (see ProgrammingExerciseUpdateTimelineComponent.isMilestoneMode). */
+    isMilestoneMode = input<boolean>(false);
 
     submissionPolicyUpdateComponent = viewChild(SubmissionPolicyUpdateComponent);
     lifecycleComponent = viewChild(ProgrammingExerciseUpdateTimelineComponent);

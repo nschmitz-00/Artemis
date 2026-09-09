@@ -1,8 +1,12 @@
+/** Splits decimal hours into whole hours and minutes, rounding to the nearest minute. */
+export function splitEffortHours(hours: number): { hours: number; minutes: number } {
+    const totalMinutes = Math.round(hours * 60);
+    return { hours: Math.floor(totalMinutes / 60), minutes: totalMinutes % 60 };
+}
+
 /** Renders decimal hours as `H:MMh`, e.g. 1.5 -> "1:30h". */
 export function formatEffortHours(hours: number): string {
-    const totalMinutes = Math.round(hours * 60);
-    const wholeHours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
+    const { hours: wholeHours, minutes } = splitEffortHours(hours);
     return `${wholeHours}:${minutes.toString().padStart(2, '0')}h`;
 }
 
