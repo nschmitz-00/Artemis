@@ -1,7 +1,10 @@
 package de.tum.cit.aet.artemis.programming;
 
+import static de.tum.cit.aet.artemis.core.config.Constants.NEW_RESULT_TOPIC;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -11,12 +14,15 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.test.context.support.WithMockUser;
 
 import de.tum.cit.aet.artemis.account.domain.User;
 import de.tum.cit.aet.artemis.assessment.domain.AssessmentType;
 import de.tum.cit.aet.artemis.assessment.domain.CategoryState;
+import de.tum.cit.aet.artemis.assessment.domain.Feedback;
 import de.tum.cit.aet.artemis.assessment.domain.Result;
 import de.tum.cit.aet.artemis.assessment.domain.ScaFeedback;
 import de.tum.cit.aet.artemis.assessment.domain.TestCaseFeedback;
@@ -37,6 +43,7 @@ import de.tum.cit.aet.artemis.programming.domain.ProgrammingLanguage;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingSubmission;
 import de.tum.cit.aet.artemis.programming.domain.StaticCodeAnalysisTool;
 import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
+import de.tum.cit.aet.artemis.programming.dto.ResultDTO;
 import de.tum.cit.aet.artemis.programming.service.MilestoneExercisePointsService;
 import de.tum.cit.aet.artemis.programming.service.MilestoneScoreScheduleService;
 import de.tum.cit.aet.artemis.programming.service.MilestoneScoreService;
@@ -297,6 +304,38 @@ class UserStoryExerciseGradingFanOutTest extends AbstractProgrammingIntegrationI
 
         // One issue at a penalty of 1.0 point, charged exactly once for the whole group: (3.0 - 1.0) / 4.0.
         assertThat(aggregated.getScore()).isEqualTo(50.0);
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void aggregatingTheMilestoneScorePushesItToTheStudentOverTheWebsocket() {
+        // The build's own result is broadcast by the ordinary grading path, but that happens before this aggregation
+        // runs, so the message the student already received still carries the milestone's raw build score rather than
+        // the group's points. Without this second send an open group page keeps showing a number known to be wrong.
+        enableStaticCodeAnalysis(CategoryState.GRADED, 1.0, null);
+        UserStoryExercise userStory1 = createUserStoryExercise("us1");
+        UserStoryExercise userStory2 = createUserStoryExercise("us2");
+        milestoneExercisePointsService.syncMaxPoints(milestoneExercise.getId());
+
+        ProgrammingExerciseStudentParticipation milestoneParticipation = participationFor(milestoneExercise);
+        buildGradedMilestoneResult(milestoneParticipation, "commit-1", List.of());
+        saveRatedUserStoryResult(participationFor(userStory1), "commit-1", 100.0);
+        saveRatedUserStoryResult(participationFor(userStory2), "commit-1", 50.0);
+        // Everything above already produced websocket traffic of its own; only the aggregation's message is under test.
+        Mockito.reset(websocketMessagingService);
+
+        milestoneScoreService.recalculate(milestoneExercise.getId(), userUtilService.getUserByLogin(studentLogin).getId()).orElseThrow();
+
+        ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(websocketMessagingService).sendMessageToUser(eq(studentLogin), eq(NEW_RESULT_TOPIC), payloadCaptor.capture());
+        ResultDTO broadcast = (ResultDTO) payloadCaptor.getValue();
+        assertThat(broadcast.score()).isEqualTo(50.0);
+        // The client routes an incoming result purely by this id, so a payload without it reaches nobody.
+        assertThat(broadcast.submission().participation().id()).isEqualTo(milestoneParticipation.getId());
+        // The group page's code quality box reads its issues off exactly this feedback. It lives in a typed table the
+        // aggregation never loads, so it only survives because the broadcast re-synthesizes it - which in turn only
+        // works because the participation handed to it carries its exercise.
+        assertThat(broadcast.feedbacks()).anyMatch(feedback -> feedback.text() != null && feedback.text().startsWith(Feedback.STATIC_CODE_ANALYSIS_FEEDBACK_IDENTIFIER));
     }
 
     @Test

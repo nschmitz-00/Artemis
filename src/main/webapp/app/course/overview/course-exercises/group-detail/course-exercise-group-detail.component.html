@@ -96,6 +96,14 @@
                     </jhi-information-box>
                 }
                 <jhi-information-box [informationBoxData]="variantsInfoBoxData()" />
+                @if (group.type === 'milestone') {
+                    <jhi-milestone-code-quality
+                        [exercise]="milestoneExercise()"
+                        [result]="milestoneResult()"
+                        [isBuilding]="isMilestoneBuilding()"
+                        [isQueued]="isMilestoneQueued()"
+                    />
+                }
             </div>
         </div>
 

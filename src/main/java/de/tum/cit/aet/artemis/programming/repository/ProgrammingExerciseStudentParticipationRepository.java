@@ -110,6 +110,27 @@ public interface ProgrammingExerciseStudentParticipationRepository extends Artem
     Optional<ProgrammingExerciseStudentParticipation> findByExerciseIdAndStudentId(@Param("exerciseId") long exerciseId, @Param("studentId") long studentId);
 
     /**
+     * Like {@link #findByExerciseIdAndStudentId(long, long)}, but with the student eagerly fetched.
+     * <p>
+     * Needed by callers that run outside a web request (spring.jpa.open-in-view is off) and have to address the
+     * participant afterwards - for instance to send them a websocket message. Reaching {@code participation.getStudent()}
+     * on the plain variant throws there instead of loading it.
+     *
+     * @param exerciseId the id of the exercise
+     * @param studentId  the id of the student
+     * @return the participation with its student, or empty if the student has not started the exercise
+     */
+    @Query("""
+            SELECT p
+            FROM ProgrammingExerciseStudentParticipation p
+                LEFT JOIN FETCH p.student
+            WHERE p.exercise.id = :exerciseId
+                AND p.student.id = :studentId
+                AND p.testRun = FALSE
+            """)
+    Optional<ProgrammingExerciseStudentParticipation> findByExerciseIdAndStudentIdWithStudent(@Param("exerciseId") long exerciseId, @Param("studentId") long studentId);
+
+    /**
      * All non-test-run participations of the given exercise that already have a real repository - used to find every
      * student who already shares a {@code MilestoneExerciseGroup}'s repository (via its {@code MilestoneExercise}'s
      * participations), so a newly created {@code UserStoryExercise} can backfill a participation for each of them (see

@@ -4,7 +4,7 @@ import { ActivatedRoute } from '@angular/router';
 import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
-import { EMPTY, Observable, of, throwError } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, of, throwError } from 'rxjs';
 import dayjs from 'dayjs/esm';
 import { MockProvider } from 'ng-mocks';
 import { InformationBox } from 'app/shared-ui/information-box/information-box.component';
@@ -24,11 +24,40 @@ import { Exercise, ExerciseType, IncludedInOverallScore } from 'app/exercise/sha
 import { ParticipationService } from 'app/exercise/participation/participation.service';
 import { CourseExerciseService } from 'app/exercise/course-exercises/course-exercise.service';
 import { MockParticipationService } from 'test/helpers/mocks/service/mock-participation.service';
+import { ProgrammingExerciseParticipationService } from 'app/programming/manage/services/programming-exercise-participation.service';
+import { ProgrammingExerciseStudentParticipation } from 'app/exercise/shared/entities/participation/programming-exercise-student-participation.model';
+import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
+import { Result } from 'app/exercise/shared/entities/result/result.model';
+import { Participation } from 'app/exercise/shared/entities/participation/participation.model';
+import { ParticipationWebsocketService } from 'app/course/shared/services/participation-websocket.service';
+import { ProgrammingSubmissionService, ProgrammingSubmissionState, ProgrammingSubmissionStateObj } from 'app/programming/shared/services/programming-submission.service';
 
 describe('CourseExerciseGroupDetailComponent', () => {
     let fixture: ComponentFixture<CourseExerciseGroupDetailComponent>;
     /** Server-computed achieved points per variant group id, as the ScoresStorageService would hold after a dashboard load. */
     let storedGroupPoints: Map<number, number>;
+
+    /**
+     * The live streams the component subscribes to, owned by the test so it can push a build result or a build-status
+     * change at will. They stand in for the two root services the real page reaches the websocket through.
+     */
+    let latestResults: Map<number, BehaviorSubject<Result | undefined>>;
+    let participationChanges: BehaviorSubject<Participation | undefined>;
+    let pendingSubmissions: BehaviorSubject<ProgrammingSubmissionStateObj>;
+    let registeredParticipations: { participationId?: number; exerciseId?: number }[];
+    let releasedResultParticipationIds: number[];
+    let releasedSubmissionParticipationIds: number[];
+
+    /** The subject the component's result subscription for the given participation reads from, created on first use. */
+    function latestResultOf(participationId: number): BehaviorSubject<Result | undefined> {
+        const existing = latestResults.get(participationId);
+        if (existing) {
+            return existing;
+        }
+        const subject = new BehaviorSubject<Result | undefined>(undefined);
+        latestResults.set(participationId, subject);
+        return subject;
+    }
 
     const GROUP_ID = 10;
 
@@ -71,9 +100,15 @@ describe('CourseExerciseGroupDetailComponent', () => {
 
     async function setup(
         exercises: Exercise[],
-        options?: { getProblemStatements?: () => Observable<ExerciseProblemStatementDTO[]>; getMilestoneStatus?: () => Observable<MilestoneStatusDTO> },
+        options?: {
+            getProblemStatements?: () => Observable<ExerciseProblemStatementDTO[]>;
+            getMilestoneStatus?: () => Observable<MilestoneStatusDTO>;
+            getStudentParticipationWithLatestResult?: () => Observable<ProgrammingExerciseStudentParticipation>;
+            /** The course's configured points accuracy; left unset the component rounds to the model's default of 1. */
+            accuracyOfScores?: number;
+        },
     ): Promise<void> {
-        const course = { id: 1, exercises } as Course;
+        const course = { id: 1, exercises, accuracyOfScores: options?.accuracyOfScores } as Course;
         const route = {
             params: of({ groupId: String(GROUP_ID) }),
             parent: { parent: { snapshot: { params: { courseId: '1' } } } },
@@ -89,6 +124,9 @@ describe('CourseExerciseGroupDetailComponent', () => {
                     getProblemStatements: (options?.getProblemStatements ?? (() => EMPTY)) as never,
                     getMilestoneStatus: (options?.getMilestoneStatus ?? (() => EMPTY)) as never,
                 }),
+                MockProvider(ProgrammingExerciseParticipationService, {
+                    getStudentParticipationWithLatestResult: (options?.getStudentParticipationWithLatestResult ?? (() => EMPTY)) as never,
+                }),
                 MockProvider(AlertService),
                 // The component injects CourseExerciseService for startMilestone(); the real one pulls in
                 // ParticipationWebsocketService -> AccountService -> TranslateService, none of which this spec provides.
@@ -103,6 +141,27 @@ describe('CourseExerciseGroupDetailComponent', () => {
                 MockProvider(DomSanitizer, { bypassSecurityTrustHtml: (value: string) => value }),
                 { provide: ScoresStorageService, useValue: { getStoredAchievedGroupPoints: (_courseId: number, groupId: number) => storedGroupPoints.get(groupId) } },
                 { provide: ParticipationService, useClass: MockParticipationService },
+                {
+                    provide: ParticipationWebsocketService,
+                    useValue: {
+                        subscribeForLatestResultOfParticipation: (participationId: number, _personal: boolean, exerciseId?: number) => {
+                            registeredParticipations.push({ participationId, exerciseId });
+                            return latestResultOf(participationId);
+                        },
+                        subscribeForParticipationChanges: () => participationChanges,
+                        addParticipation: (participation: StudentParticipation, exercise: Exercise) => {
+                            registeredParticipations.push({ participationId: participation.id, exerciseId: exercise?.id });
+                        },
+                        unsubscribeForLatestResultOfParticipation: (participationId: number) => releasedResultParticipationIds.push(participationId),
+                    },
+                },
+                {
+                    provide: ProgrammingSubmissionService,
+                    useValue: {
+                        getLatestPendingSubmissionByParticipationId: () => pendingSubmissions.asObservable(),
+                        unsubscribeForLatestSubmissionOfParticipation: (participationId: number) => releasedSubmissionParticipationIds.push(participationId),
+                    },
+                },
                 provideHttpClient(),
                 provideHttpClientTesting(),
             ],
@@ -138,6 +197,15 @@ describe('CourseExerciseGroupDetailComponent', () => {
 
     beforeEach(() => {
         storedGroupPoints = new Map();
+        latestResults = new Map();
+        participationChanges = new BehaviorSubject<Participation | undefined>(undefined);
+        pendingSubmissions = new BehaviorSubject<ProgrammingSubmissionStateObj>({
+            participationId: 555,
+            submissionState: ProgrammingSubmissionState.HAS_NO_PENDING_SUBMISSION,
+        });
+        registeredParticipations = [];
+        releasedResultParticipationIds = [];
+        releasedSubmissionParticipationIds = [];
     });
 
     afterEach(() => {
@@ -155,6 +223,29 @@ describe('CourseExerciseGroupDetailComponent', () => {
         // e.g. before the dashboard scores load, or when the group contributes nothing.
         await setup(exercisesInGroup(15));
         expect(achievedGroupPoints()).toBe(0);
+    });
+
+    it('rounds a stored value that does not divide cleanly, instead of showing it at full float width', async () => {
+        storedGroupPoints.set(GROUP_ID, 13.333333333333334);
+        await setup(exercisesInGroup(15));
+        expect(achievedGroupPoints()).toBe(13.3);
+    });
+
+    it('rounds the group maximum, so a sum of fractional variant points does not drift into the header', async () => {
+        // 0.1 + 0.2 is 0.30000000000000004 in IEEE-754, which is exactly what the header used to print.
+        const reference = { id: GROUP_ID, title: 'Sorting variants' };
+        const fractionalVariant = (id: number, maxPoints: number) =>
+            ({
+                id,
+                type: ExerciseType.TEXT,
+                maxPoints,
+                includedInOverallScore: IncludedInOverallScore.INCLUDED_COMPLETELY,
+                exerciseVariantGroup: reference,
+            }) as unknown as Exercise;
+        await setup([fractionalVariant(1, 0.1), fractionalVariant(2, 0.2)]);
+
+        expect(comp().exerciseSumMaxPoints()).toBe(0.3);
+        expect(comp().effectiveGroupMaxPoints()).toBe(0.3);
     });
 
     describe('effectiveGroupMaxPoints', () => {
@@ -414,6 +505,215 @@ describe('CourseExerciseGroupDetailComponent', () => {
             expect(milestone().milestoneStatus()).toBe(status);
             expect(milestone().milestoneStatusFailed()).toBe(false);
             expect(milestone().isLoadingMilestoneStatus()).toBe(false);
+        });
+    });
+
+    describe('milestone participation', () => {
+        /** Access to the protected milestone-participation state under test. */
+        function milestone(): {
+            milestoneExercise: () => ProgrammingExercise | undefined;
+            milestoneResult: () => Result | undefined;
+        } {
+            return fixture.componentInstance as never;
+        }
+
+        /** A started milestone whose participation the code-quality panel would read the group's SCA feedback from. */
+        function startedStatus(): MilestoneStatusDTO {
+            return { milestoneExerciseId: 99, started: true, participationId: 555 } as MilestoneStatusDTO;
+        }
+
+        function participationWithResult(result: Result): ProgrammingExerciseStudentParticipation {
+            return {
+                id: 555,
+                exercise: { id: 99, type: 'milestone', staticCodeAnalysisEnabled: true } as unknown as ProgrammingExercise,
+                submissions: [{ id: 777, results: [result] }],
+            } as unknown as ProgrammingExerciseStudentParticipation;
+        }
+
+        it('loads the milestone participation with its latest result once the milestone has been started', async () => {
+            const result = { id: 888, codeIssueCount: 2 } as Result;
+            const participationSpy = vi.fn(() => of(participationWithResult(result)));
+            await setup([milestoneGroupMember()], { getMilestoneStatus: () => of(startedStatus()), getStudentParticipationWithLatestResult: participationSpy });
+            fixture.detectChanges();
+            await fixture.whenStable();
+
+            expect(participationSpy).toHaveBeenCalledWith(555);
+            expect(milestone().milestoneExercise()?.id).toBe(99);
+            expect(milestone().milestoneResult()).toBe(result);
+        });
+
+        it('does not request a participation before the student has started the milestone', async () => {
+            const participationSpy = vi.fn(() => EMPTY);
+            const notStarted = { milestoneExerciseId: 99, started: false } as MilestoneStatusDTO;
+            await setup([milestoneGroupMember()], { getMilestoneStatus: () => of(notStarted), getStudentParticipationWithLatestResult: participationSpy as never });
+            fixture.detectChanges();
+            await fixture.whenStable();
+
+            expect(participationSpy).not.toHaveBeenCalled();
+            expect(milestone().milestoneResult()).toBeUndefined();
+        });
+
+        it('leaves the panel unrendered and stays retryable when the participation request fails', async () => {
+            // Unlike the start action, this is supplementary information: a failure must not alert the student, and it
+            // must not permanently block a later attempt either.
+            const participationSpy = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 500 })));
+            await setup([milestoneGroupMember()], { getMilestoneStatus: () => of(startedStatus()), getStudentParticipationWithLatestResult: participationSpy as never });
+            const alertSpy = vi.spyOn(TestBed.inject(AlertService), 'error');
+            fixture.detectChanges();
+            await fixture.whenStable();
+
+            expect(participationSpy).toHaveBeenCalledOnce();
+            expect(milestone().milestoneExercise()).toBeUndefined();
+            expect(milestone().milestoneResult()).toBeUndefined();
+            expect(alertSpy).not.toHaveBeenCalled();
+            const requested = (fixture.componentInstance as unknown as { requestedMilestoneParticipationIds: Set<number> })['requestedMilestoneParticipationIds'];
+            expect(requested.has(555)).toBe(false);
+        });
+    });
+
+    describe('live updates', () => {
+        /** Access to the protected live state under test. */
+        function live(): {
+            milestoneExercise: () => ProgrammingExercise | undefined;
+            milestoneResult: () => Result | undefined;
+            isMilestoneBuilding: () => boolean;
+            isMilestoneQueued: () => boolean;
+            exerciseParticipation: (exercise: Exercise) => StudentParticipation | undefined;
+        } {
+            return fixture.componentInstance as never;
+        }
+
+        function startedStatus(): MilestoneStatusDTO {
+            return { milestoneExerciseId: 99, started: true, participationId: 555 } as MilestoneStatusDTO;
+        }
+
+        /** The REST snapshot the page starts from: one finished build worth 4 of the milestone's 20 points. */
+        function initialParticipation(): ProgrammingExerciseStudentParticipation {
+            return {
+                id: 555,
+                exercise: { id: 99, type: 'milestone', staticCodeAnalysisEnabled: true, maxPoints: 20 } as unknown as ProgrammingExercise,
+                submissions: [{ id: 777, results: [{ id: 888, score: 20 } as Result] }],
+            } as unknown as ProgrammingExerciseStudentParticipation;
+        }
+
+        async function setupStartedMilestone(accuracyOfScores?: number): Promise<void> {
+            await setup([milestoneGroupMember()], {
+                getMilestoneStatus: () => of(startedStatus()),
+                getStudentParticipationWithLatestResult: () => of(initialParticipation()),
+                accuracyOfScores,
+            });
+            fixture.detectChanges();
+            await fixture.whenStable();
+        }
+
+        it('replaces the milestone result when a build finishes, keeping the exercise the REST snapshot brought along', async () => {
+            await setupStartedMilestone();
+            expect(live().milestoneResult()?.id).toBe(888);
+
+            latestResultOf(555).next({ id: 999, score: 75, feedbacks: [] } as unknown as Result);
+
+            expect(live().milestoneResult()?.id).toBe(999);
+            // The websocket payload carries no exercise, so the only source of staticCodeAnalysisEnabled must survive it.
+            expect(live().milestoneExercise()?.id).toBe(99);
+            expect(live().milestoneExercise()?.staticCodeAnalysisEnabled).toBe(true);
+        });
+
+        it('converts the result date, which the websocket service deliberately leaves as it came off the wire', async () => {
+            await setupStartedMilestone();
+
+            latestResultOf(555).next({ id: 999, completionDate: '2026-09-10T10:00:00Z' } as unknown as Result);
+
+            expect(dayjs.isDayjs(live().milestoneResult()?.completionDate)).toBe(true);
+        });
+
+        it('subscribes for the milestone participation as a personal subscription of its own exercise', async () => {
+            await setupStartedMilestone();
+
+            expect(registeredParticipations).toContainEqual({ participationId: 555, exerciseId: 99 });
+        });
+
+        it('reports a queued and then a running build, and stops reporting one once the result lands', async () => {
+            await setupStartedMilestone();
+
+            pendingSubmissions.next({ participationId: 555, submissionState: ProgrammingSubmissionState.IS_QUEUED });
+            expect(live().isMilestoneQueued()).toBe(true);
+            expect(live().isMilestoneBuilding()).toBe(false);
+
+            pendingSubmissions.next({ participationId: 555, submissionState: ProgrammingSubmissionState.IS_BUILDING_PENDING_SUBMISSION });
+            expect(live().isMilestoneQueued()).toBe(false);
+            expect(live().isMilestoneBuilding()).toBe(true);
+
+            pendingSubmissions.next({ participationId: 555, submissionState: ProgrammingSubmissionState.HAS_NO_PENDING_SUBMISSION });
+            expect(live().isMilestoneQueued()).toBe(false);
+            expect(live().isMilestoneBuilding()).toBe(false);
+        });
+
+        it('releases the shared websocket and submission state when the page goes away', async () => {
+            await setupStartedMilestone();
+
+            fixture.destroy();
+
+            expect(releasedResultParticipationIds).toContain(555);
+            // Leaving this out would leak the ProgrammingSubmissionService's per-participation state until logout.
+            expect(releasedSubmissionParticipationIds).toContain(555);
+        });
+
+        it('renders a variant card from the participation the websocket updated, not the dashboard snapshot', async () => {
+            const exercise = milestoneGroupMember();
+            (exercise as Exercise).studentParticipations = [{ id: 101 } as StudentParticipation];
+            await setup([exercise], { getMilestoneStatus: () => of(startedStatus()), getStudentParticipationWithLatestResult: () => of(initialParticipation()) });
+            fixture.detectChanges();
+            await fixture.whenStable();
+
+            // Registering the participation is what lets the websocket service merge a result into it at all.
+            expect(registeredParticipations).toContainEqual({ participationId: 101, exerciseId: exercise.id });
+            expect(live().exerciseParticipation(exercise)?.submissions).toBeUndefined();
+
+            const updated = { id: 101, exercise, submissions: [{ id: 1, results: [{ id: 2 } as Result] }] } as unknown as StudentParticipation;
+            participationChanges.next(updated);
+
+            expect(live().exerciseParticipation(exercise)).toBe(updated);
+        });
+
+        it('ignores participation updates that do not belong to this group', async () => {
+            const exercise = milestoneGroupMember();
+            (exercise as Exercise).studentParticipations = [{ id: 101 } as StudentParticipation];
+            await setup([exercise], { getMilestoneStatus: () => of(startedStatus()), getStudentParticipationWithLatestResult: () => of(initialParticipation()) });
+            fixture.detectChanges();
+            await fixture.whenStable();
+
+            // The participation stream is app-wide, so another page's exercise must not leak onto this group's cards.
+            participationChanges.next({ id: 4242, exercise: { id: 4242 } as Exercise } as unknown as StudentParticipation);
+
+            expect(live().exerciseParticipation(exercise)?.id).toBe(101);
+        });
+
+        it('follows the aggregated milestone score for the group points, and uses the stored value until one arrives', async () => {
+            storedGroupPoints.set(GROUP_ID, 13);
+            await setupStartedMilestone();
+            expect(achievedGroupPoints()).toBe(13);
+
+            // The server writes the group's points (story points minus the SCA penalty) onto the milestone's own result.
+            latestResultOf(555).next({ id: 888, score: 75 } as unknown as Result);
+
+            expect(achievedGroupPoints()).toBe(15);
+        });
+
+        it('rounds a live score that does not divide cleanly into the milestone points', async () => {
+            await setupStartedMilestone();
+
+            // 33.333 % of the milestone's 20 points is 6.6666 - the raw figure the header used to print in full.
+            latestResultOf(555).next({ id: 888, score: 33.333 } as unknown as Result);
+
+            expect(achievedGroupPoints()).toBe(6.7);
+        });
+
+        it('honours a course configured for more decimals rather than forcing a single one', async () => {
+            await setupStartedMilestone(2);
+
+            latestResultOf(555).next({ id: 888, score: 33.333 } as unknown as Result);
+
+            expect(achievedGroupPoints()).toBe(6.67);
         });
     });
 });

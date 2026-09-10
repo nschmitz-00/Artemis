@@ -336,6 +336,34 @@ describe('ExerciseHeadersInformationComponent', () => {
         });
     });
 
+    describe('static code analysis item', () => {
+        /** A programming exercise with static code analysis on and a result carrying code issues. */
+        function scaExercise(type: ExerciseType): Exercise {
+            return {
+                ...baseExercise,
+                type,
+                staticCodeAnalysisEnabled: true,
+                studentParticipations: [{ id: 1, submissions: [{ id: 2, results: [{ id: 3, codeIssueCount: 4 } as Result] }] } as StudentParticipation],
+            } as unknown as Exercise;
+        }
+
+        // A MilestoneExercise / UserStoryExercise serializes under its own discriminator; comparing the type literally
+        // hid the code-issue count from students on exactly those exercises.
+        it.each([ExerciseType.PROGRAMMING, ExerciseType.MILESTONE, ExerciseType.USER_STORY])('shows the code issue count for %s exercises', (type) => {
+            fixture.componentRef.setInput('exercise', scaExercise(type));
+            fixture.detectChanges();
+
+            expect(component.getStaticCodeAnalysisItemIfEnabled()?.title).toBe('artemisApp.courseOverview.exerciseDetails.codeIssues');
+        });
+
+        it('shows nothing when static code analysis is disabled', () => {
+            fixture.componentRef.setInput('exercise', { ...scaExercise(ExerciseType.PROGRAMMING), staticCodeAnalysisEnabled: false });
+            fixture.detectChanges();
+
+            expect(component.getStaticCodeAnalysisItemIfEnabled()).toBeUndefined();
+        });
+    });
+
     describe('getCategoryItem', () => {
         // The box only ever draws the not-released tag, the included-in-score badge and the categories (its showTags
         // config switches difficulty and quizLive off), so it must exist exactly when one of those has something to say.

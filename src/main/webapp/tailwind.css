@@ -98,6 +98,8 @@
 @source './app/exercise/exercise-action-bar';
 @source './app/exercise/exam-exercise-row-buttons';
 @source './app/exercise/unreferenced-feedback';
+/* Only the milestone code-quality panel; the surrounding group detail page is still Bootstrap markup. */
+@source './app/course/overview/course-exercises/group-detail/milestone-code-quality';
 
 /* Test prose can contain class-shaped words and does not contribute runtime utilities. */
 @source not './app/**/*.spec.ts';

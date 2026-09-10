@@ -17,10 +17,12 @@ import de.tum.cit.aet.artemis.assessment.domain.Result;
 import de.tum.cit.aet.artemis.assessment.domain.ScaFeedback;
 import de.tum.cit.aet.artemis.assessment.repository.ResultRepository;
 import de.tum.cit.aet.artemis.assessment.repository.ScaFeedbackRepository;
+import de.tum.cit.aet.artemis.assessment.web.ResultWebsocketService;
 import de.tum.cit.aet.artemis.exercise.domain.Exercise;
 import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
 import de.tum.cit.aet.artemis.exercise.repository.MilestoneExerciseGroupRepository;
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
+import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParticipation;
 import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseStudentParticipationRepository;
@@ -67,15 +69,19 @@ public class MilestoneScoreService {
 
     private final ScaFeedbackRepository scaFeedbackRepository;
 
+    private final ResultWebsocketService resultWebsocketService;
+
     public MilestoneScoreService(MilestoneExerciseGroupRepository milestoneExerciseGroupRepository,
             ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository, ProgrammingExerciseRepository programmingExerciseRepository,
-            ProgrammingExerciseGradingService programmingExerciseGradingService, ResultRepository resultRepository, ScaFeedbackRepository scaFeedbackRepository) {
+            ProgrammingExerciseGradingService programmingExerciseGradingService, ResultRepository resultRepository, ScaFeedbackRepository scaFeedbackRepository,
+            ResultWebsocketService resultWebsocketService) {
         this.milestoneExerciseGroupRepository = milestoneExerciseGroupRepository;
         this.programmingExerciseStudentParticipationRepository = programmingExerciseStudentParticipationRepository;
         this.programmingExerciseRepository = programmingExerciseRepository;
         this.programmingExerciseGradingService = programmingExerciseGradingService;
         this.resultRepository = resultRepository;
         this.scaFeedbackRepository = scaFeedbackRepository;
+        this.resultWebsocketService = resultWebsocketService;
     }
 
     /**
@@ -98,7 +104,11 @@ public class MilestoneScoreService {
             return Optional.empty();
         }
 
-        Optional<Result> milestoneResult = programmingExerciseStudentParticipationRepository.findByExerciseIdAndStudentId(milestoneExerciseId, studentId)
+        // The participation is kept rather than discarded inside the lookup: the broadcast at the end of this method
+        // has to address the participant, and it cannot reach them from the result alone without an open session.
+        Optional<ProgrammingExerciseStudentParticipation> milestoneParticipation = programmingExerciseStudentParticipationRepository
+                .findByExerciseIdAndStudentIdWithStudent(milestoneExerciseId, studentId);
+        Optional<Result> milestoneResult = milestoneParticipation
                 .flatMap(participation -> resultRepository.findLatestRatedResultWithFeedbacksForParticipation(participation.getId()));
         if (milestoneResult.isEmpty()) {
             // The student has not pushed anything to the shared repository yet, so there is no result to carry the
@@ -129,7 +139,49 @@ public class MilestoneScoreService {
         log.debug("Aggregated milestone {} for student {}: {} story points - {} penalty{} = {} of {} points.", milestoneExerciseId, studentId, achievedPoints, penaltyPoints,
                 blocked ? " (blocked)" : "", points, milestoneExercise.getMaxPoints());
 
-        return Optional.of(resultRepository.save(result));
+        Result savedResult = resultRepository.save(result);
+        broadcastAggregatedResult(milestoneParticipation.get(), milestoneExercise, savedResult.getId(), studentId);
+        return Optional.of(savedResult);
+    }
+
+    /**
+     * Pushes the aggregated result to the student over the websocket, so an open group page shows the group's points -
+     * and the code quality box behind them - without a reload.
+     * <p>
+     * The ordinary grading path already broadcasts the build's own result, but it does so before this aggregation runs,
+     * so that message still carries the milestone's raw build score rather than the group's points. Without this second
+     * send the student would be left looking at a number that is already known to be wrong.
+     * <p>
+     * Everything {@link ResultWebsocketService#broadcastNewResult} reaches for has to be loaded explicitly here: this
+     * runs off the milestone score scheduler rather than a web request and {@code spring.jpa.open-in-view} is off, so a
+     * lazy association touched from here throws instead of being fetched - the same trap the static code analysis
+     * feedback load above documents.
+     * <p>
+     * A failure is logged and swallowed. The score is already committed by the time this runs, and the aggregation must
+     * not be reported as failed (and retried) over a message the student can replace with a reload.
+     *
+     * @param participation     the student's milestone participation, with its student loaded
+     * @param milestoneExercise the milestone exercise the participation belongs to, with its course loaded
+     * @param resultId          the id of the just-saved aggregated result
+     * @param studentId         the id of the student, for logging only
+     */
+    private void broadcastAggregatedResult(ProgrammingExerciseStudentParticipation participation, MilestoneExercise milestoneExercise, long resultId, long studentId) {
+        try {
+            // Reloaded rather than reusing the instance saved above: that one was fetched with its feedbacks only,
+            // while the payload the client receives is built from the submission and the participation behind it.
+            Result result = resultRepository.findWithSubmissionAndFeedbackAndTeamStudentsByIdElseThrow(resultId);
+            participation.setExercise(milestoneExercise);
+            participation.setProgrammingExercise(milestoneExercise);
+            if (result.getSubmission() != null) {
+                // The submission's own participation is an uninitialized proxy here; pointing it at the hydrated one is
+                // what lets the DTO - and the feedback synthesis behind it - read the exercise and course off it.
+                result.getSubmission().setParticipation(participation);
+            }
+            resultWebsocketService.broadcastNewResult(participation, result);
+        }
+        catch (Exception e) {
+            log.warn("Could not broadcast the aggregated milestone result {} of exercise {} for student {}", resultId, milestoneExercise.getId(), studentId, e);
+        }
     }
 
     /**
