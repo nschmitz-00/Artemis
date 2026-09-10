@@ -2,7 +2,7 @@ import { Component, DestroyRef, computed, effect, inject, input, output, signal,
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { SortService } from 'app/foundation/service/sort.service';
 import dayjs from 'dayjs/esm';
-import { Exercise, ExerciseType, IncludedInOverallScore, getCourseFromExercise } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { Exercise, ExerciseType, IncludedInOverallScore, getCourseFromExercise, isProgrammingExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { SubmissionPolicy } from 'app/exercise/shared/entities/submission/submission-policy.model';
 import { StudentParticipation } from 'app/exercise/shared/entities/participation/student-participation.model';
 import { countSubmissions, getExerciseDueDate } from 'app/exercise/util/exercise.utils';
@@ -451,7 +451,7 @@ export class ExerciseHeadersInformationComponent {
 
     getStaticCodeAnalysisItemIfEnabled(): InformationBox | undefined {
         const exercise = this.exercise();
-        return exercise.type === ExerciseType.PROGRAMMING && (exercise as ProgrammingExercise).staticCodeAnalysisEnabled ? this.getStaticCodeAnalysisItem() : undefined;
+        return isProgrammingExerciseType(exercise.type) && (exercise as ProgrammingExercise).staticCodeAnalysisEnabled ? this.getStaticCodeAnalysisItem() : undefined;
     }
 
     getStaticCodeAnalysisItem(): InformationBox {

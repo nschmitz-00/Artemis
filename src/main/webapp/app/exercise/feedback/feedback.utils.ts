@@ -1,4 +1,4 @@
-import { Exercise, ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { Exercise, isProgrammingExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { Participation } from 'app/exercise/shared/entities/participation/participation.model';
 import { Result } from 'app/exercise/shared/entities/result/result.model';
 import { ResultTemplateStatus } from 'app/exercise/result/result.utils';
@@ -43,7 +43,7 @@ export function prepareFeedbackComponentParameters(
         preparedParameters.messageKey = 'artemisApp.result.notLatestSubmission';
     }
 
-    if (result?.assessmentType === AssessmentType.AUTOMATIC && exercise?.type === ExerciseType.PROGRAMMING && hasExerciseDueDatePassed(exercise, participation)) {
+    if (exercise && result?.assessmentType === AssessmentType.AUTOMATIC && isProgrammingExerciseType(exercise.type) && hasExerciseDueDatePassed(exercise, participation)) {
         determineShowMissingAutomaticFeedbackInformation(latestDueDate, exerciseService, preparedParameters, exercise);
     }
 

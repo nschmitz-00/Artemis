@@ -9,7 +9,7 @@ import { EMPTY, of, throwError } from 'rxjs';
 import { BuildLogEntry, BuildLogEntryArray, BuildLogType } from 'app/localci/shared/entities/build-log.model';
 import { Feedback, checkSubsequentFeedbackInAssessment } from 'app/assessment/shared/entities/feedback.model';
 import { Badge, ResultService } from 'app/exercise/result/result.service';
-import { Exercise, ExerciseType, getCourseFromExercise } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { Exercise, ExerciseType, getCourseFromExercise, isProgrammingExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { Result } from 'app/exercise/shared/entities/result/result.model';
 import { BuildLogService } from 'app/programming/shared/services/build-log.service';
 import { ProgrammingSubmission } from 'app/programming/shared/entities/programming-submission.model';
@@ -173,8 +173,7 @@ export class FeedbackComponent implements OnInit {
 
         this.initializeExerciseInformation();
 
-        this.feedbackItemService =
-            this.exerciseType() === ExerciseType.PROGRAMMING ? this.injector.get(ProgrammingFeedbackItemService) : this.injector.get(FeedbackItemServiceImpl);
+        this.feedbackItemService = isProgrammingExerciseType(this.exerciseType()) ? this.injector.get(ProgrammingFeedbackItemService) : this.injector.get(FeedbackItemServiceImpl);
         this.initFeedbackInformation();
 
         this.commitHash.set(this.getCommitHash().slice(0, 11));
@@ -199,8 +198,7 @@ export class FeedbackComponent implements OnInit {
             this.course.set(getCourseFromExercise(exercise));
         }
 
-        this.showTestDetails =
-            exercise?.isAtLeastTutor || (this.exerciseType() === ExerciseType.PROGRAMMING && (exercise as ProgrammingExercise)?.showTestNamesToStudents) || false;
+        this.showTestDetails = exercise?.isAtLeastTutor || (isProgrammingExerciseType(this.exerciseType()) && (exercise as ProgrammingExercise)?.showTestNamesToStudents) || false;
     }
 
     /**
@@ -246,7 +244,7 @@ export class FeedbackComponent implements OnInit {
                     const participationId = participation.id;
                     if (
                         result.assessmentType !== AssessmentType.AUTOMATIC_ATHENA &&
-                        this.exerciseType() === ExerciseType.PROGRAMMING &&
+                        isProgrammingExerciseType(this.exerciseType()) &&
                         buildFailed &&
                         participationId !== undefined
                     ) {
@@ -279,7 +277,7 @@ export class FeedbackComponent implements OnInit {
         const participationId = participation.id;
         const commitHash = (this.result().submission as ProgrammingSubmission)?.commitHash;
         const referencedFilePaths = [...new Set(feedbackItems.flatMap((item) => (item.codeReference ? [item.codeReference.filePath] : [])))];
-        if (this.exerciseType() !== ExerciseType.PROGRAMMING || exerciseId === undefined || participationId === undefined || !commitHash || referencedFilePaths.length === 0) {
+        if (!isProgrammingExerciseType(this.exerciseType()) || exerciseId === undefined || participationId === undefined || !commitHash || referencedFilePaths.length === 0) {
             return;
         }
 

@@ -269,6 +269,17 @@ describe('FeedbackComponent', () => {
         expect(comp.exerciseType()).toBe(ExerciseType.PROGRAMMING);
     });
 
+    it.each([ExerciseType.MILESTONE, ExerciseType.USER_STORY])('should build programming feedback items for the %s subtype', (type) => {
+        // A MilestoneExercise / UserStoryExercise serializes under its own discriminator but is a programming exercise.
+        // Picking the generic item service for them renders static code analysis feedback as plain reviewer feedback.
+        exercise.type = type;
+        fixture.componentRef.setInput('exercise', exercise);
+
+        comp.ngOnInit();
+
+        expect(comp.feedbackItemService).toBe(feedbackItemService);
+    });
+
     it('should generate commit link for programming exercise result with submission, participation and exercise', () => {
         const { feedbacks } = generateFeedbacksAndExpectedItems();
         comp.result().feedbacks = feedbacks;
