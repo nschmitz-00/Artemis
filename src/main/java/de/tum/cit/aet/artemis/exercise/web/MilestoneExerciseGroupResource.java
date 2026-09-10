@@ -31,12 +31,16 @@ import de.tum.cit.aet.artemis.account.repository.UserRepository;
 import de.tum.cit.aet.artemis.core.security.annotations.enforceRoleInCourse.EnforceAtLeastEditorInCourse;
 import de.tum.cit.aet.artemis.core.security.annotations.enforceRoleInCourse.EnforceAtLeastInstructorInCourse;
 import de.tum.cit.aet.artemis.core.security.annotations.enforceRoleInCourse.EnforceAtLeastStudentInCourse;
+import de.tum.cit.aet.artemis.core.security.annotations.enforceRoleInCourse.EnforceAtLeastTutorInCourse;
 import de.tum.cit.aet.artemis.core.service.feature.Feature;
 import de.tum.cit.aet.artemis.core.service.feature.FeatureToggle;
+import de.tum.cit.aet.artemis.core.service.featureusage.FeatureUsage;
 import de.tum.cit.aet.artemis.core.util.HeaderUtil;
 import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
 import de.tum.cit.aet.artemis.exercise.dto.CreateMilestoneExerciseGroupDTO;
 import de.tum.cit.aet.artemis.exercise.dto.CreateUserStoryExerciseDTO;
+import de.tum.cit.aet.artemis.exercise.dto.MilestoneAssessmentDTO;
+import de.tum.cit.aet.artemis.exercise.dto.MilestoneAssessmentStudentDTO;
 import de.tum.cit.aet.artemis.exercise.dto.MilestoneExerciseGroupDTO;
 import de.tum.cit.aet.artemis.exercise.dto.MilestoneStatusDTO;
 import de.tum.cit.aet.artemis.exercise.dto.UpdateMilestoneExerciseGroupDTO;
@@ -44,6 +48,7 @@ import de.tum.cit.aet.artemis.exercise.dto.UserStoryExerciseDTO;
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 import de.tum.cit.aet.artemis.programming.exception.ContinuousIntegrationException;
+import de.tum.cit.aet.artemis.programming.service.MilestoneAssessmentService;
 import de.tum.cit.aet.artemis.programming.service.MilestoneExerciseService;
 
 /**
@@ -62,6 +67,7 @@ import de.tum.cit.aet.artemis.programming.service.MilestoneExerciseService;
 @Lazy
 @RestController
 @RequestMapping("api/exercise/")
+@FeatureUsage("management/milestone-groups")
 public class MilestoneExerciseGroupResource {
 
     private static final Logger log = LoggerFactory.getLogger(MilestoneExerciseGroupResource.class);
@@ -73,10 +79,13 @@ public class MilestoneExerciseGroupResource {
 
     private final MilestoneExerciseService milestoneExerciseService;
 
+    private final MilestoneAssessmentService milestoneAssessmentService;
+
     private final UserRepository userRepository;
 
-    public MilestoneExerciseGroupResource(MilestoneExerciseService milestoneExerciseService, UserRepository userRepository) {
+    public MilestoneExerciseGroupResource(MilestoneExerciseService milestoneExerciseService, MilestoneAssessmentService milestoneAssessmentService, UserRepository userRepository) {
         this.milestoneExerciseService = milestoneExerciseService;
+        this.milestoneAssessmentService = milestoneAssessmentService;
         this.userRepository = userRepository;
     }
 
@@ -222,5 +231,46 @@ public class MilestoneExerciseGroupResource {
         log.debug("REST request to get milestone status of MilestoneExerciseGroup {} in course {}", groupId, courseId);
         User user = userRepository.getUserWithAuthorities();
         return ResponseEntity.ok(milestoneExerciseService.getMilestoneStatus(groupId, courseId, user));
+    }
+
+    /**
+     * GET /courses/:courseId/milestone-exercise-groups/:groupId/assessment/students : Every student who has started the
+     * group's milestone, with the standing of each of their user stories.
+     * <p>
+     * This is the milestone's own assessment dashboard. The per-exercise dashboards hand a tutor a random student's
+     * submission for one story at a time, which means reading the group's shared codebase once per story for a
+     * different student each time; here the tutor picks the student, and grades all of their stories in one sitting.
+     *
+     * @param groupId  the id of the milestone exercise group
+     * @param courseId the id of the course the group belongs to
+     * @return the ResponseEntity with status 200 (OK) and one entry per student, ordered by login
+     */
+    @GetMapping("courses/{courseId}/milestone-exercise-groups/{groupId}/assessment/students")
+    @FeatureUsage("assessment/milestone-assessment")
+    @EnforceAtLeastTutorInCourse
+    public ResponseEntity<List<MilestoneAssessmentStudentDTO>> getMilestoneAssessmentDashboard(@PathVariable Long groupId, @PathVariable Long courseId) {
+        log.debug("REST request to get the assessment dashboard of MilestoneExerciseGroup {} in course {}", groupId, courseId);
+        return ResponseEntity.ok(milestoneAssessmentService.getAssessmentDashboard(groupId, courseId));
+    }
+
+    /**
+     * GET /courses/:courseId/milestone-exercise-groups/:groupId/assessment/students/:studentLogin : Everything the
+     * milestone assessment page needs for one student, in a single request.
+     * <p>
+     * That includes the milestone's own result, which is the only place the group's static code analysis feedback
+     * exists: the fan-out copies just test case feedback down to the stories, and every story has static code analysis
+     * switched off.
+     *
+     * @param groupId      the id of the milestone exercise group
+     * @param courseId     the id of the course the group belongs to
+     * @param studentLogin the login of the student whose milestone is being assessed
+     * @return the ResponseEntity with status 200 (OK) and the milestone's information together with its ordered stories
+     */
+    @GetMapping("courses/{courseId}/milestone-exercise-groups/{groupId}/assessment/students/{studentLogin}")
+    @FeatureUsage("assessment/milestone-assessment")
+    @EnforceAtLeastTutorInCourse
+    public ResponseEntity<MilestoneAssessmentDTO> getMilestoneAssessmentForStudent(@PathVariable Long groupId, @PathVariable Long courseId, @PathVariable String studentLogin) {
+        log.debug("REST request to get the milestone assessment of student {} in MilestoneExerciseGroup {} in course {}", studentLogin, groupId, courseId);
+        return ResponseEntity.ok(milestoneAssessmentService.getAssessmentForStudent(groupId, courseId, studentLogin));
     }
 }

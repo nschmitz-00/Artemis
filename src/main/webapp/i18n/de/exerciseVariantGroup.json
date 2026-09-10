@@ -52,6 +52,28 @@
                 "question": "Soll die Gruppe <strong>{{ title }}</strong> wirklich gelöscht werden? Die Aufgaben in dieser Gruppe werden <strong>nicht</strong> gelöscht, sondern nur aus der Gruppe entfernt.",
                 "typeNameToConfirm": "Bitte gib den Namen der Gruppe zur Bestätigung ein."
             }
+        },
+        "milestoneAssessment": {
+            "title": "Meilenstein-Bewertung",
+            "assessingFor": "Bewertung von {{ student }}",
+            "overviewTab": "Meilenstein",
+            "storyNotStarted": "Diese:r Studierende hat diese User Story nicht begonnen, es gibt also nichts zu bewerten.",
+            "loadFailed": "Die Meilenstein-Bewertung konnte nicht geladen werden.",
+            "overview": {
+                "problemStatement": "Aufgabenstellung",
+                "noProblemStatement": "Der Meilenstein hat keine Aufgabenstellung.",
+                "codeQuality": "Codequalität",
+                "codeQualityDisabled": "Die statische Code-Analyse ist für diesen Meilenstein deaktiviert."
+            },
+            "dashboard": {
+                "title": "Meilenstein-Bewertungsdashboard",
+                "student": "Studierende:r",
+                "progress": "Bewertet",
+                "assess": "Bewerten",
+                "notStarted": "Nicht begonnen",
+                "unassessed": "Nicht bewertet",
+                "noStudents": "Noch hat kein:e Studierende:r diesen Meilenstein begonnen."
+            }
         }
     }
 }

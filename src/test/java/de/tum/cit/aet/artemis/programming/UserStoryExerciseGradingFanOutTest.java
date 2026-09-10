@@ -534,6 +534,50 @@ class UserStoryExerciseGradingFanOutTest extends AbstractProgrammingIntegrationI
 
     @Test
     @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void aRebuildOfAnAssessedCommitRefreshesTheTutorsResultInsteadOfSupersedingIt() {
+        // A tutor grades a story, then the very same commit is built again (an instructor-triggered rebuild, or the
+        // run after the due date). Inserting a second, automatic result would make that one the latest rated result of
+        // the participation - which is exactly what MilestoneScoreService.sumAchievedUserStoryPoints reads - so the
+        // tutor's points would silently stop counting towards the group. The canonical grading path avoids this by
+        // updating the manual result in place, and the fan-out has to do the same.
+        UserStoryExercise userStory = createUserStoryExercise("us1");
+        ProgrammingExerciseTestCase milestoneTestA = createTestCase(milestoneExercise, "testA");
+        createTestCase(userStory, "testA");
+
+        ProgrammingExerciseStudentParticipation milestoneParticipation = participationFor(milestoneExercise);
+        ProgrammingExerciseStudentParticipation participation = participationFor(userStory);
+
+        Result failingBuild = buildSourceResult(milestoneParticipation, "commit-1", List.of(testCaseFeedback(milestoneTestA, false)));
+        Result fannedOutResult = gradingService.fanOutResultToUserStoryExercise(failingBuild, userStory, participation);
+        ProgrammingSubmission assessedSubmission = (ProgrammingSubmission) fannedOutResult.getSubmission();
+
+        // What a saved assessment leaves behind: a manual result on that submission, newer than the automatic one.
+        Result manualResult = new Result();
+        manualResult.setAssessmentType(AssessmentType.SEMI_AUTOMATIC);
+        manualResult.setRated(true);
+        manualResult.setScore(50.0);
+        manualResult.setCompletionDate(ZonedDateTime.now());
+        manualResult.setExerciseId(userStory.getId());
+        manualResult.setSubmission(assessedSubmission);
+        manualResult = resultRepository.save(manualResult);
+
+        // The rebuild: a new milestone result for the same commit, this time with the test passing.
+        Result passingRebuild = buildSourceResult(milestoneParticipation, "commit-1", List.of(testCaseFeedback(milestoneTestA, true)));
+        Result rebuiltResult = gradingService.fanOutResultToUserStoryExercise(passingRebuild, userStory, participation);
+
+        assertThat(rebuiltResult.getId()).isEqualTo(manualResult.getId());
+        assertThat(rebuiltResult.getAssessmentType()).isEqualTo(AssessmentType.SEMI_AUTOMATIC);
+        // No third result: the story's submission still carries only the automatic result and the tutor's.
+        List<ProgrammingSubmission> siblingSubmissions = programmingSubmissionRepository
+                .findByParticipationIdAndCommitHashOrderByIdDescWithFeedbacksAndTeamStudents(participation.getId(), "commit-1");
+        assertThat(siblingSubmissions).singleElement().satisfies(submission -> assertThat(submission.getResults()).hasSize(2));
+        // The refreshed automatic feedback is the rebuild's, not the original failing run's.
+        assertThat(testCaseFeedbackRepository.findWithTestCaseByResultIds(List.of(rebuiltResult.getId()))).singleElement()
+                .satisfies(feedback -> assertThat(feedback.isPositive()).isTrue());
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
     void backfillProvisionsParticipationAndScoreForNewUserStoryExercise() {
         UserStoryExercise existingUserStory = createUserStoryExercise("existing");
         createTestCase(existingUserStory, "testA");

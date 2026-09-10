@@ -1,4 +1,4 @@
-import { Component, HostListener, OnDestroy, OnInit, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { IncludedInScoreBadgeComponent } from 'app/exercise/exercise-headers/included-in-score-badge/included-in-score-badge.component';
 import { ResultComponent } from 'app/exercise/result/result.component';
 import { UnreferencedFeedbackComponent } from 'app/exercise/unreferenced-feedback/unreferenced-feedback.component';
@@ -190,6 +190,29 @@ export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDe
     // function override, if set will be executed instead of going to the next submission page
     readonly overrideNextSubmission = input<(submissionId: number) => void>();
 
+    /**
+     * Identity supplied by a host rather than by the URL, for a page that embeds this component instead of routing to
+     * it - the milestone assessment page renders one of these per user story tab.
+     * <p>
+     * Named for where they come from rather than aliased onto the plain names below, which the routed path already
+     * writes: an alias is banned by `@angular-eslint/no-input-rename`, and the prefix says at every call site that this
+     * component is being driven rather than routed to. Supplying {@link hostSubmissionId} is what switches it into
+     * embedded mode - {@link isEmbedded} keys off it, so without it nothing changes for the routed usage.
+     */
+    readonly hostCourseId = input<number | undefined>(undefined);
+    readonly hostExerciseId = input<number | undefined>(undefined);
+    readonly hostSubmissionId = input<number | 'new' | undefined>(undefined);
+    readonly hostCorrectionRound = input<number | undefined>(undefined);
+
+    /**
+     * Whether a host drives this component instead of the router.
+     * <p>
+     * The distinction matters because embedded, {@link route} is the *host's* route: it carries the host's parameters
+     * (a course id, perhaps a group id) but no exercise or submission, so letting the route subscription in
+     * {@link ngOnInit} run would immediately load a submission that does not exist.
+     */
+    private readonly isEmbedded = computed<boolean>(() => this.hostSubmissionId() !== undefined);
+
     // Icons
     faTimesCircle = faTimesCircle;
     faExternalLink = faExternalLink;
@@ -207,6 +230,20 @@ export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDe
     constructor() {
         this.translateService.get('artemisApp.assessment.messages.confirmCancel').subscribe((text) => (this.cancelConfirmationText = text));
         this.translateService.get('artemisApp.assessment.messages.acceptComplaintWithoutMoreScore').subscribe((text) => (this.acceptComplaintWithoutMoreScoreText = text));
+
+        // Embedded, the host drives the load: re-run whenever it points this component at another submission, which is
+        // what a tab switch on the milestone assessment page does. Registered here rather than in ngOnInit, so that it
+        // exists exactly once however often that hook runs.
+        effect(() => {
+            const submissionId = this.hostSubmissionId();
+            const courseId = this.hostCourseId();
+            const exerciseId = this.hostExerciseId();
+            if (submissionId === undefined || courseId === undefined || exerciseId === undefined) {
+                return;
+            }
+            this.correctionRoundFromUrl = this.hostCorrectionRound() ?? 0;
+            untracked(() => this.loadAssessment(courseId, exerciseId, String(submissionId)));
+        });
     }
 
     /**
@@ -218,6 +255,11 @@ export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDe
         void this.accountService.identity().then((user) => {
             this.userId = user!.id!;
         });
+        if (this.isEmbedded()) {
+            // The host drives the load through the effect in the constructor; the injected route is the host page's, so subscribing
+            // to it here would load whatever its parameters happen to say.
+            return;
+        }
         this.route.queryParamMap.subscribe((queryParams) => {
             this.isTestRun.set(queryParams.get('testRun') === 'true');
             // The URL decides the round, and an unusable value means the first one; see parseCorrectionRound for why
@@ -227,69 +269,84 @@ export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDe
             this.correctionRoundFromUrl = parseCorrectionRound(queryParams.get('correction-round'));
         });
         this.paramSub = this.route.params.subscribe((params) => {
-            this.loadingParticipation.set(true);
-            this.participationCouldNotBeFetched.set(false);
-            // Angular reuses this component for param-only navigations (e.g. to the next submission), so both fatal
-            // error states have to be cleared here — otherwise the panel of the previous submission hides the new one.
-            this.assessmentNotPossibleYet.set(undefined);
-
-            this.courseId = Number(params['courseId']);
-            this.exerciseId = Number(params['exerciseId']);
             const examId = params['examId'];
-            if (examId) {
-                this.examId = Number(examId);
-                this.exerciseGroupId = Number(params['exerciseGroupId']);
-            }
-
-            this.exerciseDashboardLink.set(getExerciseDashboardLink(this.courseId, this.exerciseId, this.examId, this.isTestRun()));
-
-            const submissionId = params['submissionId'];
-            // Taken from the URL once per load, so that the round the submission is locked with is also the round its
-            // results are indexed by, even when the parameter has changed since the last load.
-            this.correctionRound.set(this.correctionRoundFromUrl);
-            const submissionObservable = submissionId === 'new' ? this.loadRandomSubmission(this.exerciseId) : this.loadSubmission(Number(submissionId));
-            submissionObservable
-                .pipe(
-                    tap({
-                        next: async (submission?: ProgrammingSubmission) => {
-                            await this.onSubmissionReceived(submissionId, submission);
-                        },
-                        complete: () => this.loadingParticipation.set(false),
-                    }),
-                    catchError((error: HttpErrorResponse) => {
-                        this.handleErrorResponse(error);
-                        // Stop the chain: without a participation the steps below cannot run anyway, and letting the
-                        // error reach the subscriber would additionally report it as an uncaught exception — the very
-                        // Sentry noise the explicit handling avoids.
-                        return EMPTY;
-                    }),
-                    // The following is needed for highlighting changed code lines
-                    switchMap(() => this.programmingExerciseService.findWithTemplateAndSolutionParticipation(this.exercise().id!, false, true)),
-                    tap((response) => {
-                        const programmingExercise = response.body!;
-                        this.templateParticipation = programmingExercise.templateParticipation!;
-                        this.exercise().gradingCriteria = programmingExercise.gradingCriteria;
-                        this.isAtLeastEditor.set(!!this.exercise().isAtLeastEditor);
-                    }),
-                    switchMap(() => {
-                        // Get all files with content from template repository
-                        this.domainService.setDomain([DomainType.PARTICIPATION, this.templateParticipation]);
-                        const observable = this.repositoryFileService.getFilesWithContent();
-                        // Set back to student participation
-                        this.domainService.setDomain([DomainType.PARTICIPATION, this.participation()]);
-                        this.localRepositoryLink.set(
-                            getLocalRepositoryLink(this.courseId, this.exerciseId, RepositoryType.USER, this.participation().id!, this.exerciseGroupId, this.examId),
-                        );
-                        return observable;
-                    }),
-                    tap((templateFilesObj) => {
-                        if (templateFilesObj) {
-                            this.templateFileSession = templateFilesObj;
-                        }
-                    }),
-                )
-                .subscribe();
+            this.loadAssessment(
+                Number(params['courseId']),
+                Number(params['exerciseId']),
+                params['submissionId'],
+                examId ? Number(examId) : undefined,
+                examId ? Number(params['exerciseGroupId']) : undefined,
+            );
         });
+    }
+
+    /**
+     * Loads and locks one submission for assessment, then everything the editor needs around it.
+     * <p>
+     * Extracted from the route subscription so a host can drive it directly with the same arguments the URL otherwise
+     * supplies; the routed path is unchanged and still calls it once per parameter emission.
+     */
+    private loadAssessment(courseId: number, exerciseId: number, submissionId: string, examId?: number, exerciseGroupId?: number): void {
+        this.loadingParticipation.set(true);
+        this.participationCouldNotBeFetched.set(false);
+        // Angular reuses this component for param-only navigations (e.g. to the next submission), so both fatal
+        // error states have to be cleared here — otherwise the panel of the previous submission hides the new one.
+        this.assessmentNotPossibleYet.set(undefined);
+
+        this.courseId = courseId;
+        this.exerciseId = exerciseId;
+        if (examId) {
+            this.examId = examId;
+            this.exerciseGroupId = exerciseGroupId!;
+        }
+
+        this.exerciseDashboardLink.set(getExerciseDashboardLink(this.courseId, this.exerciseId, this.examId, this.isTestRun()));
+
+        // Taken from the URL once per load, so that the round the submission is locked with is also the round its
+        // results are indexed by, even when the parameter has changed since the last load.
+        this.correctionRound.set(this.correctionRoundFromUrl);
+        const submissionObservable = submissionId === 'new' ? this.loadRandomSubmission(this.exerciseId) : this.loadSubmission(Number(submissionId));
+        submissionObservable
+            .pipe(
+                tap({
+                    next: async (submission?: ProgrammingSubmission) => {
+                        await this.onSubmissionReceived(submissionId, submission);
+                    },
+                    complete: () => this.loadingParticipation.set(false),
+                }),
+                catchError((error: HttpErrorResponse) => {
+                    this.handleErrorResponse(error);
+                    // Stop the chain: without a participation the steps below cannot run anyway, and letting the
+                    // error reach the subscriber would additionally report it as an uncaught exception — the very
+                    // Sentry noise the explicit handling avoids.
+                    return EMPTY;
+                }),
+                // The following is needed for highlighting changed code lines
+                switchMap(() => this.programmingExerciseService.findWithTemplateAndSolutionParticipation(this.exercise().id!, false, true)),
+                tap((response) => {
+                    const programmingExercise = response.body!;
+                    this.templateParticipation = programmingExercise.templateParticipation!;
+                    this.exercise().gradingCriteria = programmingExercise.gradingCriteria;
+                    this.isAtLeastEditor.set(!!this.exercise().isAtLeastEditor);
+                }),
+                switchMap(() => {
+                    // Get all files with content from template repository
+                    this.domainService.setDomain([DomainType.PARTICIPATION, this.templateParticipation]);
+                    const observable = this.repositoryFileService.getFilesWithContent();
+                    // Set back to student participation
+                    this.domainService.setDomain([DomainType.PARTICIPATION, this.participation()]);
+                    this.localRepositoryLink.set(
+                        getLocalRepositoryLink(this.courseId, this.exerciseId, RepositoryType.USER, this.participation().id!, this.exerciseGroupId, this.examId),
+                    );
+                    return observable;
+                }),
+                tap((templateFilesObj) => {
+                    if (templateFilesObj) {
+                        this.templateFileSession = templateFilesObj;
+                    }
+                }),
+            )
+            .subscribe();
     }
 
     /**
@@ -311,8 +368,10 @@ export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDe
         // validate feedback here already so that overrides are possible for assessment note changes
         // without touching the feedbacks
         await this.handleReceivedSubmission(submission).then(() => this.validateFeedback());
-        if (submissionId === 'new') {
-            // Update the url with the new id, without reloading the page, to make the history consistent
+        if (submissionId === 'new' && !this.isEmbedded()) {
+            // Update the url with the new id, without reloading the page, to make the history consistent.
+            // Skipped when embedded: the URL then belongs to the host page and says nothing about this submission, so
+            // rewriting it would corrupt the host's own address rather than record which submission is open.
             const newUrl = window.location.hash.replace('#', '').replace('new', `${this.submission()!.id}`);
             this.location.go(newUrl);
         }

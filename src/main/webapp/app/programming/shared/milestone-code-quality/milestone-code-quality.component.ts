@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
+import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FaIconComponent } from '@fortawesome/angular-fontawesome';
 import { faCircleCheck, faCircleNotch, faCircleXmark, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { Feedback, STATIC_CODE_ANALYSIS_FEEDBACK_IDENTIFIER } from 'app/assessment/shared/entities/feedback.model';
@@ -59,7 +59,7 @@ type CodeQualityStatus = 'building' | 'clean' | 'informational' | 'deducting';
     selector: 'jhi-milestone-code-quality',
     templateUrl: './milestone-code-quality.component.html',
     styleUrl: './milestone-code-quality.component.scss',
-    imports: [FaIconComponent, DecimalPipe, ArtemisTranslatePipe, TranslateDirective, InformationBoxComponent, TumUiDialogComponent, TumUiTableDirective],
+    imports: [FaIconComponent, DecimalPipe, NgTemplateOutlet, ArtemisTranslatePipe, TranslateDirective, InformationBoxComponent, TumUiDialogComponent, TumUiTableDirective],
     /* preserveWhitespaces: false is required here because the global tsconfig sets preserveWhitespaces: true,
      * which inserts whitespace text nodes that break [contentComponent] slot matching in jhi-information-box. */
     preserveWhitespaces: false,
@@ -74,6 +74,14 @@ export class MilestoneCodeQualityComponent {
     readonly isBuilding = input(false);
     /** Whether a build for the milestone's shared repository is queued but has not started yet. */
     readonly isQueued = input(false);
+    /**
+     * Renders the issue table directly instead of behind the information box that opens it in a dialog.
+     * <p>
+     * The student group page shows this among a row of header boxes, where the issue count is the whole point and the
+     * detail belongs in a dialog. The tutor assessment page gives it a tab of its own, where there is nothing to open
+     * and a trigger the tutor has to click first would only be in the way.
+     */
+    readonly inline = input(false);
 
     protected readonly faTriangleExclamation = faTriangleExclamation;
     protected readonly faCircleCheck = faCircleCheck;

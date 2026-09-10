@@ -19,7 +19,9 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import de.tum.cit.aet.artemis.assessment.domain.AssessmentType;
+import de.tum.cit.aet.artemis.assessment.domain.Feedback;
 import de.tum.cit.aet.artemis.assessment.domain.Result;
+import de.tum.cit.aet.artemis.assessment.domain.ScaFeedback;
 import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.course.dto.CourseExercisesForOverviewDTO;
 import de.tum.cit.aet.artemis.exercise.domain.ExerciseVariantGroup;
@@ -29,6 +31,9 @@ import de.tum.cit.aet.artemis.exercise.dto.CreateUserStoryExerciseDTO;
 import de.tum.cit.aet.artemis.exercise.dto.ExerciseOverviewDTO;
 import de.tum.cit.aet.artemis.exercise.dto.ExerciseProblemStatementDTO;
 import de.tum.cit.aet.artemis.exercise.dto.ExerciseVariantGroupDTO;
+import de.tum.cit.aet.artemis.exercise.dto.MilestoneAssessmentDTO;
+import de.tum.cit.aet.artemis.exercise.dto.MilestoneAssessmentStoryDTO;
+import de.tum.cit.aet.artemis.exercise.dto.MilestoneAssessmentStudentDTO;
 import de.tum.cit.aet.artemis.exercise.dto.MilestoneExerciseGroupDTO;
 import de.tum.cit.aet.artemis.exercise.dto.MilestoneStatusDTO;
 import de.tum.cit.aet.artemis.exercise.dto.UpdateMilestoneExerciseGroupDTO;
@@ -42,6 +47,7 @@ import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParti
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingLanguage;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingSubmission;
 import de.tum.cit.aet.artemis.programming.domain.ProjectType;
+import de.tum.cit.aet.artemis.programming.domain.StaticCodeAnalysisTool;
 import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 
 /**
@@ -476,5 +482,104 @@ class MilestoneExerciseGroupIntegrationTest extends AbstractProgrammingIntegrati
         List<ExerciseProblemStatementDTO> statements = request.getList(problemStatementsUrl(milestoneGroup.getId()), HttpStatus.OK, ExerciseProblemStatementDTO.class);
 
         assertThat(statements).extracting(ExerciseProblemStatementDTO::exerciseId).containsExactlyInAnyOrder(first.getId(), second.getId());
+    }
+
+    private String assessmentUrl() {
+        return milestoneGroupsUrl() + "/" + milestoneGroup.getId() + "/assessment/students";
+    }
+
+    /**
+     * Gives {@code student1} a participation on the exercise with one submission and one rated result, and returns that
+     * result so a caller can attach static code analysis feedback to it.
+     */
+    private Result addStartedParticipationWithResult(ProgrammingExercise exercise, double score) {
+        ProgrammingExerciseStudentParticipation participation = participationUtilService.addStudentParticipationForProgrammingExercise(exercise, TEST_PREFIX + "student1");
+        participation.setRepositoryUri("https://example.local/" + exercise.getId() + ".git");
+        programmingExerciseStudentParticipationRepository.save(participation);
+
+        ProgrammingSubmission submission = new ProgrammingSubmission();
+        submission.setParticipation(participation);
+        submission.setCommitHash("assessment-commit");
+        submission.setType(SubmissionType.MANUAL);
+        submission.setSubmissionDate(ZonedDateTime.now().truncatedTo(ChronoUnit.MILLIS));
+        submission.setSubmitted(true);
+        submission = programmingSubmissionRepository.save(submission);
+
+        Result result = new Result();
+        result.setAssessmentType(AssessmentType.AUTOMATIC);
+        result.setCompletionDate(ZonedDateTime.now().truncatedTo(ChronoUnit.MILLIS));
+        result.setSuccessful(true);
+        result.setExerciseId(exercise.getId());
+        result.setSubmission(submission);
+        result.setScore(score);
+        result.setRated(true);
+        return resultRepository.save(result);
+    }
+
+    /**
+     * A tutor grading a milestone picks a student, not a submission: the group's stories share one repository and one
+     * build, so the dashboard is keyed on the student and lists every story beside them.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "tutor1", roles = "TA")
+    void milestoneAssessmentDashboardListsEveryStartedStudentWithAllTheirStories() throws Exception {
+        UserStoryExercise first = addUserStoryMember("first", null, "Implement the login form");
+        UserStoryExercise second = addUserStoryMember("second", null, "Implement the logout");
+        addStartedParticipationWithResult(milestoneExercise, 60.0);
+        addStartedParticipationWithResult(first, 100.0);
+
+        List<MilestoneAssessmentStudentDTO> dashboard = request.getList(assessmentUrl(), HttpStatus.OK, MilestoneAssessmentStudentDTO.class);
+
+        assertThat(dashboard).singleElement().satisfies(row -> {
+            assertThat(row.studentLogin()).isEqualTo(TEST_PREFIX + "student1");
+            assertThat(row.milestoneParticipationId()).isNotNull();
+            // Both stories appear, ordered by id - a story the student never started still gets an entry, because
+            // "not started" is what the tutor needs to see rather than a row to hide.
+            assertThat(row.stories()).extracting(MilestoneAssessmentStoryDTO::exerciseId).containsExactly(first.getId(), second.getId());
+            assertThat(row.stories().getFirst().submissionId()).isNotNull();
+            assertThat(row.stories().getFirst().latestScore()).isEqualTo(100.0);
+            assertThat(row.stories().getFirst().assessed()).isFalse();
+            assertThat(row.stories().getLast().participationId()).isNull();
+            assertThat(row.stories().getLast().submissionId()).isNull();
+        });
+    }
+
+    /**
+     * The milestone's own result is the only place the group's static code analysis issues exist - the fan-out copies
+     * only test case feedback down to the stories, and every story has static code analysis switched off - so the
+     * assessment page's first tab has nowhere else to read them from.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "tutor1", roles = "TA")
+    void milestoneAssessmentForOneStudentCarriesTheGroupsCodeQualityFeedbackAndItsStories() throws Exception {
+        UserStoryExercise first = addUserStoryMember("first", null, "Implement the login form");
+        UserStoryExercise second = addUserStoryMember("second", null, "Implement the logout");
+        Result milestoneResult = addStartedParticipationWithResult(milestoneExercise, 60.0);
+        addStartedParticipationWithResult(first, 100.0);
+
+        ScaFeedback scaFeedback = new ScaFeedback();
+        scaFeedback.setTool(StaticCodeAnalysisTool.SPOTBUGS);
+        scaFeedback.setToolCategory("BAD_PRACTICE");
+        scaFeedback.setCategory("Bad Practice");
+        scaFeedback.setResult(milestoneResult);
+        scaFeedbackRepository.save(scaFeedback);
+
+        MilestoneAssessmentDTO assessment = request.get(assessmentUrl() + "/" + TEST_PREFIX + "student1", HttpStatus.OK, MilestoneAssessmentDTO.class);
+
+        assertThat(assessment.milestoneExerciseId()).isEqualTo(milestoneExercise.getId());
+        assertThat(assessment.problemStatement()).isEqualTo(milestoneExercise.getProblemStatement());
+        assertThat(assessment.stories()).extracting(MilestoneAssessmentStoryDTO::exerciseId).containsExactly(first.getId(), second.getId());
+        assertThat(assessment.milestoneResult()).isNotNull();
+        // The rows live in a typed table and only reach the client through the synthesizer; without it the first tab
+        // would render an empty issue list against a result that does have issues.
+        assertThat(assessment.milestoneResult().feedbacks())
+                .anyMatch(feedback -> feedback.text() != null && feedback.text().startsWith(Feedback.STATIC_CODE_ANALYSIS_FEEDBACK_IDENTIFIER));
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+    void aStudentMayNotOpenTheMilestoneAssessment() throws Exception {
+        request.getList(assessmentUrl(), HttpStatus.FORBIDDEN, MilestoneAssessmentStudentDTO.class);
+        request.get(assessmentUrl() + "/" + TEST_PREFIX + "student1", HttpStatus.FORBIDDEN, MilestoneAssessmentDTO.class);
     }
 }

@@ -32,6 +32,7 @@ import { HttpErrorResponse, HttpResponse, provideHttpClient } from '@angular/com
 import { Course } from 'app/course/shared/entities/course.model';
 import { ProgrammingSubmissionService } from 'app/programming/shared/services/programming-submission.service';
 import { ComplaintResponse } from 'app/assessment/shared/entities/complaint-response.model';
+import { Location } from '@angular/common';
 import { ActivatedRoute, ParamMap, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { ProgrammingExerciseService } from 'app/programming/manage/services/programming-exercise.service';
 import { CodeEditorRepositoryFileService } from 'app/programming/shared/code-editor/services/code-editor-repository.service';
@@ -1020,6 +1021,70 @@ describe('CodeEditorTutorAssessmentContainerComponent', () => {
 
             expect(comp.assessmentNotPossibleYet()).toBeUndefined();
             expect(comp.submission()).toEqual(submission);
+        });
+    });
+
+    describe('embedded in a host page', () => {
+        /**
+         * Points the component at a submission the way a host does, instead of the way the router does. Embedded, the
+         * injected route belongs to the host page, so it deliberately carries no submission of its own here.
+         */
+        function embed(submissionId: number | 'new'): void {
+            TestBed.inject(ActivatedRoute).params = of({});
+            fixture.componentRef.setInput('hostCourseId', 7);
+            fixture.componentRef.setInput('hostExerciseId', 42);
+            fixture.componentRef.setInput('hostSubmissionId', submissionId);
+            comp.ngOnInit();
+            fixture.detectChanges();
+        }
+
+        it('loads the submission its host points it at, without reading the route', () => {
+            lockAndGetProgrammingSubmissionParticipationStub.mockReturnValue(of(submission));
+
+            embed(123);
+
+            expect(lockAndGetProgrammingSubmissionParticipationStub).toHaveBeenCalledExactlyOnceWith(123, 0);
+            expect(comp.courseId).toBe(7);
+            expect(comp.exerciseId).toBe(42);
+        });
+
+        it('re-loads when the host points it at another submission, which is what a tab switch does', () => {
+            lockAndGetProgrammingSubmissionParticipationStub.mockReturnValue(of(submission));
+            embed(123);
+
+            fixture.componentRef.setInput('hostSubmissionId', 456);
+            fixture.detectChanges();
+
+            expect(lockAndGetProgrammingSubmissionParticipationStub).toHaveBeenCalledTimes(2);
+            expect(lockAndGetProgrammingSubmissionParticipationStub).toHaveBeenLastCalledWith(456, 0);
+        });
+
+        it('takes the correction round from its host rather than from the query string', () => {
+            lockAndGetProgrammingSubmissionParticipationStub.mockReturnValue(of(submission));
+            TestBed.inject(ActivatedRoute).params = of({});
+            fixture.componentRef.setInput('hostCourseId', 7);
+            fixture.componentRef.setInput('hostExerciseId', 42);
+            fixture.componentRef.setInput('hostCorrectionRound', 1);
+            fixture.componentRef.setInput('hostSubmissionId', 123);
+
+            comp.ngOnInit();
+            fixture.detectChanges();
+
+            expect(lockAndGetProgrammingSubmissionParticipationStub).toHaveBeenCalledExactlyOnceWith(123, 1);
+        });
+
+        it("leaves the host page's URL alone when it is handed a new submission", async () => {
+            // Routed, the component rewrites the URL so "new" becomes the real id. Embedded, that URL belongs to the
+            // host and says nothing about this submission, so rewriting it would corrupt the host's own address.
+            const location = TestBed.inject(Location);
+            const locationSpy = vi.spyOn(location, 'go');
+            getProgrammingSubmissionForExerciseWithoutAssessmentStub.mockReturnValue(scheduled([submission], asapScheduler));
+
+            embed('new');
+            await flushMicrotasks();
+
+            expect(getProgrammingSubmissionForExerciseWithoutAssessmentStub).toHaveBeenCalledOnce();
+            expect(locationSpy).not.toHaveBeenCalled();
         });
     });
 });

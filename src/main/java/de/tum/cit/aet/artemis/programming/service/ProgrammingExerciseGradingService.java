@@ -650,6 +650,29 @@ public class ProgrammingExerciseGradingService {
 
         Result processedResult = calculateScoreForResult(targetResult, targetExercise, true);
 
+        // The same branch the canonical path takes (see processNewProgrammingExerciseResult): once a tutor has
+        // assessed this submission, a re-run of the very same commit must refresh that manual result's automatic
+        // feedback rather than insert a second, automatic result beside it. Without this the newly inserted result is
+        // the latest rated one, so MilestoneScoreService.sumAchievedUserStoryPoints - which reads exactly that - stops
+        // counting the tutor's points, silently. Only reachable when the submission already existed: a push carries a
+        // new commit hash and therefore a submission that cannot have been assessed yet.
+        Result latestTargetResult = targetSubmission.getLatestResult();
+        if (!isNewSubmission && latestTargetResult != null && latestTargetResult.isManual() && !targetParticipation.isPracticeMode()) {
+            Result updatedLatestSemiAutomaticResult = updateLatestSemiAutomaticResultWithNewAutomaticFeedback(latestTargetResult.getId(), processedResult);
+            // Adding back the dropped submission. The result owns the foreign key, so saving it is enough; the
+            // submission itself did not change.
+            updatedLatestSemiAutomaticResult.setSubmission(targetSubmission);
+            updatedLatestSemiAutomaticResult = resultRepository.save(updatedLatestSemiAutomaticResult);
+            // The merge re-inserted the typed feedback rows, and the flush left their test cases as uninitialized
+            // proxies. The broadcast below synthesizes the legacy feedback views from exactly these rows and reads the
+            // test case off each one, so they have to be read back with it - otherwise the notification dies on a
+            // LazyInitializationException outside the session.
+            updatedLatestSemiAutomaticResult.setTestCaseFeedbacks(testCaseFeedbackRepository.findWithTestCaseAndMessageByResultId(updatedLatestSemiAutomaticResult.getId()));
+            updatedLatestSemiAutomaticResult.setScaFeedbacks(scaFeedbackRepository.findWithMessageByResultId(updatedLatestSemiAutomaticResult.getId()));
+            programmingMessagingService.notifyUserAboutNewResult(updatedLatestSemiAutomaticResult, targetParticipation);
+            return updatedLatestSemiAutomaticResult;
+        }
+
         // One insert, exactly like the canonical path in processNewProgrammingExerciseResult: the result owns a non-null
         // foreign key to its submission (Result#submission is @JoinColumn(nullable = false) since #13581), so it has to
         // be set when the row is written. Clearing it first and repairing the association afterwards is the pre-#13581

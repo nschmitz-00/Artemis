@@ -1,0 +1,53 @@
+<ng-template titleBarTitle>
+    <span jhiTranslate="artemisApp.milestoneAssessment.title"></span>
+    <span class="milestone-assessment__student">{{ studentLogin() }}</span>
+</ng-template>
+
+@if (assessment(); as assessment) {
+    <div class="milestone-assessment">
+        <!-- Named again in the body, not only in the title bar: the title bar scrolls away, and a tutor must never be
+             in doubt whose work the editor below is showing. -->
+        <header class="milestone-assessment__header">
+            <h3>{{ assessment.milestoneTitle }}</h3>
+            <span class="milestone-assessment__student" jhiTranslate="artemisApp.milestoneAssessment.assessingFor" [translateValues]="{ student: studentLogin() }"></span>
+        </header>
+
+        <tum-ui-tabs [value]="activeTab()" (valueChange)="onTabChange($event)">
+            <tum-ui-tab-list [attr.aria-label]="'artemisApp.milestoneAssessment.title' | artemisTranslate">
+                <tum-ui-tab [value]="OVERVIEW_TAB">
+                    <span jhiTranslate="artemisApp.milestoneAssessment.overviewTab"></span>
+                </tum-ui-tab>
+                @for (story of stories(); track story.exerciseId) {
+                    <!-- A story the student never started has nothing to assess, so its tab is disabled rather than
+                         hidden: the group's shape should read the same for every student. -->
+                    <tum-ui-tab [value]="story.exerciseId" [disabled]="!story.submissionId">
+                        <span>{{ story.title }}</span>
+                    </tum-ui-tab>
+                }
+            </tum-ui-tab-list>
+        </tum-ui-tabs>
+
+        <div class="milestone-assessment__panel">
+            @if (activeTab() === OVERVIEW_TAB) {
+                <jhi-milestone-assessment-overview [assessment]="assessment" />
+            } @else if (activeStory(); as story) {
+                @if (activeSubmissionId(); as submissionId) {
+                    <!-- Keyed on the story so switching tabs recreates the editor rather than reusing it: only one may
+                         be mounted at a time, because the code editor's domain service is a single global. -->
+                    @if (story.exerciseId) {
+                        <jhi-code-editor-tutor-assessment
+                            [hostCourseId]="courseId()"
+                            [hostExerciseId]="story.exerciseId"
+                            [hostSubmissionId]="submissionId"
+                            [overrideNextSubmission]="assessNextStory"
+                        />
+                    }
+                } @else {
+                    <p class="milestone-assessment__empty" jhiTranslate="artemisApp.milestoneAssessment.storyNotStarted"></p>
+                }
+            }
+        </div>
+    </div>
+} @else if (!isLoading()) {
+    <p class="milestone-assessment__empty" jhiTranslate="artemisApp.milestoneAssessment.loadFailed"></p>
+}

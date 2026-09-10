@@ -386,6 +386,52 @@ public interface ProgrammingExerciseStudentParticipationRepository extends Artem
             """)
     Set<ProgrammingExerciseStudentParticipation> findByExerciseId(@Param("exerciseId") long exerciseId);
 
+    /**
+     * All real (non-test-run) participations of an exercise with everything a grading overview reads off them: the
+     * submissions, their results, and who assessed each one. The student comes along on its own, being a to-one
+     * association.
+     * <p>
+     * One query per exercise rather than one per (exercise, student): the milestone assessment dashboard shows a whole
+     * group's stories for every student at once, so the per-student shape would be a query per cell of the table.
+     *
+     * @param exerciseId the id of the exercise
+     * @return the participations, each with its submissions, their results and the assessors
+     */
+    @Query("""
+            SELECT p
+            FROM ProgrammingExerciseStudentParticipation p
+                LEFT JOIN FETCH p.submissions s
+                LEFT JOIN FETCH s.results r
+                LEFT JOIN FETCH r.assessor
+            WHERE p.exercise.id = :exerciseId
+                AND p.testRun = FALSE
+            """)
+    Set<ProgrammingExerciseStudentParticipation> findWithSubmissionsResultsAndAssessorByExerciseId(@Param("exerciseId") long exerciseId);
+
+    /**
+     * Like {@link #findWithSubmissionsResultsAndAssessorByExerciseId(long)}, narrowed to one student - what the
+     * milestone assessment page needs, which only ever renders a single student's tabs.
+     * <p>
+     * Returns a list rather than an {@code Optional} because the fetch joins multiply the rows; a student has at most
+     * one real participation per exercise, so the caller takes the first.
+     *
+     * @param exerciseId the id of the exercise
+     * @param login      the student's login
+     * @return the student's participation with its submissions, their results and the assessors, or empty
+     */
+    @Query("""
+            SELECT p
+            FROM ProgrammingExerciseStudentParticipation p
+                LEFT JOIN FETCH p.submissions s
+                LEFT JOIN FETCH s.results r
+                LEFT JOIN FETCH r.assessor
+            WHERE p.exercise.id = :exerciseId
+                AND p.student.login = :login
+                AND p.testRun = FALSE
+            """)
+    List<ProgrammingExerciseStudentParticipation> findWithSubmissionsResultsAndAssessorByExerciseIdAndStudentLogin(@Param("exerciseId") long exerciseId,
+            @Param("login") String login);
+
     boolean existsByExerciseId(long exerciseId);
 
     @Query("""

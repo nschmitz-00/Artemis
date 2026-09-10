@@ -173,7 +173,7 @@
             <div class="markdown-preview">
                 @if (exercise().problemStatement && exercise().problemStatement!.length > 0) {
                     <jhi-info-panel [panelHeader]="'artemisApp.exerciseAssessmentDashboard.problemStatement' | artemisTranslate">
-                        @if (exercise().type !== ExerciseType.PROGRAMMING) {
+                        @if (exerciseBaseType() !== ExerciseType.PROGRAMMING) {
                             <div [innerHTML]="formattedProblemStatement()" class="no-bottom-space"></div>
                         } @else {
                             <!-- Programming exercises have a couple of custom render modules, so we load the instructions component here.-->
@@ -206,7 +206,7 @@
                     </jhi-info-panel>
                 }
 
-                @if (exercise().type === ExerciseType.PROGRAMMING) {
+                @if (exerciseBaseType() === ExerciseType.PROGRAMMING) {
                     <div class="col-12">
                         <h4 jhiTranslate="artemisApp.exerciseAssessmentDashboard.exampleSolution"></h4>
                         <!-- Pass exerciseId (not the full exercise) on purpose: it is enough to provision the repository-scoped token, and avoids triggering the online IDE setup for the solution clone. -->

@@ -20,6 +20,7 @@ import {
     faFileImport,
     faLayerGroup,
     faList,
+    faListCheck,
     faPen,
     faPencilAlt,
     faPlus,
@@ -109,6 +110,7 @@ export class CourseManagementExercisesComponent implements OnInit {
     protected readonly faCircleInfo = faCircleInfo;
     protected readonly faCode = faCode;
     protected readonly faEye = faEye;
+    protected readonly faListCheck = faListCheck;
     protected readonly faPen = faPen;
     protected readonly faPencilAlt = faPencilAlt;
     protected readonly faTrash = faTrash;
@@ -482,6 +484,17 @@ export class CourseManagementExercisesComponent implements OnInit {
             return;
         }
         this.openGroupEditDialog(group, false);
+    }
+
+    /** Opens the group's own assessment dashboard, where a tutor picks the student whose milestone they will grade. */
+    openMilestoneAssessmentDashboard(group: CourseExerciseGroup): void {
+        const courseId = this.courseId();
+        if (courseId === undefined || group.id === undefined) {
+            return;
+        }
+        // Addressed by the group id, unlike the two routes above: the dashboard is about the group's stories and their
+        // participations, and never loads the anchor exercise itself.
+        void this.router.navigate(['/course-management', courseId, 'milestone-exercise-groups', group.id, 'assessment-dashboard']);
     }
 
     /**

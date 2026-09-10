@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { TranslateService } from '@ngx-translate/core';
 import { MockTranslateService } from 'test/helpers/mocks/service/mock-translate.service';
-import { MilestoneCodeQualityComponent } from 'app/course/overview/course-exercises/group-detail/milestone-code-quality/milestone-code-quality.component';
+import { MilestoneCodeQualityComponent } from 'app/programming/shared/milestone-code-quality/milestone-code-quality.component';
 import { Feedback, FeedbackType, STATIC_CODE_ANALYSIS_FEEDBACK_IDENTIFIER } from 'app/assessment/shared/entities/feedback.model';
 import { Result } from 'app/exercise/shared/entities/result/result.model';
 import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
@@ -30,7 +30,7 @@ describe('MilestoneCodeQualityComponent', () => {
     async function setup(
         exercise: ProgrammingExercise | undefined,
         result: Result | undefined,
-        buildState: { isBuilding?: boolean; isQueued?: boolean } = {},
+        buildState: { isBuilding?: boolean; isQueued?: boolean; inline?: boolean } = {},
     ): Promise<MilestoneCodeQualityComponent> {
         await TestBed.configureTestingModule({
             imports: [MilestoneCodeQualityComponent],
@@ -42,6 +42,7 @@ describe('MilestoneCodeQualityComponent', () => {
         fixture.componentRef.setInput('result', result);
         fixture.componentRef.setInput('isBuilding', buildState.isBuilding ?? false);
         fixture.componentRef.setInput('isQueued', buildState.isQueued ?? false);
+        fixture.componentRef.setInput('inline', buildState.inline ?? false);
         fixture.detectChanges();
         return fixture.componentInstance;
     }
@@ -225,6 +226,31 @@ describe('MilestoneCodeQualityComponent', () => {
     it('renders nothing while the milestone exercise is still loading', async () => {
         const result = { id: 1, feedbacks: [] } as unknown as Result;
         expect(state(await setup(undefined, result)).isApplicable()).toBe(false);
+    });
+
+    describe('inline', () => {
+        it('renders the issue table straight away, with no trigger to click', async () => {
+            const result = {
+                id: 1,
+                feedbacks: [scaFeedback('Bad Practice', { filePath: 'src/Main.java', startLine: 4, rule: 'DM_EXIT', message: 'Avoid System.exit' }, -2)],
+            } as unknown as Result;
+
+            await setup(milestone(), result, { inline: true });
+
+            // No information box to open: the tutor page gives this a tab of its own, so a trigger would only be in the way.
+            expect(fixture.nativeElement.querySelector('.code-quality__trigger')).toBeNull();
+            const table = fixture.nativeElement.querySelector('table');
+            expect(table).not.toBeNull();
+            expect(table.textContent).toContain('Bad Practice');
+            expect(table.textContent).toContain('src/Main.java:4');
+        });
+
+        it('still explains itself when the codebase is clean', async () => {
+            await setup(milestone(), { id: 1, feedbacks: [] } as unknown as Result, { inline: true });
+
+            expect(fixture.nativeElement.querySelector('table')).toBeNull();
+            expect(fixture.nativeElement.textContent).toContain('artemisApp.exerciseVariantGroup.detail.codeQuality.noIssues');
+        });
     });
 
     describe('while a build is on its way', () => {

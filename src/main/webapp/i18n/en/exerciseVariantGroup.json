@@ -52,6 +52,28 @@
                 "question": "Are you sure you want to delete the group <strong>{{ title }}</strong>? The exercises in this group will <strong>not</strong> be deleted, only ungrouped.",
                 "typeNameToConfirm": "Please type in the name of the group to confirm."
             }
+        },
+        "milestoneAssessment": {
+            "title": "Milestone assessment",
+            "assessingFor": "Assessing {{ student }}",
+            "overviewTab": "Milestone",
+            "storyNotStarted": "This student has not started this user story, so there is nothing to assess.",
+            "loadFailed": "The milestone assessment could not be loaded.",
+            "overview": {
+                "problemStatement": "Problem statement",
+                "noProblemStatement": "The milestone has no problem statement.",
+                "codeQuality": "Code quality",
+                "codeQualityDisabled": "Static code analysis is switched off for this milestone."
+            },
+            "dashboard": {
+                "title": "Milestone assessment dashboard",
+                "student": "Student",
+                "progress": "Assessed",
+                "assess": "Assess",
+                "notStarted": "Not started",
+                "unassessed": "Not assessed",
+                "noStudents": "No student has started this milestone yet."
+            }
         }
     }
 }

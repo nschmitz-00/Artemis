@@ -132,6 +132,13 @@ describe('ExerciseAssessmentDashboardComponent', () => {
         assessmentType: AssessmentType.AUTOMATIC,
         allowComplaintsForAutomaticAssessments: true,
     } as ProgrammingExercise;
+    const userStoryExercise = {
+        id: 18,
+        exerciseGroup,
+        type: ExerciseType.USER_STORY,
+        tutorParticipations: [{ status: TutorParticipationStatus.TRAINED }],
+        secondCorrectionEnabled: false,
+    } as ProgrammingExercise;
     const modelingExercise = {
         id: 17,
         exerciseGroup,
@@ -529,6 +536,21 @@ describe('ExerciseAssessmentDashboardComponent', () => {
 
             expect(programmingSubmissionStubWithAssessment).toHaveBeenCalledTimes(2);
             expect(programmingSubmissionStubWithoutAssessment).toHaveBeenCalledTimes(2);
+        });
+
+        it('userStorySubmission is loaded through the programming path', () => {
+            // A UserStoryExercise serializes under its own discriminator, so a raw `type === PROGRAMMING` switch drops
+            // it: the assessed list stays empty and "Start assessing" never asks for a submission. The dashboard has to
+            // ask what the exercise behaves like instead.
+            modelingSubmissionStubWithoutAssessment.mockReturnValue(throwError(() => lockLimitErrorResponse));
+
+            exerciseServiceGetForTutorsStub.mockReturnValue(of(new HttpResponse({ body: userStoryExercise, headers: new HttpHeaders() })));
+
+            comp.loadAll();
+
+            expect(programmingSubmissionStubWithAssessment).toHaveBeenCalledTimes(2);
+            expect(programmingSubmissionStubWithoutAssessment).toHaveBeenCalledTimes(2);
+            expect(comp.programmingExercise()).toEqual(userStoryExercise);
         });
 
         it('programmingSubmission with automatic assessment', () => {

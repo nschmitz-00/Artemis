@@ -46,7 +46,7 @@ import { Participation, getLatestSubmission } from 'app/exercise/shared/entities
 import { getLatestSubmissionResult } from 'app/exercise/shared/entities/submission/submission.model';
 import { ParticipationWebsocketService } from 'app/course/shared/services/participation-websocket.service';
 import { ProgrammingSubmissionService, ProgrammingSubmissionState } from 'app/programming/shared/services/programming-submission.service';
-import { MilestoneCodeQualityComponent } from './milestone-code-quality/milestone-code-quality.component';
+import { MilestoneCodeQualityComponent } from 'app/programming/shared/milestone-code-quality/milestone-code-quality.component';
 import { NgbDropdown, NgbDropdownItem, NgbDropdownMenu, NgbDropdownToggle } from '@ng-bootstrap/ng-bootstrap';
 
 @Component({
