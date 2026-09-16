@@ -1,17 +1,15 @@
 <ng-template titleBarTitle>
-    <span jhiTranslate="artemisApp.milestoneAssessment.title"></span>
-    <span class="milestone-assessment__student">{{ studentLogin() }}</span>
+    <div class="milestone-assessment__title">
+        <span jhiTranslate="artemisApp.milestoneAssessment.title"></span>
+        @if (assessment(); as assessment) {
+            <span class="milestone-assessment__milestone">{{ assessment.milestoneTitle }}</span>
+        }
+        <span class="milestone-assessment__student" jhiTranslate="artemisApp.milestoneAssessment.assessingFor" [translateValues]="{ student: studentLogin() }"></span>
+    </div>
 </ng-template>
 
 @if (assessment(); as assessment) {
     <div class="milestone-assessment">
-        <!-- Named again in the body, not only in the title bar: the title bar scrolls away, and a tutor must never be
-             in doubt whose work the editor below is showing. -->
-        <header class="milestone-assessment__header">
-            <h3>{{ assessment.milestoneTitle }}</h3>
-            <span class="milestone-assessment__student" jhiTranslate="artemisApp.milestoneAssessment.assessingFor" [translateValues]="{ student: studentLogin() }"></span>
-        </header>
-
         <tum-ui-tabs [value]="activeTab()" (valueChange)="onTabChange($event)">
             <tum-ui-tab-list [attr.aria-label]="'artemisApp.milestoneAssessment.title' | artemisTranslate">
                 <tum-ui-tab [value]="OVERVIEW_TAB">
@@ -40,6 +38,8 @@
                             [hostExerciseId]="story.exerciseId"
                             [hostSubmissionId]="submissionId"
                             [overrideNextSubmission]="assessNextStory"
+                            [hasNextSubmission]="!!nextStory()"
+                            nextSubmissionLabel="artemisApp.milestoneAssessment.nextStory"
                         />
                     }
                 } @else {

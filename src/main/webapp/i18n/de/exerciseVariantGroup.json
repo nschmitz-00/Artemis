@@ -56,6 +56,7 @@
         "milestoneAssessment": {
             "title": "Meilenstein-Bewertung",
             "assessingFor": "Bewertung von {{ student }}",
+            "nextStory": "Nächste User Story bewerten",
             "overviewTab": "Meilenstein",
             "storyNotStarted": "Diese:r Studierende hat diese User Story nicht begonnen, es gibt also nichts zu bewerten.",
             "loadFailed": "Die Meilenstein-Bewertung konnte nicht geladen werden.",

@@ -187,8 +187,14 @@ export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDe
 
     // listener, will get notified upon loading of feedback
     readonly onFeedbackLoaded = output();
-    // function override, if set will be executed instead of going to the next submission page
-    readonly overrideNextSubmission = input<(submissionId: number) => void>();
+    /**
+     * Replaces "assess next" entirely for a host that decides for itself what comes next. It runs before anything is
+     * fetched: going through the regular flow first would lock some other student's submission the tutor never sees.
+     */
+    readonly overrideNextSubmission = input<() => void>();
+    /** Lets a host with an override hide the "assess next" button once there is nothing left to move on to. */
+    readonly hasNextSubmission = input(true);
+    readonly nextSubmissionLabel = input('artemisApp.assessment.button.nextSubmission');
 
     /**
      * Identity supplied by a host rather than by the URL, for a page that embeds this component instead of routing to
@@ -592,6 +598,11 @@ export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDe
      * Go to next submission
      */
     nextSubmission() {
+        const overrideNextSubmission = this.overrideNextSubmission();
+        if (overrideNextSubmission) {
+            overrideNextSubmission();
+            return;
+        }
         this.loadingParticipation.set(true);
         this.submission.set(undefined);
         this.programmingSubmissionService.getSubmissionWithoutAssessment(this.exercise().id!, true, this.correctionRound()).subscribe({
@@ -601,13 +612,6 @@ export class CodeEditorTutorAssessmentContainerComponent implements OnInit, OnDe
                 // there are no unassessed submissions
                 if (!response) {
                     this.submission.set(undefined);
-                    return;
-                }
-
-                // if override set, skip navigation
-                const overrideNextSubmission = this.overrideNextSubmission();
-                if (overrideNextSubmission) {
-                    overrideNextSubmission(response.id!);
                     return;
                 }
 

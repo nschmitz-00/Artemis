@@ -56,6 +56,9 @@ export class AssessmentHeaderComponent {
     readonly hasAssessmentDueDatePassed = model.required<boolean>();
     readonly isProgrammingExercise = input(false); // remove once diff view activated for programming exercises
     readonly highlightDifferences = model(false);
+    /** Whether there is anything left to move on to; a host that knows there is not hides the "assess next" button. */
+    readonly hasNextSubmission = input(true);
+    readonly nextSubmissionLabel = input('artemisApp.assessment.button.nextSubmission');
 
     readonly save = output();
     readonly onSubmit = output();
@@ -81,7 +84,14 @@ export class AssessmentHeaderComponent {
     }
 
     get assessNextVisible() {
-        return this.result()?.completionDate && (this.isAssessor() || this.exercise()?.isAtLeastInstructor) && !this.hasComplaint() && !this.isTeamMode() && !this.isTestRun();
+        return (
+            this.result()?.completionDate &&
+            this.hasNextSubmission() &&
+            (this.isAssessor() || this.exercise()?.isAtLeastInstructor) &&
+            !this.hasComplaint() &&
+            !this.isTeamMode() &&
+            !this.isTestRun()
+        );
     }
 
     get saveDisabled() {

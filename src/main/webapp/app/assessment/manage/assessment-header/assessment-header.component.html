@@ -176,7 +176,7 @@
                         @if (nextSubmissionBusy()) {
                             <fa-icon [icon]="faSpinner" animation="spin" />
                         }
-                        <span jhiTranslate="artemisApp.assessment.button.nextSubmission"></span>
+                        <span [jhiTranslate]="nextSubmissionLabel()"></span>
                     </button>
                 }
                 <a [routerLink]="exerciseDashboardLink()" class="btn m-1 btn-info">

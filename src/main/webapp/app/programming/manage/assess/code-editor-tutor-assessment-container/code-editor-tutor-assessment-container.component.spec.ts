@@ -642,6 +642,21 @@ describe('CodeEditorTutorAssessmentContainerComponent', () => {
         expect(routerStub).toHaveBeenCalledWith(url, queryParams);
     });
 
+    it('should hand "assess next" to the host override without fetching or locking another submission', async () => {
+        const routerStub = vi.spyOn(router, 'navigate');
+        const override = vi.fn();
+        fixture.componentRef.setInput('overrideNextSubmission', override);
+
+        comp.ngOnInit();
+        await flushMicrotasks();
+        getProgrammingSubmissionForExerciseWithoutAssessmentStub.mockClear();
+        comp.nextSubmission();
+
+        expect(override).toHaveBeenCalledOnce();
+        expect(getProgrammingSubmissionForExerciseWithoutAssessmentStub).not.toHaveBeenCalled();
+        expect(routerStub).not.toHaveBeenCalled();
+    });
+
     it('should show a message if no more unassessed submissions are present', () => {
         comp.exercise.set(exercise);
         comp.ngOnInit();

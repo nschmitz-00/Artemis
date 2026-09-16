@@ -94,6 +94,18 @@ describe('AssessmentHeaderComponent', () => {
         expect(component.assessNextVisible).toBe(true);
     });
 
+    it('should hide assess next when the host has nothing left to move on to', () => {
+        const mockResult = new Result();
+        mockResult.completionDate = dayjs();
+        fixture.componentRef.setInput('result', mockResult);
+        fixture.componentRef.setInput('isAssessor', true);
+        fixture.componentRef.setInput('hasNextSubmission', false);
+        fixture.detectChanges();
+
+        expect(component.assessNextVisible).toBe(false);
+        expect(component.assessNextDisabled).toBe(true);
+    });
+
     it('should emit save event on Ctrl+S', () => {
         const saveSpy = vi.spyOn(component.save, 'emit');
         fixture.componentRef.setInput('isAssessor', true);

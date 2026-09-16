@@ -57,6 +57,7 @@ describe('MilestoneAssessmentComponent', () => {
         activeSubmissionId: () => number | undefined;
         onTabChange: (value: string | number | undefined) => void;
         assessNextStory: () => void;
+        nextStory: () => { exerciseId: number } | undefined;
         studentLogin: () => string;
         stories: () => { exerciseId: number }[];
     } {
@@ -95,7 +96,7 @@ describe('MilestoneAssessmentComponent', () => {
         await setup();
         comp().onTabChange(1);
         // The panel is destroyed on switch, so leaving without asking would discard the tutor's work silently.
-        (fixture.componentInstance as unknown as { assessmentContainer?: { hasPendingChanges: boolean } }).assessmentContainer = { hasPendingChanges: true };
+        (fixture.componentInstance as unknown as { assessmentContainer: () => { hasPendingChanges: boolean } }).assessmentContainer = () => ({ hasPendingChanges: true });
         const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
 
         comp().onTabChange('milestone');
@@ -112,6 +113,16 @@ describe('MilestoneAssessmentComponent', () => {
 
         // Story 2 was never started, so there is no next submission and the tab stays put rather than opening an
         // editor with nothing behind it.
+        expect(comp().nextStory()).toBeUndefined();
+        expect(comp().activeTab()).toBe(1);
+    });
+
+    it('offers the first assessable story as next from the group-level tab', async () => {
+        await setup();
+
+        expect(comp().nextStory()?.exerciseId).toBe(1);
+        comp().assessNextStory();
+
         expect(comp().activeTab()).toBe(1);
     });
 

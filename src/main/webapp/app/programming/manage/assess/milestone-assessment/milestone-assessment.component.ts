@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { TranslateService } from '@ngx-translate/core';
@@ -22,7 +22,7 @@ const OVERVIEW_TAB = 'milestone';
  * fight over which repository the code editor is pointed at. Switching tabs therefore tears the previous editor down,
  * which is also why a switch has to be refused while it holds unsaved feedback.
  * <p>
- * The student is named at the top and in the title bar. A tutor must never be in doubt whose work is on screen -
+ * The milestone and the student are named in the course title bar. A tutor must never be in doubt whose work is on screen -
  * unlike every other assessment page, this one is reached by choosing a person rather than by being handed a
  * submission.
  */
@@ -70,8 +70,15 @@ export class MilestoneAssessmentComponent {
     /** The editor is only mounted for a story the student actually submitted something for. */
     protected readonly activeSubmissionId = computed<number | undefined>(() => this.activeStory()?.submissionId);
 
+    /** The next story after the active one that has a submission to assess, if any. */
+    protected readonly nextStory = computed<MilestoneAssessmentStory | undefined>(() => {
+        const stories = this.stories();
+        const currentIndex = stories.findIndex((story) => String(story.exerciseId) === String(this.activeTab()));
+        return stories.slice(currentIndex + 1).find((story) => story.submissionId !== undefined);
+    });
+
     /** The mounted assessment editor, so a tab switch can ask it whether it holds unsaved feedback. */
-    private assessmentContainer?: CodeEditorTutorAssessmentContainerComponent;
+    private readonly assessmentContainer = viewChild(CodeEditorTutorAssessmentContainerComponent);
 
     constructor() {
         this.route.params.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
@@ -99,10 +106,6 @@ export class MilestoneAssessmentComponent {
             });
     }
 
-    protected registerContainer(container: CodeEditorTutorAssessmentContainerComponent | undefined): void {
-        this.assessmentContainer = container;
-    }
-
     /**
      * Switches tabs, refusing while the mounted editor holds feedback the tutor has not saved.
      * <p>
@@ -113,23 +116,23 @@ export class MilestoneAssessmentComponent {
         if (value === undefined || value === this.activeTab()) {
             return;
         }
-        if (this.assessmentContainer?.hasPendingChanges && !window.confirm(this.translateService.instant('artemisApp.programmingAssessment.confirmLeave'))) {
+        if (this.assessmentContainer()?.hasPendingChanges && !window.confirm(this.translateService.instant('artemisApp.programmingAssessment.confirmLeave'))) {
             return;
         }
-        this.assessmentContainer = undefined;
         this.activeTab.set(value);
     }
 
     /**
-     * Moves to the next story instead of navigating away, which is what the assessment editor's "Assess next" button
-     * would otherwise do. Bound into the editor through its {@code overrideNextSubmission} input.
+     * Moves to the next story instead of fetching another student's submission, which is what the assessment editor's
+     * "Assess next" button would otherwise do. Bound into the editor through its {@code overrideNextSubmission} input;
+     * the button is hidden once {@link nextStory} is undefined.
      */
     protected readonly assessNextStory = (): void => {
-        const stories = this.stories();
-        const currentIndex = stories.findIndex((story) => String(story.exerciseId) === String(this.activeTab()));
-        const next = stories.slice(currentIndex + 1).find((story) => story.submissionId !== undefined);
+        const next = this.nextStory();
         if (next) {
-            this.onTabChange(String(next.exerciseId));
+            // The tab is bound to the numeric id, and tabs match by strict equality: a stringified id selects no tab,
+            // and the tab list then falls back to the first one, the overview.
+            this.onTabChange(next.exerciseId);
         }
     };
 }
