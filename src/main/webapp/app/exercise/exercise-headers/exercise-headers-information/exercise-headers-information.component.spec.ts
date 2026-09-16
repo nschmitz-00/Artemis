@@ -274,6 +274,35 @@ describe('ExerciseHeadersInformationComponent', () => {
         expect(titles).toContain('artemisApp.courseOverview.exerciseDetails.submissionDueOver');
     });
 
+    describe('milestone definition of done', () => {
+        const milestoneGroup = { id: 10, type: 'milestone', milestoneExerciseId: 99 };
+
+        function render(exercise: Partial<Exercise>, options: { participation?: boolean; interactive?: boolean } = {}) {
+            fixture = TestBed.createComponent(ExerciseHeadersInformationComponent);
+            component = fixture.componentInstance;
+            fixture.componentRef.setInput('exercise', { ...baseExercise, ...exercise } as Exercise);
+            fixture.componentRef.setInput('interactive', options.interactive ?? true);
+            if (options.participation ?? true) {
+                fixture.componentRef.setInput('studentParticipation', { id: 3 } as StudentParticipation);
+            }
+        }
+
+        it('is shown for a started user story of a milestone group', () => {
+            render({ type: ExerciseType.USER_STORY, exerciseVariantGroup: milestoneGroup } as Partial<Exercise>);
+            expect(component.showMilestoneDod()).toBe(true);
+        });
+
+        it.each([
+            ['a plain programming exercise', { type: ExerciseType.PROGRAMMING, exerciseVariantGroup: milestoneGroup }, {}],
+            ['a user story without a participation', { type: ExerciseType.USER_STORY, exerciseVariantGroup: milestoneGroup }, { participation: false }],
+            ['a read-only preview card', { type: ExerciseType.USER_STORY, exerciseVariantGroup: milestoneGroup }, { interactive: false }],
+            ['a user story outside a milestone group', { type: ExerciseType.USER_STORY, exerciseVariantGroup: { id: 10, type: 'variant' } }, {}],
+        ])('is not shown for %s', (_label, exercise, options) => {
+            render(exercise as Partial<Exercise>, options);
+            expect(component.showMilestoneDod()).toBe(false);
+        });
+    });
+
     describe('user story effort', () => {
         const userStory = {
             id: 7,

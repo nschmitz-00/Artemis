@@ -10,6 +10,7 @@ import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pip
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
 import { InformationBox, InformationBoxComponent } from 'app/shared-ui/information-box/information-box.component';
 import { TumUiDialogComponent, TumUiTableDirective } from '@tumaet/ui-angular';
+import { parseScaIssue, scaFeedbackPenalty } from './milestone-code-quality.util';
 
 /** One static code analysis issue of the milestone's build, flattened for display. */
 interface CodeQualityIssue {
@@ -178,31 +179,18 @@ export class MilestoneCodeQualityComponent {
     }
 
     /**
-     * Flattens one synthesized SCA feedback into a display row.
-     * <p>
-     * The detail text is a JSON `StaticCodeAnalysisIssue` the server writes, but it falls back to the plain message
-     * when the issue does not fit the column limit, so parsing it is not guaranteed to succeed - a single unreadable
-     * issue must not take the whole box down, and is shown with whatever the server did write.
+     * Flattens one synthesized SCA feedback into a display row. An issue whose detail text cannot be parsed (see
+     * {@link parseScaIssue}) is shown with whatever the server did write.
      */
     private toIssue(feedback: Feedback): CodeQualityIssue {
         const category = feedback.text!.substring(STATIC_CODE_ANALYSIS_FEEDBACK_IDENTIFIER.length);
-        let issue: StaticCodeAnalysisIssue | undefined;
-        if (feedback.detailText) {
-            try {
-                issue = StaticCodeAnalysisIssue.fromFeedback(feedback);
-            } catch {
-                issue = undefined;
-            }
-        }
-        // The same fallback the result dialog applies: the issue's own penalty when the server wrote one, otherwise the
-        // feedback's credits, which are negative for a deduction.
-        const penalty = issue?.penalty ?? -(feedback.credits ?? 0);
+        const issue = parseScaIssue(feedback);
         return {
             category,
             location: this.buildLocation(issue),
             rule: issue?.rule,
             message: issue?.message ?? feedback.detailText,
-            penalty: Math.max(0, penalty),
+            penalty: scaFeedbackPenalty(feedback, issue),
         };
     }
 

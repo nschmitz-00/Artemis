@@ -34,6 +34,15 @@
                         "issue": "Issue",
                         "penalty": "Points"
                     }
+                },
+                "dod": {
+                    "title": "DoD",
+                    "tooltip": {
+                        "noResult": "Definition of Done of the milestone: there is no build result yet. Push your code to the milestone repository and check the milestone overview page.",
+                        "failing": "Tests of the milestone's Definition of Done are failing, so the milestone is graded with 0 points. Check the milestone overview page for the failing tasks.",
+                        "deducting": "All tests of the milestone's Definition of Done pass, but code quality issues were found, so there might be point deductions. Check the milestone overview page for details.",
+                        "met": "All tests of the milestone's Definition of Done pass and no code quality deductions were found."
+                    }
                 }
             },
             "edit": "Edit group",

@@ -31,6 +31,7 @@ import { UserStoryEffortService } from 'app/programming/shared/services/user-sto
 import { UserStoryTaskService } from 'app/programming/shared/services/user-story-task.service';
 import { UserStoryEffort } from 'app/exercise/shared/entities/participation/programming-exercise-student-participation.model';
 import { UserStoryEffortFieldComponent } from 'app/programming/overview/user-story-effort/user-story-effort-field.component';
+import { MilestoneDodStatusComponent } from 'app/programming/shared/milestone-dod-status/milestone-dod-status.component';
 
 /**
  * Live, quiz-specific information shown in the exercise header during a live or practice quiz participation,
@@ -78,6 +79,7 @@ export function quizLiveHeaderInfoEqual(a: QuizLiveHeaderInfo | undefined, b: Qu
         SubmissionResultStatusComponent,
         InformationBoxComponent,
         UserStoryEffortFieldComponent,
+        MilestoneDodStatusComponent,
         DifficultyLevelComponent,
         ExerciseCategoriesComponent,
         ArtemisDatePipe,
@@ -164,6 +166,22 @@ export class ExerciseHeadersInformationComponent {
             return undefined;
         }
         return ComplaintService.getIndividualComplaintDueDate(this.exercise(), course.maxComplaintTimeDays, this.allResults().last(), this.studentParticipation());
+    });
+
+    /**
+     * Whether to show the milestone's Definition of Done box: only on the page of a started user story in a milestone
+     * group. Read-only previews ({@link interactive} false) - the variant cards of the milestone group page - skip it,
+     * since every card would otherwise request the same milestone standing and repeat a box that page already covers.
+     */
+    readonly showMilestoneDod = computed<boolean>(() => {
+        const exercise = this.exercise();
+        return (
+            exercise.type === ExerciseType.USER_STORY &&
+            this.interactive() &&
+            this.studentParticipation()?.id !== undefined &&
+            exercise.exerciseVariantGroup?.type === 'milestone' &&
+            exercise.exerciseVariantGroup.id !== undefined
+        );
     });
 
     /**
