@@ -677,6 +677,41 @@ describe('ModelingAssessmentEditorComponent', () => {
         expect(handleFeedbackSpy).toHaveBeenCalled();
     });
 
+    describe('embedded in a host page', () => {
+        it('loads the submission the host names instead of reading the route', async () => {
+            const getSubmissionSpy = vi.spyOn(modelingSubmissionService, 'getSubmission').mockReturnValue(of(getSubmissionWithData()));
+
+            fixture.componentRef.setInput('hostCourseId', 123);
+            fixture.componentRef.setInput('hostExerciseId', 1);
+            fixture.componentRef.setInput('hostSubmissionId', 555);
+            fixture.detectChanges();
+            await fixture.whenStable();
+
+            expect(getSubmissionSpy).toHaveBeenCalledExactlyOnceWith(555, 0, 0);
+            expect(component.courseId).toBe(123);
+            expect(component.submission()?.id).toBe(1);
+        });
+
+        it('hands "assess next" to the host without locking another submission', () => {
+            const override = vi.fn();
+            fixture.componentRef.setInput('overrideNextSubmission', override);
+            const lookupSpy = vi.spyOn(modelingSubmissionService, 'getSubmissionWithoutAssessment');
+
+            component.assessNext();
+
+            expect(override).toHaveBeenCalledOnce();
+            expect(lookupSpy).not.toHaveBeenCalled();
+        });
+
+        it('treats only edits after the editor reported its initial feedback as unsaved changes', () => {
+            component.onFeedbackChanged([]);
+            expect(component.hasPendingChanges).toBe(false);
+
+            component.onFeedbackChanged([]);
+            expect(component.hasPendingChanges).toBe(true);
+        });
+    });
+
     describe('test assessNext', () => {
         it('should navigate to the next submission', async () => {
             const course = new Course();

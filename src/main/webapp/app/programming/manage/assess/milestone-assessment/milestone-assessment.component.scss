@@ -26,6 +26,12 @@
         min-height: 20rem;
     }
 
+    &__quiz {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
     &__empty {
         color: var(--text-body-secondary);
     }

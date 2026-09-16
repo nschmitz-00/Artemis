@@ -4,6 +4,8 @@
         (navigateBack)="navigateBack()"
         [isLoading]="isLoading()"
         [nextSubmissionBusy]="nextSubmissionBusy()"
+        [hasNextSubmission]="hasNextSubmission()"
+        [nextSubmissionLabel]="nextSubmissionLabel()"
         [isTeamMode]="!!modelingExercise()?.teamMode"
         [isAssessor]="isAssessor()"
         [isTestRun]="isTestRun()"
@@ -81,7 +83,7 @@
                     @if (result()?.id) {
                         <jhi-unreferenced-feedback
                             [feedbacks]="unreferencedFeedback()"
-                            (feedbacksChange)="unreferencedFeedback.set($event); validateFeedback()"
+                            (feedbacksChange)="unreferencedFeedback.set($event); validateFeedback(); markPendingChanges()"
                             [feedbackSuggestions]="unreferencedFeedbackSuggestions"
                             [readOnly]="readOnly"
                             [highlightDifferences]="highlightDifferences"

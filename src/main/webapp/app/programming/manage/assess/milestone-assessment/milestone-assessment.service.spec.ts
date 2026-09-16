@@ -15,7 +15,7 @@ describe('MilestoneAssessmentService', () => {
     });
 
     it('reads the dashboard from the group-scoped assessment endpoint', () => {
-        const expected: MilestoneAssessmentStudent[] = [{ studentLogin: 'student1', milestoneParticipationId: 5, stories: [] }];
+        const expected: MilestoneAssessmentStudent[] = [{ studentLogin: 'student1', milestoneParticipationId: 5, exercises: [] }];
         let actual: MilestoneAssessmentStudent[] | undefined;
 
         service.getAssessmentDashboard(1, 10).subscribe((students) => (actual = students));
@@ -28,7 +28,7 @@ describe('MilestoneAssessmentService', () => {
     });
 
     it("reads one student's assessment from the same endpoint, addressed by login", () => {
-        const expected = { milestoneExerciseId: 99, milestoneTitle: 'Sprint 1', stories: [] } as MilestoneAssessment;
+        const expected = { milestoneExerciseId: 99, milestoneTitle: 'Sprint 1', exercises: [] } as MilestoneAssessment;
         let actual: MilestoneAssessment | undefined;
 
         service.getAssessmentForStudent(1, 10, 'student1').subscribe((assessment) => (actual = assessment));

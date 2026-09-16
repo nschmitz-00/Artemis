@@ -18,9 +18,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * @param milestoneParticipationId the student's participation in the group's anchor milestone, which owns the shared
  *                                     repository; {@code null} is impossible here, since a student only appears once they
  *                                     have started the milestone
- * @param stories                  the group's user stories for this student, in the same stable order the assessment
- *                                     page renders its tabs
+ * @param exercises                the group's exercises for this student, in the same order the assessment page
+ *                                     renders its tabs
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-public record MilestoneAssessmentStudentDTO(String studentLogin, @Nullable String studentName, long milestoneParticipationId, List<MilestoneAssessmentStoryDTO> stories) {
+public record MilestoneAssessmentStudentDTO(String studentLogin, @Nullable String studentName, long milestoneParticipationId, List<MilestoneAssessmentExerciseDTO> exercises) {
 }

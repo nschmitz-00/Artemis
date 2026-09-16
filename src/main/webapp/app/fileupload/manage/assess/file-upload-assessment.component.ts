@@ -1,6 +1,6 @@
 import { Location, UpperCasePipe } from '@angular/common';
-import { HttpErrorResponse } from '@angular/common/http';
-import { Component, OnInit, ViewEncapsulation, inject, signal } from '@angular/core';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Component, DestroyRef, OnInit, ViewEncapsulation, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { faListAlt } from '@fortawesome/free-regular-svg-icons';
 import { TranslateService } from '@ngx-translate/core';
@@ -43,7 +43,11 @@ import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pip
 import { FileService } from 'app/foundation/service/file.service';
 import { cloneWith } from 'app/foundation/util/deep-clone.util';
 
+/** Video formats a browser can play inline; a submission in one of them is shown in a player rather than only offered as a download. */
+const VIDEO_EXTENSIONS = ['mp4', 'webm', 'ogg', 'ogv', 'mov', 'm4v'];
+
 @Component({
+    selector: 'jhi-file-upload-assessment',
     providers: [FileUploadAssessmentService],
     templateUrl: './file-upload-assessment.component.html',
     encapsulation: ViewEncapsulation.None,
@@ -72,6 +76,7 @@ export class FileUploadAssessmentComponent implements OnInit {
     private fileUploadSubmissionService = inject(FileUploadSubmissionService);
     private complaintService = inject(ComplaintService);
     private fileService = inject(FileService);
+    private http = inject(HttpClient);
     structuredGradingCriterionService = inject(StructuredGradingCriterionService);
     submissionService = inject(SubmissionService);
 
@@ -105,7 +110,7 @@ export class FileUploadAssessmentComponent implements OnInit {
      * disagree. It therefore only reaches {@link correctionRound} when a load starts.
      */
     private correctionRoundFromUrl = 0;
-    resultId!: number; // set in ngOnInit() from route params
+    resultId = 0; // set in ngOnInit() from route params; a host never names a result
     examId = 0;
     exerciseGroupId?: number;
     readonly exerciseDashboardLink = signal<string[]>([]);
@@ -117,6 +122,55 @@ export class FileUploadAssessmentComponent implements OnInit {
 
     private cancelConfirmationText!: string; // set in constructor from a synchronous translate subscription
 
+    /** Whether the tutor changed feedback that is not saved yet, so an embedding host can ask before tearing this down. */
+    hasPendingChanges = false;
+
+    /** Records a feedback edit by the tutor. Called from the template, which is the only place such an edit starts. */
+    markPendingChanges(): void {
+        this.hasPendingChanges = true;
+    }
+
+    /**
+     * Replaces "assess next" entirely for a host that decides for itself what comes next. It runs before anything is
+     * fetched, so no other student's submission is looked up or navigated to.
+     */
+    readonly overrideNextSubmission = input<() => void>();
+    /** Lets a host with an override hide the "assess next" button once there is nothing left to move on to. */
+    readonly hasNextSubmission = input(true);
+    readonly nextSubmissionLabel = input('artemisApp.assessment.button.nextSubmission');
+
+    /**
+     * Identity supplied by a host rather than by the URL, for a page that embeds this component instead of routing to
+     * it - the milestone assessment page renders one per file upload exercise tab. Supplying {@link hostSubmissionId}
+     * switches it into embedded mode; without it nothing changes for the routed usage.
+     */
+    readonly hostCourseId = input<number | undefined>(undefined);
+    readonly hostExerciseId = input<number | undefined>(undefined);
+    readonly hostSubmissionId = input<number | undefined>(undefined);
+
+    /** Whether a host drives this component instead of the router; the injected route is then the host's. */
+    private readonly isEmbedded = computed<boolean>(() => this.hostSubmissionId() !== undefined);
+
+    /** Whether the exercise accepts a video format at all, which is what makes an inline player worth offering. */
+    readonly acceptsVideo = computed<boolean>(() =>
+        (this.exercise()?.filePattern ?? '')
+            .split(',')
+            .map((extension) => extension.trim().toLowerCase())
+            .some((extension) => VIDEO_EXTENSIONS.includes(extension)),
+    );
+
+    /** The submitted file, when it is a video the exercise accepts. */
+    readonly videoFilePath = computed<string | undefined>(() => {
+        const filePath = this.submission()?.filePathUrl;
+        return filePath && this.acceptsVideo() && VIDEO_EXTENSIONS.includes(this.attachmentExtension(filePath).toLowerCase()) ? filePath : undefined;
+    });
+
+    /**
+     * An object URL for the video, rather than the file URL itself: the file endpoint answers without range support,
+     * which Safari refuses to play. Submissions are capped at a few megabytes, so holding one in memory is fine.
+     */
+    readonly videoUrl = signal<string | undefined>(undefined);
+
     // Icons
     farListAlt = faListAlt;
 
@@ -125,6 +179,47 @@ export class FileUploadAssessmentComponent implements OnInit {
 
         this.assessmentsAreValid.set(false);
         translateService.get('artemisApp.assessment.messages.confirmCancel').subscribe((text) => (this.cancelConfirmationText = text));
+
+        // Embedded, the host drives the load; registered here so it exists exactly once however often ngOnInit runs.
+        effect(() => {
+            const submissionId = this.hostSubmissionId();
+            const courseId = this.hostCourseId();
+            const exerciseId = this.hostExerciseId();
+            if (submissionId === undefined || courseId === undefined || exerciseId === undefined) {
+                return;
+            }
+            untracked(() => this.loadAssessment(courseId, exerciseId, String(submissionId)));
+        });
+
+        effect((onCleanup) => {
+            const filePath = this.videoFilePath();
+            if (!filePath) {
+                return;
+            }
+            let objectUrl: string | undefined;
+            const subscription = this.http.get(filePath, { responseType: 'blob' }).subscribe({
+                next: (blob) => {
+                    objectUrl = URL.createObjectURL(blob);
+                    this.videoUrl.set(objectUrl);
+                },
+                // The download link stays next to the player, so a failed fetch only costs the inline preview.
+                error: () => this.videoUrl.set(undefined),
+            });
+            onCleanup(() => {
+                subscription.unsubscribe();
+                this.revokeVideoUrl(objectUrl);
+            });
+        });
+        inject(DestroyRef).onDestroy(() => this.revokeVideoUrl(this.videoUrl()));
+    }
+
+    private revokeVideoUrl(objectUrl: string | undefined): void {
+        if (objectUrl) {
+            URL.revokeObjectURL(objectUrl);
+        }
+        if (this.videoUrl() === objectUrl) {
+            this.videoUrl.set(undefined);
+        }
     }
 
     get assessments(): Feedback[] {
@@ -142,6 +237,11 @@ export class FileUploadAssessmentComponent implements OnInit {
                 this.userId = user.id;
             }
         });
+        if (this.isEmbedded()) {
+            // The host drives the load through the effect in the constructor; the injected route is the host page's, so
+            // subscribing to it here would load whatever its parameters happen to say.
+            return;
+        }
         this.route.queryParamMap.subscribe((queryParams) => {
             this.isTestRun.set(queryParams.get('testRun') === 'true');
             // The URL decides the round, and an unusable value means the first one; see parseCorrectionRound for why
@@ -150,31 +250,36 @@ export class FileUploadAssessmentComponent implements OnInit {
         });
 
         this.route.params.subscribe((params) => {
-            this.resetSubmissionState();
-            this.courseId = Number(params['courseId']);
-            const exerciseId = Number(params['exerciseId']);
             this.resultId = Number(params['resultId']) || 0;
-            this.exerciseId = exerciseId;
-
             const examId = params['examId'];
             if (examId) {
                 this.examId = Number(examId);
                 this.exerciseGroupId = Number(params['exerciseGroupId']);
             }
-
-            this.exerciseDashboardLink.set(getExerciseDashboardLink(this.courseId, this.exerciseId, this.examId, this.isTestRun()));
-
-            const submissionValue = params['submissionId'];
-            const submissionId = Number(submissionValue);
-            // Taken from the URL once per load, so that the round the submission is requested with is also the round
-            // its results are indexed by, even when the parameter has changed since the last load.
-            this.correctionRound.set(this.correctionRoundFromUrl);
-            if (submissionValue === 'new') {
-                this.loadOptimalSubmission(this.exerciseId);
-            } else {
-                this.loadSubmission(submissionId);
-            }
+            this.loadAssessment(Number(params['courseId']), Number(params['exerciseId']), params['submissionId']);
         });
+    }
+
+    /**
+     * Loads one submission for assessment, or the next unassessed one for {@code 'new'}.
+     * <p>
+     * Extracted from the route subscription so a host can drive it directly with the ids the URL otherwise supplies.
+     */
+    private loadAssessment(courseId: number, exerciseId: number, submissionValue: string): void {
+        this.resetSubmissionState();
+        this.hasPendingChanges = false;
+        this.courseId = courseId;
+        this.exerciseId = exerciseId;
+        this.exerciseDashboardLink.set(getExerciseDashboardLink(this.courseId, this.exerciseId, this.examId, this.isTestRun()));
+
+        // Taken from the URL once per load, so that the round the submission is requested with is also the round
+        // its results are indexed by, even when the parameter has changed since the last load.
+        this.correctionRound.set(this.correctionRoundFromUrl);
+        if (submissionValue === 'new') {
+            this.loadOptimalSubmission(this.exerciseId);
+        } else {
+            this.loadSubmission(Number(submissionValue));
+        }
     }
 
     attachmentExtension(filePath: string): string {
@@ -339,6 +444,11 @@ export class FileUploadAssessmentComponent implements OnInit {
      * For the new submission to appear on the same page, the url has to be reloaded.
      */
     assessNext() {
+        const overrideNextSubmission = this.overrideNextSubmission();
+        if (overrideNextSubmission) {
+            overrideNextSubmission();
+            return;
+        }
         const exerciseId = this.exercise()?.id;
         if (!exerciseId) {
             this.onError('artemisApp.assessment.messages.loadSubmissionFailed');
@@ -403,6 +513,7 @@ export class FileUploadAssessmentComponent implements OnInit {
             .subscribe({
                 next: (result: Result) => {
                     this.result.set(result);
+                    this.hasPendingChanges = false;
                     this.alertService.closeAll();
                     this.alertService.success('artemisApp.assessment.messages.saveSuccessful');
                 },
@@ -436,6 +547,7 @@ export class FileUploadAssessmentComponent implements OnInit {
             .subscribe({
                 next: (result: Result) => {
                     this.result.set(result);
+                    this.hasPendingChanges = false;
                     this.updateParticipationWithResult();
                     this.alertService.closeAll();
                     this.alertService.success('artemisApp.assessment.messages.submitSuccessful');
@@ -464,6 +576,7 @@ export class FileUploadAssessmentComponent implements OnInit {
                 .cancelAssessment(submissionId, this.result()?.id)
                 .pipe(finalize(() => this.isLoading.set(false)))
                 .subscribe(() => {
+                    this.hasPendingChanges = false;
                     this.navigateBack();
                 });
         }

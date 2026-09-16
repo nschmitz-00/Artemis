@@ -6,10 +6,11 @@ import { DecimalPipe } from '@angular/common';
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
 import { AlertService } from 'app/foundation/service/alert.service';
 import { CourseTitleBarTitleDirective } from 'app/course/shared/directives/course-title-bar-title.directive';
-import { MilestoneAssessmentService, MilestoneAssessmentStory, MilestoneAssessmentStudent } from './milestone-assessment.service';
+import { ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { MilestoneAssessmentExercise, MilestoneAssessmentService, MilestoneAssessmentStudent } from './milestone-assessment.service';
 
 /**
- * The milestone's own assessment dashboard: one row per student, one column per user story.
+ * The milestone's own assessment dashboard: one row per student, one column per exercise of the group, user stories first.
  * <p>
  * Deliberately not modelled on the per-exercise dashboard's "start assessing" flow, which hands a tutor a random
  * student's submission. A milestone group's stories share one repository and one build, so grading them one story at a
@@ -36,9 +37,11 @@ export class MilestoneAssessmentDashboardComponent {
 
     /**
      * The column headers, taken from the first row rather than fetched separately: every row carries the group's
-     * stories in the same order, including the ones a given student never started.
+     * exercises in the same order, including the ones a given student never started.
      */
-    protected readonly storyColumns = computed<MilestoneAssessmentStory[]>(() => this.students()[0]?.stories ?? []);
+    protected readonly exerciseColumns = computed<MilestoneAssessmentExercise[]>(() => this.students()[0]?.exercises ?? []);
+
+    protected readonly QUIZ = ExerciseType.QUIZ;
 
     constructor() {
         this.route.params.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
@@ -69,8 +72,13 @@ export class MilestoneAssessmentDashboardComponent {
         return ['/course-management', this.courseId(), 'milestone-exercise-groups', this.groupId(), 'assessment', student.studentLogin];
     }
 
-    /** How many of a student's stories are already assessed, which is what tells a tutor where to spend their time. */
+    /** How many of a student's exercises are already assessed, which is what tells a tutor where to spend their time. */
     protected assessedCount(student: MilestoneAssessmentStudent): number {
-        return student.stories.filter((story) => story.assessed).length;
+        return this.manuallyAssessable(student).filter((exercise) => exercise.assessed).length;
+    }
+
+    /** The exercises a tutor grades by hand. A quiz is graded automatically, so counting it would make progress unreachable. */
+    protected manuallyAssessable(student: MilestoneAssessmentStudent): MilestoneAssessmentExercise[] {
+        return student.exercises.filter((exercise) => exercise.exerciseType !== ExerciseType.QUIZ);
     }
 }

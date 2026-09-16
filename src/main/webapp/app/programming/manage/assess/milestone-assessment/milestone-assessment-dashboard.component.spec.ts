@@ -10,6 +10,7 @@ import { MockTranslateService } from 'test/helpers/mocks/service/mock-translate.
 import { AlertService } from 'app/foundation/service/alert.service';
 import { MilestoneAssessmentDashboardComponent } from 'app/programming/manage/assess/milestone-assessment/milestone-assessment-dashboard.component';
 import { MilestoneAssessmentService, MilestoneAssessmentStudent } from 'app/programming/manage/assess/milestone-assessment/milestone-assessment.service';
+import { ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 
 describe('MilestoneAssessmentDashboardComponent', () => {
     let fixture: ComponentFixture<MilestoneAssessmentDashboardComponent>;
@@ -20,17 +21,28 @@ describe('MilestoneAssessmentDashboardComponent', () => {
                 studentLogin: 'student1',
                 studentName: 'Ada',
                 milestoneParticipationId: 5,
-                stories: [
-                    { exerciseId: 1, title: 'Login form', submissionId: 111, assessed: true, latestScore: 80, assessorLogin: 'tutor1' },
-                    { exerciseId: 2, title: 'Logout', submissionId: 222 },
+                exercises: [
+                    {
+                        exerciseId: 1,
+                        title: 'Login form',
+                        exerciseType: ExerciseType.PROGRAMMING,
+                        userStory: true,
+                        submissionId: 111,
+                        assessed: true,
+                        latestScore: 80,
+                        assessorLogin: 'tutor1',
+                    },
+                    { exerciseId: 2, title: 'Logout', exerciseType: ExerciseType.PROGRAMMING, userStory: true, submissionId: 222 },
+                    { exerciseId: 3, title: 'Retro quiz', exerciseType: ExerciseType.QUIZ, submissionId: 333, latestScore: 50 },
                 ],
             },
             {
                 studentLogin: 'student2',
                 milestoneParticipationId: 6,
-                stories: [
-                    { exerciseId: 1, title: 'Login form' },
-                    { exerciseId: 2, title: 'Logout' },
+                exercises: [
+                    { exerciseId: 1, title: 'Login form', exerciseType: ExerciseType.PROGRAMMING, userStory: true },
+                    { exerciseId: 2, title: 'Logout', exerciseType: ExerciseType.PROGRAMMING, userStory: true },
+                    { exerciseId: 3, title: 'Retro quiz', exerciseType: ExerciseType.QUIZ },
                 ],
             },
         ];
@@ -58,8 +70,9 @@ describe('MilestoneAssessmentDashboardComponent', () => {
     /** Access to the protected state under test. */
     function comp(): {
         students: () => MilestoneAssessmentStudent[];
-        storyColumns: () => { exerciseId: number }[];
+        exerciseColumns: () => { exerciseId: number }[];
         assessedCount: (student: MilestoneAssessmentStudent) => number;
+        manuallyAssessable: (student: MilestoneAssessmentStudent) => { exerciseId: number }[];
         assessmentLink: (student: MilestoneAssessmentStudent) => (string | number)[];
     } {
         return fixture.componentInstance as never;
@@ -67,12 +80,12 @@ describe('MilestoneAssessmentDashboardComponent', () => {
 
     beforeEach(() => TestBed.resetTestingModule());
 
-    it('renders one row per student and one column per story', async () => {
+    it('renders one row per student and one column per exercise', async () => {
         await setup();
 
         expect(comp().students()).toHaveLength(2);
-        // Taken from the first row: every row carries the group's stories in the same order, started or not.
-        expect(comp().storyColumns()).toHaveLength(2);
+        // Taken from the first row: every row carries the group's exercises in the same order, started or not.
+        expect(comp().exerciseColumns()).toHaveLength(3);
         expect(fixture.nativeElement.querySelectorAll('tbody tr')).toHaveLength(2);
     });
 
@@ -81,6 +94,16 @@ describe('MilestoneAssessmentDashboardComponent', () => {
 
         expect(comp().assessedCount(students()[0])).toBe(1);
         expect(comp().assessedCount(students()[1])).toBe(0);
+    });
+
+    it('leaves quizzes out of the progress, since they are graded automatically', async () => {
+        await setup();
+
+        expect(
+            comp()
+                .manuallyAssessable(students()[0])
+                .map((exercise) => exercise.exerciseId),
+        ).toEqual([1, 2]);
     });
 
     it('links to the tabbed page for that student, addressed by login', async () => {

@@ -15,11 +15,11 @@
                 <tum-ui-tab [value]="OVERVIEW_TAB">
                     <span jhiTranslate="artemisApp.milestoneAssessment.overviewTab"></span>
                 </tum-ui-tab>
-                @for (story of stories(); track story.exerciseId) {
-                    <!-- A story the student never started has nothing to assess, so its tab is disabled rather than
+                @for (exercise of exercises(); track exercise.exerciseId) {
+                    <!-- An exercise the student never started has nothing to assess, so its tab is disabled rather than
                          hidden: the group's shape should read the same for every student. -->
-                    <tum-ui-tab [value]="story.exerciseId" [disabled]="!story.submissionId">
-                        <span>{{ story.title }}</span>
+                    <tum-ui-tab [value]="exercise.exerciseId" [disabled]="!exercise.submissionId">
+                        <span>{{ exercise.title }}</span>
                     </tum-ui-tab>
                 }
             </tum-ui-tab-list>
@@ -28,22 +28,65 @@
         <div class="milestone-assessment__panel">
             @if (activeTab() === OVERVIEW_TAB) {
                 <jhi-milestone-assessment-overview [assessment]="assessment" />
-            } @else if (activeStory(); as story) {
-                @if (activeSubmissionId(); as submissionId) {
-                    <!-- Keyed on the story so switching tabs recreates the editor rather than reusing it: only one may
-                         be mounted at a time, because the code editor's domain service is a single global. -->
-                    @if (story.exerciseId) {
-                        <jhi-code-editor-tutor-assessment
-                            [hostCourseId]="courseId()"
-                            [hostExerciseId]="story.exerciseId"
-                            [hostSubmissionId]="submissionId"
-                            [overrideNextSubmission]="assessNextStory"
-                            [hasNextSubmission]="!!nextStory()"
-                            nextSubmissionLabel="artemisApp.milestoneAssessment.nextStory"
-                        />
+            } @else if (activeExercise(); as active) {
+                @if (active.submissionId; as submissionId) {
+                    <!-- Iterating a one-element list keyed on the exercise recreates the editor on every tab switch, even
+                         between two exercises of the same type: only one editor may be mounted at a time, because the
+                         code editor's domain service is a single global, and no editor has to reset itself. -->
+                    @for (exercise of [active]; track exercise.exerciseId) {
+                        @switch (exercise.exerciseType) {
+                            @case (ExerciseType.PROGRAMMING) {
+                                <jhi-code-editor-tutor-assessment
+                                    [hostCourseId]="courseId()"
+                                    [hostExerciseId]="exercise.exerciseId"
+                                    [hostSubmissionId]="submissionId"
+                                    [overrideNextSubmission]="assessNextExercise"
+                                    [hasNextSubmission]="!!nextExercise()"
+                                    nextSubmissionLabel="artemisApp.milestoneAssessment.nextExercise"
+                                />
+                            }
+                            @case (ExerciseType.TEXT) {
+                                <jhi-text-submission-assessment
+                                    [hostCourseId]="courseId()"
+                                    [hostExerciseId]="exercise.exerciseId"
+                                    [hostSubmissionId]="submissionId"
+                                    [overrideNextSubmission]="assessNextExercise"
+                                    [hasNextSubmission]="!!nextExercise()"
+                                    nextSubmissionLabel="artemisApp.milestoneAssessment.nextExercise"
+                                />
+                            }
+                            @case (ExerciseType.MODELING) {
+                                <jhi-modeling-assessment-editor
+                                    [hostCourseId]="courseId()"
+                                    [hostExerciseId]="exercise.exerciseId"
+                                    [hostSubmissionId]="submissionId"
+                                    [overrideNextSubmission]="assessNextExercise"
+                                    [hasNextSubmission]="!!nextExercise()"
+                                    nextSubmissionLabel="artemisApp.milestoneAssessment.nextExercise"
+                                />
+                            }
+                            @case (ExerciseType.FILE_UPLOAD) {
+                                <jhi-file-upload-assessment
+                                    [hostCourseId]="courseId()"
+                                    [hostExerciseId]="exercise.exerciseId"
+                                    [hostSubmissionId]="submissionId"
+                                    [overrideNextSubmission]="assessNextExercise"
+                                    [hasNextSubmission]="!!nextExercise()"
+                                    nextSubmissionLabel="artemisApp.milestoneAssessment.nextExercise"
+                                />
+                            }
+                            @case (ExerciseType.QUIZ) {
+                                <div class="milestone-assessment__quiz">
+                                    <p class="milestone-assessment__empty" jhiTranslate="artemisApp.milestoneAssessment.quizAutomatic"></p>
+                                    @if (exercise.latestScore !== undefined) {
+                                        <p class="font-semibold">{{ exercise.latestScore | number: '1.0-1' }}%</p>
+                                    }
+                                </div>
+                            }
+                        }
                     }
                 } @else {
-                    <p class="milestone-assessment__empty" jhiTranslate="artemisApp.milestoneAssessment.storyNotStarted"></p>
+                    <p class="milestone-assessment__empty" jhiTranslate="artemisApp.milestoneAssessment.exerciseNotStarted"></p>
                 }
             }
         </div>

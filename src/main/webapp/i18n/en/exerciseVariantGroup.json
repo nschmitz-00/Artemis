@@ -56,9 +56,10 @@
         "milestoneAssessment": {
             "title": "Milestone assessment",
             "assessingFor": "Assessing {{ student }}",
-            "nextStory": "Assess Next User Story",
+            "nextExercise": "Assess Next Exercise",
             "overviewTab": "Milestone",
-            "storyNotStarted": "This student has not started this user story, so there is nothing to assess.",
+            "exerciseNotStarted": "This student has not started this exercise, so there is nothing to assess.",
+            "quizAutomatic": "Quizzes are graded automatically, so there is nothing to assess by hand.",
             "loadFailed": "The milestone assessment could not be loaded.",
             "overview": {
                 "problemStatement": "Problem statement",

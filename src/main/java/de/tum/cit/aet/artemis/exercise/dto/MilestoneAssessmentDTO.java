@@ -10,7 +10,7 @@ import de.tum.cit.aet.artemis.programming.dto.ResultDTO;
 
 /**
  * Everything the milestone assessment page needs for one student, in one request: the group-level information its first
- * tab shows, and the stories its remaining tabs grade.
+ * tab shows, and the exercises its remaining tabs grade.
  * <p>
  * The milestone's own result is what carries the group's static code analysis feedback - the fan-out deliberately copies
  * only test case feedback down to the stories, and every story has static code analysis switched off, so this is the
@@ -28,9 +28,9 @@ import de.tum.cit.aet.artemis.programming.dto.ResultDTO;
  *                                         and which the penalty cap is a percentage of
  * @param milestoneResult              the student's latest milestone result with its synthesized static code analysis
  *                                         feedback, or {@code null} before their first build
- * @param stories                      the group's user stories in a stable order, one tab each
+ * @param exercises                    the group's exercises, user stories first, one tab each
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public record MilestoneAssessmentDTO(long milestoneExerciseId, String milestoneTitle, @Nullable String problemStatement, boolean staticCodeAnalysisEnabled,
-        @Nullable Integer maxStaticCodeAnalysisPenalty, @Nullable Double milestoneMaxPoints, @Nullable ResultDTO milestoneResult, List<MilestoneAssessmentStoryDTO> stories) {
+        @Nullable Integer maxStaticCodeAnalysisPenalty, @Nullable Double milestoneMaxPoints, @Nullable ResultDTO milestoneResult, List<MilestoneAssessmentExerciseDTO> exercises) {
 }

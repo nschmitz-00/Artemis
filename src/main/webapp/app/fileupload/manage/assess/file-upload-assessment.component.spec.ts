@@ -7,7 +7,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ActivatedRoute, ParamMap, Params, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { By } from '@angular/platform-browser';
-import { BehaviorSubject, of, throwError } from 'rxjs';
+import { BehaviorSubject, EMPTY, of, throwError } from 'rxjs';
 import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { provideTranslateService } from '@ngx-translate/core';
 import { MockComponent } from 'ng-mocks';
@@ -1061,6 +1061,105 @@ describe('FileUploadAssessmentComponent', () => {
             component.downloadFile('/path/to/file.pdf');
 
             expect(fileService.downloadFile).toHaveBeenCalledWith('/path/to/file.pdf');
+        });
+    });
+
+    describe('embedded in a host page', () => {
+        it('loads the submission the host names instead of the one in the route', async () => {
+            const submission = createSubmission();
+            submission.id = 555;
+            const getSpy = vi.spyOn(fileUploadSubmissionService, 'get').mockReturnValue(of(new HttpResponse({ body: submission })));
+
+            fixture.componentRef.setInput('hostCourseId', 123);
+            fixture.componentRef.setInput('hostExerciseId', 20);
+            fixture.componentRef.setInput('hostSubmissionId', 555);
+            fixture.detectChanges();
+            await fixture.whenStable();
+
+            // The route names submission 7; embedded, the route is the host's and must not be read.
+            expect(getSpy).toHaveBeenCalledExactlyOnceWith(555, 0, 0);
+            expect(component.submission()?.id).toBe(555);
+            expect(component.exerciseId).toBe(20);
+        });
+
+        it('hands "assess next" to the host without looking up or navigating to another submission', () => {
+            const override = vi.fn();
+            fixture.componentRef.setInput('overrideNextSubmission', override);
+            const lookupSpy = vi.spyOn(fileUploadSubmissionService, 'getSubmissionWithoutAssessment');
+            const navigateSpy = vi.spyOn(router, 'navigate');
+
+            component.assessNext();
+
+            expect(override).toHaveBeenCalledOnce();
+            expect(lookupSpy).not.toHaveBeenCalled();
+            expect(navigateSpy).not.toHaveBeenCalled();
+        });
+
+        it('clears pending changes once the assessment is saved', () => {
+            component.submission.set(createSubmission());
+            component.hasPendingChanges = true;
+            vi.spyOn(fileUploadAssessmentService, 'saveAssessment').mockReturnValue(of(createResult()));
+
+            component.onSaveAssessment();
+
+            expect(component.hasPendingChanges).toBe(false);
+        });
+    });
+
+    describe('inline video', () => {
+        const originalCreateObjectURL = URL.createObjectURL;
+        const originalRevokeObjectURL = URL.revokeObjectURL;
+
+        beforeEach(() => {
+            URL.createObjectURL = vi.fn(() => 'blob:video');
+            URL.revokeObjectURL = vi.fn();
+            // Initialise first, with the routed load stubbed out, so it does not reset the submission set below.
+            vi.spyOn(fileUploadSubmissionService, 'get').mockReturnValue(EMPTY);
+            fixture.detectChanges();
+        });
+
+        afterEach(() => {
+            URL.createObjectURL = originalCreateObjectURL;
+            URL.revokeObjectURL = originalRevokeObjectURL;
+        });
+
+        function videoSubmission(filePattern: string, filePath: string): FileUploadSubmission {
+            const submission = createSubmission(createExercise({ filePattern }));
+            submission.filePathUrl = filePath;
+            return submission;
+        }
+
+        it('plays a video submission inline when the exercise accepts video', () => {
+            const submission = videoSubmission('pdf, MP4', 'api/core/files/file-upload-exercises/20/submissions/2278/clip.mp4');
+            component.exercise.set(submission.participation!.exercise as FileUploadExercise);
+            component.submission.set(submission);
+            TestBed.tick();
+
+            httpMock.expectOne('api/core/files/file-upload-exercises/20/submissions/2278/clip.mp4').flush(new Blob(['video']));
+
+            expect(component.videoUrl()).toBe('blob:video');
+        });
+
+        it('offers no player for a file that is not a video, even if the exercise accepts video', () => {
+            const submission = videoSubmission('pdf, mp4', 'api/core/files/file-upload-exercises/20/submissions/2278/report.pdf');
+            component.exercise.set(submission.participation!.exercise as FileUploadExercise);
+            component.submission.set(submission);
+            TestBed.tick();
+
+            httpMock.expectNone('api/core/files/file-upload-exercises/20/submissions/2278/report.pdf');
+            expect(component.videoFilePath()).toBeUndefined();
+        });
+
+        it('releases the video once the component is destroyed', () => {
+            const submission = videoSubmission('mp4', 'api/core/files/file-upload-exercises/20/submissions/2278/clip.mp4');
+            component.exercise.set(submission.participation!.exercise as FileUploadExercise);
+            component.submission.set(submission);
+            TestBed.tick();
+            httpMock.expectOne('api/core/files/file-upload-exercises/20/submissions/2278/clip.mp4').flush(new Blob(['video']));
+
+            fixture.destroy();
+
+            expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:video');
         });
     });
 

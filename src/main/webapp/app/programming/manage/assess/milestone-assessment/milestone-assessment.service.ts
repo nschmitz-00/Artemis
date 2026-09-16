@@ -2,17 +2,22 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { Result } from 'app/exercise/shared/entities/result/result.model';
+import { ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 
 /**
- * One user story of a milestone group as it stands for a single student (mirrors the backend
- * {@code MilestoneAssessmentStoryDTO}).
+ * One exercise of a milestone group as it stands for a single student (mirrors the backend
+ * {@code MilestoneAssessmentExerciseDTO}). Most are user stories; a group may also hold text, modeling, file upload and
+ * quiz exercises, which the server lists after the stories.
  * <p>
- * Every field but the exercise itself is optional, because a story the student never started still produces an entry:
- * "not started" is what a tutor needs to see, not a row to hide.
+ * Every field but the exercise itself is optional, because an exercise the student never started still produces an
+ * entry: "not started" is what a tutor needs to see, not a row to hide.
  */
-export interface MilestoneAssessmentStory {
+export interface MilestoneAssessmentExercise {
     exerciseId: number;
     title: string;
+    exerciseType: ExerciseType;
+    /** Whether this is a user story. Needed on top of the type, since a user story is a programming exercise. */
+    userStory?: boolean;
     maxPoints?: number;
     participationId?: number;
     /** The submission the assessment editor is opened on; unset before the student's first build. */
@@ -31,7 +36,7 @@ export interface MilestoneAssessmentStudent {
     studentLogin: string;
     studentName?: string;
     milestoneParticipationId: number;
-    stories: MilestoneAssessmentStory[];
+    exercises: MilestoneAssessmentExercise[];
 }
 
 /**
@@ -49,7 +54,7 @@ export interface MilestoneAssessment {
     maxStaticCodeAnalysisPenalty?: number;
     milestoneMaxPoints?: number;
     milestoneResult?: Result;
-    stories: MilestoneAssessmentStory[];
+    exercises: MilestoneAssessmentExercise[];
 }
 
 /** Reads the two tutor-facing views of a milestone exercise group. */
@@ -61,12 +66,12 @@ export class MilestoneAssessmentService {
         return `api/exercise/courses/${courseId}/milestone-exercise-groups/${groupId}/assessment/students`;
     }
 
-    /** Every student who has started the group's milestone, with the standing of each of their user stories. */
+    /** Every student who has started the group's milestone, with the standing of each of their exercises in the group. */
     getAssessmentDashboard(courseId: number, groupId: number): Observable<MilestoneAssessmentStudent[]> {
         return this.http.get<MilestoneAssessmentStudent[]>(this.resourceUrl(courseId, groupId));
     }
 
-    /** The group-level information and the ordered stories the assessment page renders as tabs for one student. */
+    /** The group-level information and the ordered exercises the assessment page renders as tabs for one student. */
     getAssessmentForStudent(courseId: number, groupId: number, studentLogin: string): Observable<MilestoneAssessment> {
         return this.http.get<MilestoneAssessment>(`${this.resourceUrl(courseId, groupId)}/${studentLogin}`);
     }

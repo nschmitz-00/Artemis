@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Location } from '@angular/common';
 import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -35,7 +35,8 @@ import { AssessmentAfterComplaint } from 'app/assessment/manage/complaints-for-t
 import { TextBlockRef } from 'app/text/shared/entities/text-block-ref.model';
 import { AthenaService } from 'app/assessment/shared/services/athena.service';
 import { TextBlock } from 'app/text/shared/entities/text-block.model';
-import { Subscription } from 'rxjs';
+import { Subscription, firstValueFrom } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 import { AssessmentLayoutComponent } from 'app/assessment/manage/assessment-layout/assessment-layout.component';
 import { ResizeableContainerComponent } from 'app/shared-ui/resizeable-container/resizeable-container.component';
 import { ScoreDisplayComponent } from 'app/exercise/score-display/score-display.component';
@@ -46,7 +47,7 @@ import { AssessmentInstructionsComponent } from 'app/assessment/manage/assessmen
 import { FeedbackSuggestionsBannerComponent } from 'app/assessment/manage/feedback-suggestions-banner/feedback-suggestions-banner.component';
 import { AssessmentNotPossibleYetComponent } from 'app/assessment/shared/assessment-not-possible-yet/assessment-not-possible-yet.component';
 import { AssessmentNotPossibleYetState } from 'app/assessment/shared/util/assessment-availability.util';
-import { TextAssessmentRouteData } from 'app/text/manage/assess/service/text-submission-assessment-resolve.service';
+import { TextAssessmentRouteData, routeDataForError } from 'app/text/manage/assess/service/text-submission-assessment-resolve.service';
 
 @Component({
     selector: 'jhi-text-submission-assessment',
@@ -125,6 +126,35 @@ export class TextSubmissionAssessmentComponent extends TextAssessmentBaseCompone
 
     private feedbackSuggestionsObservable?: Subscription;
 
+    /** Whether the tutor changed feedback that is not saved yet, so an embedding host can ask before tearing this down. */
+    hasPendingChanges = false;
+
+    /** Records a feedback edit by the tutor. Called from the template, which is the only place such an edit starts. */
+    markPendingChanges(): void {
+        this.hasPendingChanges = true;
+    }
+
+    /**
+     * Replaces "assess next" entirely for a host that decides for itself what comes next. It runs before anything is
+     * navigated to, so no other student's submission is locked.
+     */
+    readonly overrideNextSubmission = input<() => void>();
+    /** Lets a host with an override hide the "assess next" button once there is nothing left to move on to. */
+    readonly hasNextSubmission = input(true);
+    readonly nextSubmissionLabel = input('artemisApp.assessment.button.nextSubmission');
+
+    /**
+     * Identity supplied by a host rather than by the URL, for a page that embeds this component instead of routing to
+     * it - the milestone assessment page renders one per text exercise tab. The routed page is fed by a resolver; the
+     * embedded one loads the same data itself. Supplying {@link hostSubmissionId} is what switches it into embedded mode.
+     */
+    readonly hostCourseId = input<number | undefined>(undefined);
+    readonly hostExerciseId = input<number | undefined>(undefined);
+    readonly hostSubmissionId = input<number | undefined>(undefined);
+
+    /** Whether a host drives this component instead of the router; the injected route is then the host's. */
+    private readonly isEmbedded = computed<boolean>(() => this.hostSubmissionId() !== undefined);
+
     private get referencedFeedback(): Feedback[] {
         return this.textBlockRefs.map(({ feedback }) => feedback).filter(notUndefined);
     }
@@ -147,6 +177,38 @@ export class TextSubmissionAssessmentComponent extends TextAssessmentBaseCompone
         super();
         this.translateService.get('artemisApp.textAssessment.confirmCancel').subscribe((text) => (this.cancelConfirmationText = text));
         this.resetComponent();
+
+        // Embedded, the host drives the load; registered here so it exists exactly once however often ngOnInit runs.
+        effect(() => {
+            const submissionId = this.hostSubmissionId();
+            const courseId = this.hostCourseId();
+            const exerciseId = this.hostExerciseId();
+            if (submissionId === undefined || courseId === undefined || exerciseId === undefined) {
+                return;
+            }
+            untracked(() => void this.loadEmbedded(courseId, exerciseId, submissionId));
+        });
+    }
+
+    /**
+     * Loads what the route resolver would otherwise supply, for the embedded mode. Mirrors
+     * {@code StudentParticipationResolver}, including its turning a refused load into the page's explanation.
+     */
+    private async loadEmbedded(courseId: number, exerciseId: number, submissionId: number): Promise<void> {
+        this.courseId = courseId;
+        this.exerciseId = exerciseId;
+        this.exerciseDashboardLink.set(getExerciseDashboardLink(courseId, exerciseId, this.examId, this.isTestRun()));
+        // Whether the tutor is the assessor is decided against their identity, so wait for it rather than racing ngOnInit.
+        this.userId = (await this.accountService.identity())?.id;
+        const correctionRound = 0;
+        const routeData = await firstValueFrom(
+            this.assessmentsService.getFeedbackDataForExerciseSubmission(submissionId, correctionRound).pipe(
+                map((participation): TextAssessmentRouteData => ({ participation, correctionRound })),
+                catchError((error: HttpErrorResponse) => routeDataForError(error, correctionRound)),
+            ),
+        );
+        this.setPropertiesFromServerResponse(routeData);
+        this.validateFeedback();
     }
 
     /**
@@ -176,6 +238,7 @@ export class TextSubmissionAssessmentComponent extends TextAssessmentBaseCompone
         this.hasAutomaticFeedback.set(false);
         this.highlightDifferences.set(false);
         this.assessmentNotPossibleYet.set(undefined);
+        this.hasPendingChanges = false;
     }
 
     /**
@@ -183,6 +246,11 @@ export class TextSubmissionAssessmentComponent extends TextAssessmentBaseCompone
      */
     override async ngOnInit(): Promise<void> {
         await super.ngOnInit();
+        if (this.isEmbedded()) {
+            // The host drives the load through the effect in the constructor; the injected route is the host page's, and
+            // its data carries no resolved participation.
+            return;
+        }
         this.route.queryParamMap.subscribe((queryParams) => {
             this.isTestRun.set(queryParams.get('testRun') === 'true');
         });
@@ -281,7 +349,7 @@ export class TextSubmissionAssessmentComponent extends TextAssessmentBaseCompone
     }
 
     private get isNewAssessmentRoute(): boolean {
-        return this.activatedRoute.routeConfig?.path === NEW_ASSESSMENT_PATH;
+        return !this.isEmbedded() && this.activatedRoute.routeConfig?.path === NEW_ASSESSMENT_PATH;
     }
 
     get isFeedbackSuggestionsEnabled(): boolean {
@@ -447,6 +515,7 @@ export class TextSubmissionAssessmentComponent extends TextAssessmentBaseCompone
         setSubmissionResultByCorrectionRound(this.submission!, this.result()!, this.correctionRound());
         this.saveBusy.set(false);
         this.submitBusy.set(false);
+        this.hasPendingChanges = false;
     }
 
     /**
@@ -456,7 +525,10 @@ export class TextSubmissionAssessmentComponent extends TextAssessmentBaseCompone
         const confirmCancel = window.confirm(this.cancelConfirmationText);
         this.cancelBusy.set(true);
         if (confirmCancel && this.exercise && this.submission) {
-            this.assessmentsService.cancelAssessment(this.participation!.id!, this.submission.id!, this.result()?.id).subscribe(() => this.navigateBack());
+            this.assessmentsService.cancelAssessment(this.participation!.id!, this.submission.id!, this.result()?.id).subscribe(() => {
+                this.hasPendingChanges = false;
+                this.navigateBack();
+            });
         }
     }
 
@@ -464,6 +536,11 @@ export class TextSubmissionAssessmentComponent extends TextAssessmentBaseCompone
      * Go to next submission
      */
     async nextSubmission(): Promise<void> {
+        const overrideNextSubmission = this.overrideNextSubmission();
+        if (overrideNextSubmission) {
+            overrideNextSubmission();
+            return;
+        }
         const url = getLinkToSubmissionAssessment(ExerciseType.TEXT, this.courseId, this.exerciseId, this.participation!.id, 'new', this.examId, this.exerciseGroupId);
         this.nextSubmissionBusy.set(true);
         // Merge rather than replace: a supplied queryParams object drops every other parameter, testRun among them.

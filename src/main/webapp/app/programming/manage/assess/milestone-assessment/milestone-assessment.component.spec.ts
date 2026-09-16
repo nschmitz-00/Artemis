@@ -10,20 +10,23 @@ import { MockTranslateService } from 'test/helpers/mocks/service/mock-translate.
 import { AlertService } from 'app/foundation/service/alert.service';
 import { MilestoneAssessmentComponent } from 'app/programming/manage/assess/milestone-assessment/milestone-assessment.component';
 import { MilestoneAssessment, MilestoneAssessmentService } from 'app/programming/manage/assess/milestone-assessment/milestone-assessment.service';
+import { ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 
 describe('MilestoneAssessmentComponent', () => {
     let fixture: ComponentFixture<MilestoneAssessmentComponent>;
 
-    /** Two stories, only the first of which the student ever pushed for. */
+    /** Two stories, only the first of which the student ever pushed for, then a submitted quiz and a submitted text exercise. */
     function assessment(): MilestoneAssessment {
         return {
             milestoneExerciseId: 99,
             milestoneTitle: 'Sprint 1',
             problemStatement: 'Build the login',
             staticCodeAnalysisEnabled: true,
-            stories: [
-                { exerciseId: 1, title: 'Login form', submissionId: 111, participationId: 11 },
-                { exerciseId: 2, title: 'Logout', participationId: 22 },
+            exercises: [
+                { exerciseId: 1, title: 'Login form', exerciseType: ExerciseType.PROGRAMMING, userStory: true, submissionId: 111, participationId: 11 },
+                { exerciseId: 2, title: 'Logout', exerciseType: ExerciseType.PROGRAMMING, userStory: true, participationId: 22 },
+                { exerciseId: 3, title: 'Retro quiz', exerciseType: ExerciseType.QUIZ, submissionId: 333, participationId: 33, latestScore: 50 },
+                { exerciseId: 4, title: 'Reflection', exerciseType: ExerciseType.TEXT, submissionId: 444, participationId: 44 },
             ],
         };
     }
@@ -53,13 +56,12 @@ describe('MilestoneAssessmentComponent', () => {
     /** Access to the protected state under test. */
     function comp(): {
         activeTab: () => string | number | undefined;
-        activeStory: () => { exerciseId: number } | undefined;
-        activeSubmissionId: () => number | undefined;
+        activeExercise: () => { exerciseId: number; submissionId?: number } | undefined;
         onTabChange: (value: string | number | undefined) => void;
-        assessNextStory: () => void;
-        nextStory: () => { exerciseId: number } | undefined;
+        assessNextExercise: () => void;
+        nextExercise: () => { exerciseId: number } | undefined;
         studentLogin: () => string;
-        stories: () => { exerciseId: number }[];
+        exercises: () => { exerciseId: number }[];
     } {
         return fixture.componentInstance as never;
     }
@@ -69,9 +71,9 @@ describe('MilestoneAssessmentComponent', () => {
     it('opens on the group-level tab, because that is the context the stories are graded against', async () => {
         await setup();
         expect(comp().activeTab()).toBe('milestone');
-        expect(comp().activeStory()).toBeUndefined();
+        expect(comp().activeExercise()).toBeUndefined();
         expect(comp().studentLogin()).toBe('student1');
-        expect(comp().stories()).toHaveLength(2);
+        expect(comp().exercises()).toHaveLength(4);
     });
 
     it('switches to a story tab and exposes the submission its editor is opened on', async () => {
@@ -79,8 +81,8 @@ describe('MilestoneAssessmentComponent', () => {
 
         comp().onTabChange(1);
 
-        expect(comp().activeStory()?.exerciseId).toBe(1);
-        expect(comp().activeSubmissionId()).toBe(111);
+        expect(comp().activeExercise()?.exerciseId).toBe(1);
+        expect(comp().activeExercise()?.submissionId).toBe(111);
     });
 
     it('has nothing to open for a story the student never started', async () => {
@@ -88,15 +90,15 @@ describe('MilestoneAssessmentComponent', () => {
 
         comp().onTabChange(2);
 
-        expect(comp().activeStory()?.exerciseId).toBe(2);
-        expect(comp().activeSubmissionId()).toBeUndefined();
+        expect(comp().activeExercise()?.exerciseId).toBe(2);
+        expect(comp().activeExercise()?.submissionId).toBeUndefined();
     });
 
     it('refuses to switch away while the editor holds unsaved feedback', async () => {
         await setup();
         comp().onTabChange(1);
         // The panel is destroyed on switch, so leaving without asking would discard the tutor's work silently.
-        (fixture.componentInstance as unknown as { assessmentContainer: () => { hasPendingChanges: boolean } }).assessmentContainer = () => ({ hasPendingChanges: true });
+        (fixture.componentInstance as unknown as { assessmentEditor: () => { hasPendingChanges: boolean } }).assessmentEditor = () => ({ hasPendingChanges: true });
         const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
 
         comp().onTabChange('milestone');
@@ -105,30 +107,39 @@ describe('MilestoneAssessmentComponent', () => {
         expect(comp().activeTab()).toBe(1);
     });
 
-    it('advances to the next story that has something to assess, instead of navigating away', async () => {
+    it('advances past a story that was never started and past a quiz, to the next exercise a tutor assesses', async () => {
         await setup();
         comp().onTabChange(1);
 
-        comp().assessNextStory();
+        // Story 2 was never started and the quiz is graded automatically, so the text exercise comes next.
+        expect(comp().nextExercise()?.exerciseId).toBe(4);
+        comp().assessNextExercise();
 
-        // Story 2 was never started, so there is no next submission and the tab stays put rather than opening an
-        // editor with nothing behind it.
-        expect(comp().nextStory()).toBeUndefined();
-        expect(comp().activeTab()).toBe(1);
+        expect(comp().activeTab()).toBe(4);
     });
 
-    it('offers the first assessable story as next from the group-level tab', async () => {
+    it('has no next exercise on the last one, so the button is hidden rather than doing nothing', async () => {
+        await setup();
+        comp().onTabChange(4);
+
+        expect(comp().nextExercise()).toBeUndefined();
+        comp().assessNextExercise();
+
+        expect(comp().activeTab()).toBe(4);
+    });
+
+    it('offers the first assessable exercise as next from the group-level tab', async () => {
         await setup();
 
-        expect(comp().nextStory()?.exerciseId).toBe(1);
-        comp().assessNextStory();
+        expect(comp().nextExercise()?.exerciseId).toBe(1);
+        comp().assessNextExercise();
 
         expect(comp().activeTab()).toBe(1);
     });
 
     it('surfaces a failed load rather than rendering an empty page silently', async () => {
         await setup(() => EMPTY);
-        expect(comp().activeStory()).toBeUndefined();
-        expect(comp().stories()).toHaveLength(0);
+        expect(comp().activeExercise()).toBeUndefined();
+        expect(comp().exercises()).toHaveLength(0);
     });
 });
