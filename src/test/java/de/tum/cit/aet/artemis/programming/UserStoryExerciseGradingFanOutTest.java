@@ -2,6 +2,7 @@ package de.tum.cit.aet.artemis.programming;
 
 import static de.tum.cit.aet.artemis.core.config.Constants.NEW_RESULT_TOPIC;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -9,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterEach;
@@ -17,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.test.context.support.WithMockUser;
 
 import de.tum.cit.aet.artemis.account.domain.User;
@@ -47,6 +50,7 @@ import de.tum.cit.aet.artemis.programming.dto.ResultDTO;
 import de.tum.cit.aet.artemis.programming.service.MilestoneExercisePointsService;
 import de.tum.cit.aet.artemis.programming.service.MilestoneScoreScheduleService;
 import de.tum.cit.aet.artemis.programming.service.MilestoneScoreService;
+import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseTaskService;
 import de.tum.cit.aet.artemis.programming.util.ProgrammingExerciseFactory;
 
 /**
@@ -79,6 +83,9 @@ class UserStoryExerciseGradingFanOutTest extends AbstractProgrammingIntegrationI
 
     @Autowired
     private FeedbackMessageService feedbackMessageService;
+
+    @Autowired
+    private ProgrammingExerciseTaskService programmingExerciseTaskService;
 
     private Course course;
 
@@ -480,6 +487,44 @@ class UserStoryExerciseGradingFanOutTest extends AbstractProgrammingIntegrationI
 
         assertThat(fannedOutResult.getScore()).isZero();
         assertThat(fannedOutResult.getTestCaseFeedbacks()).singleElement().satisfies(feedback -> assertThat(feedback.isPositive()).isNull());
+    }
+
+    /**
+     * The student milestone page renders the milestone's own {@code [task]} entries against the student's milestone
+     * participation. That only shows a real outcome if the tests a task references resolve to the milestone's test cases
+     * and the milestone build's result - the one that stays behind after the fan-out - hands their feedback to the
+     * student under those same ids.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+    void milestoneTaskTestsResolveToExecutedTestFeedbackVisibleToTheStudent() throws Exception {
+        UserStoryExercise userStory = createUserStoryExercise("us1");
+        ProgrammingExerciseTestCase milestoneTestA = createTestCase(milestoneExercise, "testA");
+        ProgrammingExerciseTestCase milestoneTestB = createTestCase(milestoneExercise, "testB");
+        createTestCase(userStory, "testA");
+
+        MilestoneExercise freshMilestone = (MilestoneExercise) programmingExerciseRepository.findByIdElseThrow(milestoneExercise.getId());
+        freshMilestone.setProblemStatement("[task][Implement A](testA)\n[task][Implement B](testB)");
+        programmingExerciseTaskService.replaceTestNamesWithIds(freshMilestone);
+        programmingExerciseRepository.save(freshMilestone);
+        assertThat(freshMilestone.getProblemStatement())
+                .isEqualTo("[task][Implement A](<testid>" + milestoneTestA.getId() + "</testid>)\n[task][Implement B](<testid>" + milestoneTestB.getId() + "</testid>)");
+
+        ProgrammingExerciseStudentParticipation milestoneParticipation = participationFor(milestoneExercise);
+        ProgrammingExerciseStudentParticipation userStoryParticipation = participationFor(userStory);
+        Result milestoneResult = buildSourceResult(milestoneParticipation, "commit-1", List.of(testCaseFeedback(milestoneTestA, true), testCaseFeedback(milestoneTestB, false)));
+        gradingService.fanOutResultToUserStoryExercise(milestoneResult, userStory, userStoryParticipation);
+
+        ProgrammingExerciseStudentParticipation requested = request.get(
+                "/api/programming/programming-exercise-participations/" + milestoneParticipation.getId() + "/student-participation-with-latest-result-and-feedbacks", HttpStatus.OK,
+                ProgrammingExerciseStudentParticipation.class);
+
+        Set<Result> results = participationUtilService.getResultsForParticipation(requested);
+        assertThat(results).singleElement().satisfies(result -> {
+            assertThat(result.getId()).isEqualTo(milestoneResult.getId());
+            assertThat(result.getFeedbacks()).filteredOn(feedback -> feedback.getTestCase() != null).extracting(feedback -> feedback.getTestCase().getId(), Feedback::isPositive)
+                    .containsExactlyInAnyOrder(tuple(milestoneTestA.getId(), true), tuple(milestoneTestB.getId(), false));
+        });
     }
 
     @Test
