@@ -42,10 +42,15 @@ import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.exam.domain.Exam;
 import de.tum.cit.aet.artemis.exam.util.ExamUtilService;
 import de.tum.cit.aet.artemis.exercise.domain.Exercise;
+import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
+import de.tum.cit.aet.artemis.exercise.repository.MilestoneExerciseGroupRepository;
 import de.tum.cit.aet.artemis.fileupload.util.FileUploadExerciseUtilService;
 import de.tum.cit.aet.artemis.lecture.domain.Lecture;
 import de.tum.cit.aet.artemis.lecture.util.LectureUtilService;
 import de.tum.cit.aet.artemis.modeling.util.ModelingExerciseUtilService;
+import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
+import de.tum.cit.aet.artemis.programming.domain.ProgrammingLanguage;
+import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseRepository;
 import de.tum.cit.aet.artemis.programming.util.ProgrammingExerciseUtilService;
 import de.tum.cit.aet.artemis.quiz.domain.QuizExercise;
 import de.tum.cit.aet.artemis.quiz.domain.QuizMode;
@@ -1256,6 +1261,110 @@ class CalendarIntegrationTest extends AbstractSpringIntegrationIndependentBatchT
                 CalendarEventDTO expectedEvent3 = new CalendarEventDTO(null, eventType, DUE_DATE_TITLE_PREFIX + exercise.getTitle(), FUTURE_DATE.plusDays(2), null, null, null);
                 CalendarEventDTO expectedEvent4 = new CalendarEventDTO(null, eventType, ASSESSMENT_DUE_DATE_TITLE_PREFIX + exercise.getTitle(), FUTURE_DATE.plusDays(3), null, null,
                         null);
+                Map<String, List<CalendarEventDTO>> expectedResponse = Stream.of(expectedEvent1, expectedEvent2, expectedEvent3, expectedEvent4)
+                        .collect(Collectors.groupingBy(dto -> dto.startDate().toLocalDate().toString()));
+
+                assertEventMapsEqual(actualResponse, expectedResponse);
+            }
+        }
+
+        @Nested
+        class MilestoneGroupEventTests {
+
+            private static final String RELEASE_DATE_TITLE_PREFIX = "Release: ";
+
+            private static final String START_DATE_TITLE_PREFIX = "Start: ";
+
+            private static final String DUE_DATE_TITLE_PREFIX = "Due: ";
+
+            private static final String ASSESSMENT_DUE_DATE_TITLE_PREFIX = "Assessment due: ";
+
+            @Autowired
+            private ProgrammingExerciseRepository programmingExerciseRepository;
+
+            @Autowired
+            private MilestoneExerciseGroupRepository milestoneExerciseGroupRepository;
+
+            /**
+             * Persists a milestone group anchored by a {@link MilestoneExercise} carrying the given dates, mirroring the
+             * fixture setup in {@code MilestoneExerciseGroupIntegrationTest}: a group has no date columns of its own, so
+             * the calendar events under test are always derived from the anchor (see {@link MilestoneExerciseGroup}).
+             */
+            private MilestoneExerciseGroup createMilestoneGroup(String title, ZonedDateTime releaseDate, ZonedDateTime startDate, ZonedDateTime dueDate,
+                    ZonedDateTime assessmentDueDate) {
+                MilestoneExercise milestoneExercise = new MilestoneExercise();
+                milestoneExercise.setTitle(title);
+                milestoneExercise.setShortName("ms" + UUID.randomUUID().toString().replace("-", "").substring(0, 8));
+                milestoneExercise.setProgrammingLanguage(ProgrammingLanguage.JAVA);
+                milestoneExercise.setCourse(course);
+                milestoneExercise.setMaxPoints(0.0);
+                milestoneExercise.setReleaseDate(releaseDate);
+                milestoneExercise.setStartDate(startDate);
+                milestoneExercise.setDueDate(dueDate);
+                milestoneExercise.setAssessmentDueDate(assessmentDueDate);
+                milestoneExercise.generateAndSetProjectKey();
+                milestoneExercise = (MilestoneExercise) programmingExerciseRepository.save(milestoneExercise);
+
+                MilestoneExerciseGroup group = new MilestoneExerciseGroup();
+                group.setTitle(title);
+                group.setMilestoneExercise(milestoneExercise);
+                group = milestoneExerciseGroupRepository.save(group);
+
+                Course reloadedCourse = courseRepository.findWithEagerExerciseVariantGroupsByIdElseThrow(course.getId());
+                reloadedCourse.addExerciseVariantGroup(group);
+                courseRepository.save(reloadedCourse);
+
+                return group;
+            }
+
+            @Test
+            @WithMockUser(username = STUDENT_LOGIN, roles = "USER")
+            void shouldReturnCorrectEventsForReleasedMilestoneGroupWithDueDateAsStudent() throws Exception {
+                MilestoneExerciseGroup group = createMilestoneGroup("Sprint 1", PAST_DATE, null, PAST_DATE.plusDays(1), null);
+                Long courseId = course.getId();
+                String url = "/api/calendar/courses/" + courseId + "/calendar-events?monthKeys=" + PAST_DATE_MONTH_STRING + "&timeZone=" + TEST_TIMEZONE_STRING + "&language="
+                        + TEST_LANGUAGE_STRING;
+                Map<String, List<CalendarEventDTO>> actualResponse = request.get(url, HttpStatus.OK, EVENT_MAP_RETURN_TYPE);
+
+                CalendarEventDTO expectedEvent1 = new CalendarEventDTO(null, CalendarEventType.PROGRAMMING_EXERCISE, RELEASE_DATE_TITLE_PREFIX + group.getTitle(), PAST_DATE, null,
+                        null, null);
+                CalendarEventDTO expectedEvent2 = new CalendarEventDTO(null, CalendarEventType.PROGRAMMING_EXERCISE, DUE_DATE_TITLE_PREFIX + group.getTitle(),
+                        PAST_DATE.plusDays(1), null, null, null);
+                Map<String, List<CalendarEventDTO>> expectedResponse = Stream.of(expectedEvent1, expectedEvent2)
+                        .collect(Collectors.groupingBy(dto -> dto.startDate().toLocalDate().toString()));
+
+                assertEventMapsEqual(actualResponse, expectedResponse);
+            }
+
+            @Test
+            @WithMockUser(username = STUDENT_LOGIN, roles = "USER")
+            void shouldReturnNoEventsForUnreleasedMilestoneGroupAsStudent() throws Exception {
+                createMilestoneGroup("Sprint 2", FUTURE_DATE, FUTURE_DATE.plusDays(1), FUTURE_DATE.plusDays(2), FUTURE_DATE.plusDays(3));
+                Long courseId = course.getId();
+                String url = "/api/calendar/courses/" + courseId + "/calendar-events?monthKeys=" + FUTURE_DATE_MONTH_STRING + "&timeZone=" + TEST_TIMEZONE_STRING + "&language="
+                        + TEST_LANGUAGE_STRING;
+                Map<String, List<CalendarEventDTO>> actualResponse = request.get(url, HttpStatus.OK, EVENT_MAP_RETURN_TYPE);
+
+                assertEventMapsEqual(actualResponse, new HashMap<>());
+            }
+
+            @Test
+            @WithMockUser(username = INSTRUCTOR_LOGIN, roles = "INSTRUCTOR")
+            void shouldReturnCorrectEventsForUnreleasedMilestoneGroupAsCourseStaffMember() throws Exception {
+                MilestoneExerciseGroup group = createMilestoneGroup("Sprint 3", FUTURE_DATE, FUTURE_DATE.plusDays(1), FUTURE_DATE.plusDays(2), FUTURE_DATE.plusDays(3));
+                Long courseId = course.getId();
+                String url = "/api/calendar/courses/" + courseId + "/calendar-events?monthKeys=" + FUTURE_DATE_MONTH_STRING + "&timeZone=" + TEST_TIMEZONE_STRING + "&language="
+                        + TEST_LANGUAGE_STRING;
+                Map<String, List<CalendarEventDTO>> actualResponse = request.get(url, HttpStatus.OK, EVENT_MAP_RETURN_TYPE);
+
+                CalendarEventDTO expectedEvent1 = new CalendarEventDTO(null, CalendarEventType.PROGRAMMING_EXERCISE, RELEASE_DATE_TITLE_PREFIX + group.getTitle(), FUTURE_DATE,
+                        null, null, null);
+                CalendarEventDTO expectedEvent2 = new CalendarEventDTO(null, CalendarEventType.PROGRAMMING_EXERCISE, START_DATE_TITLE_PREFIX + group.getTitle(),
+                        FUTURE_DATE.plusDays(1), null, null, null);
+                CalendarEventDTO expectedEvent3 = new CalendarEventDTO(null, CalendarEventType.PROGRAMMING_EXERCISE, DUE_DATE_TITLE_PREFIX + group.getTitle(),
+                        FUTURE_DATE.plusDays(2), null, null, null);
+                CalendarEventDTO expectedEvent4 = new CalendarEventDTO(null, CalendarEventType.PROGRAMMING_EXERCISE, ASSESSMENT_DUE_DATE_TITLE_PREFIX + group.getTitle(),
+                        FUTURE_DATE.plusDays(3), null, null, null);
                 Map<String, List<CalendarEventDTO>> expectedResponse = Stream.of(expectedEvent1, expectedEvent2, expectedEvent3, expectedEvent4)
                         .collect(Collectors.groupingBy(dto -> dto.startDate().toLocalDate().toString()));
 

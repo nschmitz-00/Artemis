@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Profile;
@@ -13,6 +14,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import de.tum.cit.aet.artemis.calendar.dto.NonQuizExerciseCalendarEventDTO;
 import de.tum.cit.aet.artemis.core.exception.EntityNotFoundException;
 import de.tum.cit.aet.artemis.core.repository.base.ArtemisJpaRepository;
 import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
@@ -61,6 +63,43 @@ public interface MilestoneExerciseGroupRepository extends ArtemisJpaRepository<M
             )
             """)
     List<MilestoneExerciseGroup> findAllByCourseId(@Param("courseId") Long courseId);
+
+    /**
+     * Fetches the data needed to derive calendar events for every milestone group of a course, one {@link NonQuizExerciseCalendarEventDTO} per group.
+     * <p>
+     * Keyed by the anchor {@link MilestoneExercise}'s id, not the group's own id: the generated calendar event ids
+     * (e.g. {@code "exerciseDueEvent-" + originEntityId}) must not collide with an unrelated exercise's id, and the
+     * group id comes from the unrelated {@code exercise_variant_group} sequence while the anchor's id shares the
+     * {@code Exercise} table's id space with every other exercise a course's calendar events are derived from.
+     * <p>
+     * The dates are read off the anchor rather than off any column of the group itself - a milestone group has none of
+     * its own; its timeline getters delegate to {@link MilestoneExerciseGroup#getMilestoneExercise()} (see
+     * {@link MilestoneExerciseGroup}) - while the title is read off the group rather than the anchor, because the
+     * anchor is never rendered to students; the group is what they see (see {@code CourseOverviewExerciseService}).
+     *
+     * @param courseId the id of the course whose milestone groups to fetch calendar event data for
+     * @return one DTO per milestone group of the course that has an anchor exercise
+     */
+    @Query("""
+            SELECT NEW de.tum.cit.aet.artemis.calendar.dto.NonQuizExerciseCalendarEventDTO(
+                g.milestoneExercise.id,
+                de.tum.cit.aet.artemis.calendar.util.CalendarEventType.PROGRAMMING_EXERCISE,
+                g.title,
+                g.milestoneExercise.releaseDate,
+                g.milestoneExercise.startDate,
+                g.milestoneExercise.dueDate,
+                g.milestoneExercise.assessmentDueDate
+            )
+            FROM MilestoneExerciseGroup g
+            WHERE g.milestoneExercise IS NOT NULL
+                AND g.id IN (
+                    SELECT evg.id
+                    FROM Course c
+                        JOIN c.exerciseVariantGroups evg
+                    WHERE c.id = :courseId
+                )
+            """)
+    Set<NonQuizExerciseCalendarEventDTO> getCalendarEventDTOsForCourseId(@Param("courseId") long courseId);
 
     /**
      * Single-group counterpart of {@link #findAllByCourseId}. Empty for an ExerciseVariantGroup that is not a milestone group, which is served by

@@ -150,14 +150,17 @@ public class CalendarResource {
         Function<LectureApi, Set<CalendarEventDTO>> lectureEventSupplier = api -> api.getCalendarEventDTOsFromLectures(courseId, userIsStudent, language);
         Supplier<Set<CalendarEventDTO>> quizExerciseEventSupplier = () -> quizExerciseService.getCalendarEventDTOsFromQuizExercises(courseId, userIsStudent, language);
         Supplier<Set<CalendarEventDTO>> otherExerciseEventSupplier = () -> exerciseService.getCalendarEventDTOsFromNonQuizExercises(courseId, userIsStudent, language);
+        Supplier<Set<CalendarEventDTO>> milestoneGroupEventSupplier = () -> exerciseService.getCalendarEventDTOsFromMilestoneGroups(courseId, userIsStudent, language);
 
         Set<CalendarEventDTO> tutorialEventDTOs = getEventsIfShouldBeIncludedAndApiAvailable(includeTutorialEvents, tutorialGroupApi, tutorialEventSupplier);
         Set<CalendarEventDTO> examEventDTOs = getEventsIfShouldBeIncludedAndApiAvailable(includeExamEvents, examApi, examEventSupplier);
         Set<CalendarEventDTO> lectureEventDTOs = getEventsIfShouldBeIncludedAndApiAvailable(includeLectureEvents, lectureApi, lectureEventSupplier);
         Set<CalendarEventDTO> quizExerciseEventDTOs = getEventsIfShouldBeIncluded(includeExerciseEvents, quizExerciseEventSupplier);
         Set<CalendarEventDTO> otherExerciseEventDTOs = getEventsIfShouldBeIncluded(includeExerciseEvents, otherExerciseEventSupplier);
+        Set<CalendarEventDTO> milestoneGroupEventDTOs = getEventsIfShouldBeIncluded(includeExerciseEvents, milestoneGroupEventSupplier);
 
-        Set<CalendarEventDTO> calendarEventDTOs = Stream.of(tutorialEventDTOs, lectureEventDTOs, examEventDTOs, quizExerciseEventDTOs, otherExerciseEventDTOs).flatMap(Set::stream)
+        Set<CalendarEventDTO> calendarEventDTOs = Stream
+                .of(tutorialEventDTOs, lectureEventDTOs, examEventDTOs, quizExerciseEventDTOs, otherExerciseEventDTOs, milestoneGroupEventDTOs).flatMap(Set::stream)
                 .collect(Collectors.toSet());
 
         String icsFileString = calendarSubscriptionService.getICSFileAsString(course.getShortName(), language, calendarEventDTOs);
@@ -226,8 +229,10 @@ public class CalendarResource {
         Set<CalendarEventDTO> lectureEventDTOs = lectureApi.map(api -> api.getCalendarEventDTOsFromLectures(courseId, userIsStudent, language)).orElse(Set.of());
         Set<CalendarEventDTO> quizExerciseEventDTOs = quizExerciseService.getCalendarEventDTOsFromQuizExercises(courseId, userIsStudent, language);
         Set<CalendarEventDTO> otherExerciseEventDTOs = exerciseService.getCalendarEventDTOsFromNonQuizExercises(courseId, userIsStudent, language);
+        Set<CalendarEventDTO> milestoneGroupEventDTOs = exerciseService.getCalendarEventDTOsFromMilestoneGroups(courseId, userIsStudent, language);
 
-        Set<CalendarEventDTO> calendarEventDTOs = Stream.of(tutorialEventDTOs, lectureEventDTOs, examEventDTOs, quizExerciseEventDTOs, otherExerciseEventDTOs).flatMap(Set::stream)
+        Set<CalendarEventDTO> calendarEventDTOs = Stream
+                .of(tutorialEventDTOs, lectureEventDTOs, examEventDTOs, quizExerciseEventDTOs, otherExerciseEventDTOs, milestoneGroupEventDTOs).flatMap(Set::stream)
                 .collect(Collectors.toSet());
         Set<CalendarEventDTO> filteredDTOs = CalendarUtil.filterForEventsOverlappingMonths(calendarEventDTOs, months, clientTimeZone);
         Set<CalendarEventDTO> splitDTOs = CalendarUtil.splitEventsSpanningMultipleDaysIfNecessary(filteredDTOs, clientTimeZone);
