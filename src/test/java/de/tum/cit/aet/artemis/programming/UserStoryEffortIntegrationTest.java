@@ -24,12 +24,10 @@ import de.tum.cit.aet.artemis.programming.domain.UserStoryTask;
 import de.tum.cit.aet.artemis.programming.dto.UserStoryEffortDTO;
 import de.tum.cit.aet.artemis.programming.dto.UserStoryEffortStatusDTO;
 import de.tum.cit.aet.artemis.programming.repository.UserStoryTaskRepository;
-import de.tum.cit.aet.artemis.programming.service.MilestoneEffortGateService;
 
 /**
  * Covers the effort a student reports for a user story exercise - summed from their task board rather than entered
- * by hand - and the gate that refuses writes to a milestone group's shared repository while a started story still
- * has no tasks.
+ * by hand.
  */
 class UserStoryEffortIntegrationTest extends AbstractProgrammingIntegrationIndependentTest {
 
@@ -40,9 +38,6 @@ class UserStoryEffortIntegrationTest extends AbstractProgrammingIntegrationIndep
 
     @Autowired
     private MilestoneExerciseGroupRepository milestoneExerciseGroupRepository;
-
-    @Autowired
-    private MilestoneEffortGateService milestoneEffortGateService;
 
     private Course course;
 
@@ -185,56 +180,5 @@ class UserStoryEffortIntegrationTest extends AbstractProgrammingIntegrationIndep
         taskFor(participation, 4.0, null);
 
         request.get("/api/programming/participations/" + participation.getId() + "/user-story-effort", HttpStatus.FORBIDDEN, UserStoryEffortDTO.class);
-    }
-
-    @Test
-    void theGateBlocksAStartedStoryWithoutAnyTasks() {
-        participationUtilService.addStudentParticipationForProgrammingExercise(userStory, studentLogin);
-        var milestoneParticipation = participationUtilService.addStudentParticipationForProgrammingExercise(milestoneExercise, studentLogin);
-        var student = userUtilService.getUserByLogin(studentLogin);
-
-        List<String> blocking = milestoneEffortGateService.findStoriesBlockingWrite(milestoneExercise, milestoneParticipation, student);
-
-        assertThat(blocking).containsExactly(userStory.getTitle());
-        assertThat(milestoneEffortGateService.buildRejectionMessage(blocking)).contains(userStory.getTitle());
-    }
-
-    @Test
-    void theGateIgnoresAStoryTheStudentHasNotStarted() {
-        var milestoneParticipation = participationUtilService.addStudentParticipationForProgrammingExercise(milestoneExercise, studentLogin);
-        var student = userUtilService.getUserByLogin(studentLogin);
-
-        // No participation in the story, so there is nowhere to create a task - it must not block the push.
-        assertThat(milestoneEffortGateService.findStoriesBlockingWrite(milestoneExercise, milestoneParticipation, student)).isEmpty();
-    }
-
-    @Test
-    void theGateClearsOnceATaskExists() {
-        var participation = participationUtilService.addStudentParticipationForProgrammingExercise(userStory, studentLogin);
-        var milestoneParticipation = participationUtilService.addStudentParticipationForProgrammingExercise(milestoneExercise, studentLogin);
-        var student = userUtilService.getUserByLogin(studentLogin);
-        assertThat(milestoneEffortGateService.findStoriesBlockingWrite(milestoneExercise, milestoneParticipation, student)).isNotEmpty();
-
-        taskFor(participation, 2.0, null);
-
-        assertThat(milestoneEffortGateService.findStoriesBlockingWrite(milestoneExercise, milestoneParticipation, student)).isEmpty();
-    }
-
-    @Test
-    void theGateNeverBlocksTeachingStaff() {
-        participationUtilService.addStudentParticipationForProgrammingExercise(userStory, studentLogin);
-        var milestoneParticipation = participationUtilService.addStudentParticipationForProgrammingExercise(milestoneExercise, studentLogin);
-        var tutor = userUtilService.getUserByLogin(TEST_PREFIX + "tutor1");
-
-        assertThat(milestoneEffortGateService.findStoriesBlockingWrite(milestoneExercise, milestoneParticipation, tutor)).isEmpty();
-    }
-
-    @Test
-    void theGateIgnoresExercisesThatAreNotMilestones() {
-        var participation = participationUtilService.addStudentParticipationForProgrammingExercise(userStory, studentLogin);
-        var student = userUtilService.getUserByLogin(studentLogin);
-
-        // The gate only guards a milestone group's shared repository; a story's own repository is not one.
-        assertThat(milestoneEffortGateService.findStoriesBlockingWrite(userStory, participation, student)).isEmpty();
     }
 }

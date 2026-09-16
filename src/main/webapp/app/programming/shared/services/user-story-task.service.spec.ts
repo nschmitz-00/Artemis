@@ -76,4 +76,28 @@ describe('UserStoryTaskService', () => {
         expect(req.request.url).toBe('api/programming/user-story-tasks/1');
         req.flush(null);
     });
+
+    it('should bump boardVersion on create, update, advance and delete, but not on reorder', () => {
+        const versionBeforeCreate = service.boardVersion();
+        service.createTask(42, task).subscribe();
+        httpMock.expectOne({ method: 'POST' }).flush(task);
+        expect(service.boardVersion()).toBe(versionBeforeCreate + 1);
+
+        service.updateTask(1, task).subscribe();
+        httpMock.expectOne({ method: 'PUT', url: 'api/programming/user-story-tasks/1' }).flush(task);
+        expect(service.boardVersion()).toBe(versionBeforeCreate + 2);
+
+        service.advanceState(1).subscribe();
+        httpMock.expectOne({ method: 'PUT', url: 'api/programming/user-story-tasks/1/advance-state' }).flush(task);
+        expect(service.boardVersion()).toBe(versionBeforeCreate + 3);
+
+        service.deleteTask(1).subscribe();
+        httpMock.expectOne({ method: 'DELETE' }).flush(null);
+        expect(service.boardVersion()).toBe(versionBeforeCreate + 4);
+
+        // Reordering does not change any task's estimated effort, so it must not trigger a refetch elsewhere.
+        service.reorderTasks(42, [1]).subscribe();
+        httpMock.expectOne({ method: 'PUT', url: 'api/programming/user-story-exercises/42/tasks/reorder' }).flush([task]);
+        expect(service.boardVersion()).toBe(versionBeforeCreate + 4);
+    });
 });

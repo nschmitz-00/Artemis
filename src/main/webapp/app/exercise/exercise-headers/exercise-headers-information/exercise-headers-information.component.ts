@@ -28,6 +28,7 @@ import { ResultHistoryDropdownComponent } from './result-history-dropdown/result
 import { NgbTooltip } from '@ng-bootstrap/ng-bootstrap';
 import { DEFAULT_ATHENA_FEEDBACK_REQUEST_LIMIT } from 'app/course/overview/exercise-details/request-feedback-button/request-feedback-button.component';
 import { UserStoryEffortService } from 'app/programming/shared/services/user-story-effort.service';
+import { UserStoryTaskService } from 'app/programming/shared/services/user-story-task.service';
 import { UserStoryEffort } from 'app/exercise/shared/entities/participation/programming-exercise-student-participation.model';
 import { UserStoryEffortFieldComponent } from 'app/programming/overview/user-story-effort/user-story-effort-field.component';
 
@@ -95,6 +96,7 @@ export class ExerciseHeadersInformationComponent {
     private readonly destroyRef = inject(DestroyRef);
     private sortService = inject(SortService);
     private readonly userStoryEffortService = inject(UserStoryEffortService);
+    private readonly userStoryTaskService = inject(UserStoryTaskService);
     private serverDateService = inject(ArtemisServerDateService);
 
     /** Captured once: the server time used as the reference point for all relative/absolute date displays. */
@@ -176,6 +178,9 @@ export class ExerciseHeadersInformationComponent {
         effect(() => {
             const exercise = this.exercise();
             const participationExists = this.studentParticipation()?.id !== undefined;
+            // Tracked on purpose: a task created/edited/deleted elsewhere on the page changes the sum this reloads,
+            // so the effect must rerun on every board change, not just when the exercise or participation changes.
+            this.userStoryTaskService.boardVersion();
             untracked(() => this.loadReportedEffort(exercise, participationExists));
         });
     }

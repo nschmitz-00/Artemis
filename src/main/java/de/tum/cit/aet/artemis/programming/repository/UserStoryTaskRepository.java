@@ -87,31 +87,4 @@ public interface UserStoryTaskRepository extends ArtemisJpaRepository<UserStoryT
                 AND (participation.student.login = :login OR teamStudent.login = :login)
             """)
     List<UserStoryEffortStatusDTO> findAllStartedStoriesByCourseIdAndStudentLogin(@Param("courseId") long courseId, @Param("login") String login);
-
-    /**
-     * The titles of the user story exercises in a milestone group that the participant has started but not yet
-     * broken down into any tasks - exactly what blocks a push (see {@code MilestoneEffortGateService}). With effort
-     * derived from tasks, "not yet estimated" is "no tasks created yet".
-     * <p>
-     * Only stories the participant already has a participation in are considered, so the gate can always be cleared -
-     * a story that was never started has nowhere to create a task and is therefore not asked about. Titles rather
-     * than a count, so the rejection message can name what is missing.
-     * <p>
-     * Matches the participant through either an individual participation or team membership, so a team's shared board
-     * counts for every member.
-     *
-     * @param milestoneGroupId the id of the milestone exercise group whose member stories to check
-     * @param login            the login of the participating student
-     * @return the titles of the started-but-task-less member stories, empty when nothing blocks the push
-     */
-    @Query("""
-            SELECT participation.exercise.title
-            FROM StudentParticipation participation
-                LEFT JOIN participation.team.students teamStudent
-            WHERE participation.exercise.exerciseVariantGroup.id = :milestoneGroupId
-                AND TYPE(participation.exercise) = UserStoryExercise
-                AND (participation.student.login = :login OR teamStudent.login = :login)
-                AND NOT EXISTS (SELECT 1 FROM UserStoryTask task WHERE task.participation.id = participation.id)
-            """)
-    List<String> findStartedStoryTitlesWithoutTasksByGroupIdAndStudentLogin(@Param("milestoneGroupId") long milestoneGroupId, @Param("login") String login);
 }

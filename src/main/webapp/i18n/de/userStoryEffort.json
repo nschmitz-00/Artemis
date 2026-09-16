@@ -4,8 +4,7 @@
             "title": "Aufwand",
             "estimatedEffortShort": "Geschätzter Aufwand",
             "actualEffortShort": "Tatsächlicher Aufwand",
-            "notReported": "–",
-            "effortMissing": "Aufwand fehlt"
+            "notReported": "–"
         }
     }
 }

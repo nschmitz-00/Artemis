@@ -14,7 +14,6 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Base64;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -91,7 +90,6 @@ import de.tum.cit.aet.artemis.programming.repository.ParticipationVCSAccessToken
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseRepository;
 import de.tum.cit.aet.artemis.programming.repository.RepositoryVCSAccessTokenRepository;
 import de.tum.cit.aet.artemis.programming.service.AuxiliaryRepositoryService;
-import de.tum.cit.aet.artemis.programming.service.MilestoneEffortGateService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseGradingService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseParticipationService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseTestCaseChangedService;
@@ -123,8 +121,6 @@ public class LocalVCServletService {
     private final RepositoryAccessService repositoryAccessService;
 
     private final ProgrammingExerciseParticipationService programmingExerciseParticipationService;
-
-    private final MilestoneEffortGateService milestoneEffortGateService;
 
     private final AuxiliaryRepositoryService auxiliaryRepositoryService;
 
@@ -213,12 +209,12 @@ public class LocalVCServletService {
 
     public LocalVCServletService(AuthenticationManager authenticationManager, UserRepository userRepository, ProgrammingExerciseRepository programmingExerciseRepository,
             RepositoryAccessService repositoryAccessService, ProgrammingExerciseParticipationService programmingExerciseParticipationService,
-            MilestoneEffortGateService milestoneEffortGateService, AuxiliaryRepositoryService auxiliaryRepositoryService, ContinuousIntegrationTriggerService ciTriggerService,
-            ProgrammingSubmissionService programmingSubmissionService, ProgrammingSubmissionMessagingService programmingSubmissionMessagingService,
-            ProgrammingExerciseGradingService programmingExerciseGradingService, ProgrammingExerciseTestCaseChangedService programmingExerciseTestCaseChangedService,
-            ParticipationVCSAccessTokenRepository participationVCSAccessTokenRepository, RepositoryVCSAccessTokenRepository repositoryVCSAccessTokenRepository,
-            Optional<VcsAccessLogService> vcsAccessLogService, AuthorizationCheckService authorizationCheckService, RateLimitService rateLimitService,
-            ExerciseVersionService exerciseVersionService, UserVcsAccessTokenService userVcsAccessTokenService, Optional<DistributedDataAccessService> distributedDataAccessService,
+            AuxiliaryRepositoryService auxiliaryRepositoryService, ContinuousIntegrationTriggerService ciTriggerService, ProgrammingSubmissionService programmingSubmissionService,
+            ProgrammingSubmissionMessagingService programmingSubmissionMessagingService, ProgrammingExerciseGradingService programmingExerciseGradingService,
+            ProgrammingExerciseTestCaseChangedService programmingExerciseTestCaseChangedService, ParticipationVCSAccessTokenRepository participationVCSAccessTokenRepository,
+            RepositoryVCSAccessTokenRepository repositoryVCSAccessTokenRepository, Optional<VcsAccessLogService> vcsAccessLogService,
+            AuthorizationCheckService authorizationCheckService, RateLimitService rateLimitService, ExerciseVersionService exerciseVersionService,
+            UserVcsAccessTokenService userVcsAccessTokenService, Optional<DistributedDataAccessService> distributedDataAccessService,
             Optional<BuildAgentAddressRegistryService> buildAgentAddressRegistryService, Optional<BuildJobCloneTokenService> buildJobCloneTokenService,
             BuildAgentNetworkPolicy buildAgentNetworkPolicy, MailSendingService mailSendingService, DistributedDataProvider distributedDataProvider) {
         this.authenticationManager = authenticationManager;
@@ -226,7 +222,6 @@ public class LocalVCServletService {
         this.programmingExerciseRepository = programmingExerciseRepository;
         this.repositoryAccessService = repositoryAccessService;
         this.programmingExerciseParticipationService = programmingExerciseParticipationService;
-        this.milestoneEffortGateService = milestoneEffortGateService;
         this.auxiliaryRepositoryService = auxiliaryRepositoryService;
         this.ciTriggerService = ciTriggerService;
         this.programmingSubmissionService = programmingSubmissionService;
@@ -1398,35 +1393,6 @@ public class LocalVCServletService {
 
         log.debug("New push processed to repository {} for commit {} in {}. A build job was queued.", localVCRepositoryUri.getURI(), commitHash,
                 TimeLogUtil.formatDurationFrom(timeNanoStart));
-    }
-
-    /**
-     * Whether the milestone effort gate refuses this write, and why - i.e. whether a user story the participant has
-     * started still has no tasks on its board.
-     * <p>
-     * Lives here because the resolution from an on-disk repository to its exercise and participation does; the decision
-     * itself is {@link MilestoneEffortGateService}'s. Called from {@link LocalVCPrePushHook} for git pushes; the online
-     * code editor consults the gate service directly, since it already knows the participation.
-     *
-     * @param repository the repository being written to
-     * @param user       the user performing the write
-     * @return the message to reject the push with, or empty when nothing blocks it
-     */
-    public Optional<String> findMilestoneEffortRejectionReason(Repository repository, User user) {
-        try {
-            LocalVCRepositoryUri localVCRepositoryUri = getLocalVCRepositoryUri(repository.getDirectory().toPath());
-            ProgrammingExercise exercise = getProgrammingExercise(localVCRepositoryUri.getProjectKey());
-            ProgrammingExerciseParticipation participation = programmingExerciseParticipationService
-                    .fetchParticipationByRepository(localVCRepositoryUri.getRepositoryTypeOrUserName(), localVCRepositoryUri.toString(), exercise);
-            List<String> blockingStoryTitles = milestoneEffortGateService.findStoriesBlockingWrite(exercise, participation, user);
-            return blockingStoryTitles.isEmpty() ? Optional.empty() : Optional.of(milestoneEffortGateService.buildRejectionMessage(blockingStoryTitles));
-        }
-        catch (Exception e) {
-            // Fail open, for the same reason the gate service does: a repository that cannot be resolved here (a
-            // template, solution or test repository, say) must not have its pushes refused.
-            log.debug("Could not evaluate the milestone task gate for a push by {}; allowing the push", user.getLogin(), e);
-            return Optional.empty();
-        }
     }
 
     private ProgrammingExerciseParticipation retrieveSolutionParticipation(ProgrammingExercise exercise) {
