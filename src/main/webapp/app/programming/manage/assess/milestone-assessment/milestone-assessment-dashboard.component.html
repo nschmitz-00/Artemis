@@ -1,0 +1,53 @@
+<ng-template titleBarTitle>
+    <span jhiTranslate="artemisApp.milestoneAssessment.dashboard.title"></span>
+</ng-template>
+
+@if (students().length) {
+    <div class="milestone-dashboard__scroll">
+        <table tumUiTable size="small">
+            <thead>
+                <tr>
+                    <th jhiTranslate="artemisApp.milestoneAssessment.dashboard.student"></th>
+                    @for (exercise of exerciseColumns(); track exercise.exerciseId) {
+                        <th>{{ exercise.title }}</th>
+                    }
+                    <th jhiTranslate="artemisApp.milestoneAssessment.dashboard.progress"></th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (student of students(); track student.studentLogin) {
+                    <tr>
+                        <td>
+                            <span class="font-semibold">{{ student.studentName || student.studentLogin }}</span>
+                            <span class="milestone-dashboard__login">{{ student.studentLogin }}</span>
+                        </td>
+                        @for (exercise of student.exercises; track exercise.exerciseId) {
+                            <td>
+                                @if (!exercise.submissionId) {
+                                    <span class="milestone-dashboard__muted" jhiTranslate="artemisApp.milestoneAssessment.dashboard.notStarted"></span>
+                                } @else if (exercise.exerciseType === QUIZ) {
+                                    <!-- Graded automatically, so there is no assessor and nothing left for a tutor to do. -->
+                                    @if (exercise.latestScore !== undefined) {
+                                        <span>{{ exercise.latestScore | number: '1.0-1' }}%</span>
+                                    }
+                                } @else if (exercise.assessed) {
+                                    <span class="text-state-success">{{ exercise.latestScore | number: '1.0-1' }}%</span>
+                                    <span class="milestone-dashboard__muted">{{ exercise.assessorLogin }}</span>
+                                } @else {
+                                    <span class="text-state-warning" jhiTranslate="artemisApp.milestoneAssessment.dashboard.unassessed"></span>
+                                }
+                            </td>
+                        }
+                        <td class="whitespace-nowrap">{{ assessedCount(student) }} / {{ manuallyAssessable(student).length }}</td>
+                        <td>
+                            <a class="btn btn-primary btn-sm" [routerLink]="assessmentLink(student)" jhiTranslate="artemisApp.milestoneAssessment.dashboard.assess"></a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+} @else if (!isLoading()) {
+    <p class="milestone-dashboard__muted" jhiTranslate="artemisApp.milestoneAssessment.dashboard.noStudents"></p>
+}

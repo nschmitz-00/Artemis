@@ -3,7 +3,7 @@ import { SafeHtml } from '@angular/platform-browser';
 import { UMLDiagramType, UMLModel, importDiagram } from '@tumaet/apollon';
 import { SecureLinkDirective } from 'app/assessment/manage/secure-link.directive';
 import { StructuredGradingInstructionsAssessmentLayoutComponent } from 'app/assessment/manage/structured-grading-instructions-assessment-layout/structured-grading-instructions-assessment-layout.component';
-import { Exercise, ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { Exercise, ExerciseType, isProgrammingExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { ProgrammingExerciseStudentParticipation } from 'app/exercise/shared/entities/participation/programming-exercise-student-participation.model';
 import { GradingCriterion } from 'app/exercise/structured-grading-criterion/grading-criterion.model';
 import { FileUploadExercise } from 'app/fileupload/shared/entities/file-upload-exercise.model';
@@ -73,7 +73,9 @@ export class AssessmentInstructionsComponent {
 
     readonly programmingExercise = computed<ProgrammingExercise | undefined>(() => {
         const exercise = this.exercise();
-        return exercise.type === ExerciseType.PROGRAMMING ? exercise : undefined;
+        // A user story or milestone serializes under its own discriminator but is a programming exercise all the same, so
+        // it needs the programming instructions renderer too - task syntax, test status and the step wizard.
+        return isProgrammingExerciseType(exercise.type) ? exercise : undefined;
     });
 
     readonly sampleSolutionModel = computed<UMLModel | undefined>(() => {

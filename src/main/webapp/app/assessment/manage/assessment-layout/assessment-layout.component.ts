@@ -30,6 +30,8 @@ export class AssessmentLayoutComponent {
     readonly submitBusy = input<boolean>(false);
     readonly cancelBusy = input<boolean>(false);
     readonly nextSubmissionBusy = input<boolean>(false);
+    readonly hasNextSubmission = input(true);
+    readonly nextSubmissionLabel = input('artemisApp.assessment.button.nextSubmission');
     readonly correctionRound = input<number>(0);
 
     readonly isTeamMode = input.required<boolean>();

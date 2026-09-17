@@ -849,6 +849,30 @@ public interface StudentParticipationRepository extends ArtemisJpaRepository<Stu
     Set<StudentParticipation> findAllWithEagerSubmissionsAndEagerResultsAndEagerAssessorByExerciseIdIgnoreTestRuns(@Param("exerciseId") long exerciseId);
 
     /**
+     * Like {@link #findAllWithEagerSubmissionsAndEagerResultsAndEagerAssessorByExerciseIdIgnoreTestRuns(long)}, narrowed to
+     * one student - what the milestone assessment page needs, which only ever renders a single student's tabs. Works for
+     * every exercise type, since each type's participation is a {@code StudentParticipation}.
+     * <p>
+     * Returns a list rather than an {@code Optional} because the fetch joins multiply the rows; a student has at most one
+     * real participation per exercise, so the caller takes the first.
+     *
+     * @param exerciseId the id of the exercise
+     * @param login      the student's login
+     * @return the student's participation with its submissions, their results and the assessors, or empty
+     */
+    @Query("""
+            SELECT DISTINCT p
+            FROM StudentParticipation p
+                LEFT JOIN FETCH p.submissions s
+                LEFT JOIN FETCH s.results r
+                LEFT JOIN FETCH r.assessor
+            WHERE p.exercise.id = :exerciseId
+                AND p.student.login = :login
+                AND p.testRun = FALSE
+            """)
+    List<StudentParticipation> findWithSubmissionsResultsAndAssessorByExerciseIdAndStudentLogin(@Param("exerciseId") long exerciseId, @Param("login") String login);
+
+    /**
      * Find the participation with the given id. Additionally, load the latest submissions and corresponding results from the database.
      * Further, load the exercise and its course. Returns an empty Optional if the participation could not be found.
      *

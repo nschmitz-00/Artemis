@@ -16,13 +16,15 @@ import { LockRepositoryPolicy, SubmissionPolicy } from 'app/exercise/shared/enti
 import { SubmissionType } from 'app/exercise/shared/entities/submission/submission.model';
 import { ProgrammingSubmission } from 'app/programming/shared/entities/programming-submission.model';
 import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { MockActivatedRoute } from 'test/helpers/mocks/activated-route/mock-activated-route';
 import { ActivatedRoute } from '@angular/router';
 import { DialogService } from 'primeng/dynamicdialog';
 import { MockDialogService } from 'test/helpers/mocks/service/mock-dialog.service';
 import { of } from 'rxjs';
 import { UserStoryEffortService } from 'app/programming/shared/services/user-story-effort.service';
+import { UserStoryTaskService } from 'app/programming/shared/services/user-story-task.service';
+import { UserStoryTask } from 'app/exercise/shared/entities/participation/programming-exercise-student-participation.model';
 
 describe('ExerciseHeadersInformationComponent', () => {
     let component: ExerciseHeadersInformationComponent;
@@ -272,6 +274,35 @@ describe('ExerciseHeadersInformationComponent', () => {
         expect(titles).toContain('artemisApp.courseOverview.exerciseDetails.submissionDueOver');
     });
 
+    describe('milestone definition of done', () => {
+        const milestoneGroup = { id: 10, type: 'milestone', milestoneExerciseId: 99 };
+
+        function render(exercise: Partial<Exercise>, options: { participation?: boolean; interactive?: boolean } = {}) {
+            fixture = TestBed.createComponent(ExerciseHeadersInformationComponent);
+            component = fixture.componentInstance;
+            fixture.componentRef.setInput('exercise', { ...baseExercise, ...exercise } as Exercise);
+            fixture.componentRef.setInput('interactive', options.interactive ?? true);
+            if (options.participation ?? true) {
+                fixture.componentRef.setInput('studentParticipation', { id: 3 } as StudentParticipation);
+            }
+        }
+
+        it('is shown for a started user story of a milestone group', () => {
+            render({ type: ExerciseType.USER_STORY, exerciseVariantGroup: milestoneGroup } as Partial<Exercise>);
+            expect(component.showMilestoneDod()).toBe(true);
+        });
+
+        it.each([
+            ['a plain programming exercise', { type: ExerciseType.PROGRAMMING, exerciseVariantGroup: milestoneGroup }, {}],
+            ['a user story without a participation', { type: ExerciseType.USER_STORY, exerciseVariantGroup: milestoneGroup }, { participation: false }],
+            ['a read-only preview card', { type: ExerciseType.USER_STORY, exerciseVariantGroup: milestoneGroup }, { interactive: false }],
+            ['a user story outside a milestone group', { type: ExerciseType.USER_STORY, exerciseVariantGroup: { id: 10, type: 'variant' } }, {}],
+        ])('is not shown for %s', (_label, exercise, options) => {
+            render(exercise as Partial<Exercise>, options);
+            expect(component.showMilestoneDod()).toBe(false);
+        });
+    });
+
     describe('user story effort', () => {
         const userStory = {
             id: 7,
@@ -333,6 +364,26 @@ describe('ExerciseHeadersInformationComponent', () => {
             const effortItems = component.informationBoxItems().filter((item) => item.content.type === 'userStoryEffort');
             expect(effortItems[0].borderColor).toBeUndefined();
             expect(effortItems[1].borderColor).toBeUndefined();
+        });
+
+        it('should reload the effort when the task board changes elsewhere on the page', () => {
+            const effortService = TestBed.inject(UserStoryEffortService);
+            const getSpy = vi.spyOn(effortService, 'getEffort').mockReturnValue(of({ estimatedEffort: 2 }));
+
+            renderUserStory(true);
+            expect(getSpy).toHaveBeenCalledTimes(1);
+
+            // Simulates a task being created/edited/deleted in the Tasks tab, which bumps the board's shared version.
+            getSpy.mockReturnValue(of({ estimatedEffort: 5 }));
+            const taskService = TestBed.inject(UserStoryTaskService);
+            const httpMock = TestBed.inject(HttpTestingController);
+            taskService.createTask(7, {} as UserStoryTask).subscribe();
+            httpMock.expectOne({ method: 'POST' }).flush({});
+            fixture.detectChanges();
+
+            expect(getSpy).toHaveBeenCalledTimes(2);
+            const effortItems = component.informationBoxItems().filter((item) => item.content.type === 'userStoryEffort');
+            expect(effortItems[0].borderColor).toBeUndefined();
         });
     });
 

@@ -1,0 +1,20 @@
+@if (status() !== 'hidden') {
+    <jhi-information-box [informationBoxData]="infoBoxData()">
+        <span contentComponent class="d-flex align-items-center" data-testid="milestone-dod-status" [attr.data-status]="status()">
+            @switch (status()) {
+                @case ('failing') {
+                    <fa-icon class="text-state-danger" [icon]="faCircleXmark" />
+                }
+                @case ('deducting') {
+                    <fa-icon class="text-state-warning" [icon]="faTriangleExclamation" />
+                }
+                @case ('met') {
+                    <fa-icon class="text-state-success" [icon]="faCircleCheck" />
+                }
+                @default {
+                    <span class="text-body-secondary">–</span>
+                }
+            }
+        </span>
+    </jhi-information-box>
+}

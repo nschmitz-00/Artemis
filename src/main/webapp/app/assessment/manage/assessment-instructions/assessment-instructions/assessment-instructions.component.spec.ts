@@ -134,6 +134,19 @@ describe('AssessmentInstructionsComponent', () => {
         expect(comp.sampleSolutionExplanation()).toBeUndefined();
     });
 
+    it.each([ExerciseType.PROGRAMMING, ExerciseType.USER_STORY, ExerciseType.MILESTONE])(
+        'should render the programming instructions rather than plain markdown for a %s exercise',
+        (type) => {
+            const markdownSpy = vi.spyOn(markdownService, 'safeHtmlForMarkdown').mockReturnValue('sample text');
+            fixture.componentRef.setInput('exercise', { id: 1, type, problemStatement: '[task][Task](testA)' } as ProgrammingExercise);
+            fixture.detectChanges();
+
+            expect(comp.programmingExercise()).toBeDefined();
+            expect(fixture.nativeElement.querySelector('jhi-programming-exercise-instructions')).not.toBeNull();
+            expect(markdownSpy).not.toHaveBeenCalledWith('[task][Task](testA)');
+        },
+    );
+
     it('should convert the grading instructions to html', () => {
         const markdownSpy = vi.spyOn(markdownService, 'safeHtmlForMarkdown').mockReturnValue('converted');
         fixture.componentRef.setInput('exercise', { id: 1, type: ExerciseType.PROGRAMMING, gradingInstructions: '# Heading' } as ProgrammingExercise);

@@ -34,6 +34,12 @@
         white-space: nowrap;
     }
 
+    // Rendered as a tab's whole content rather than as a header box, so it gets the breathing room the dialog
+    // otherwise provided.
+    &__inline {
+        padding: 0.5rem 0;
+    }
+
     // Secondary prose: the semantic Artemis property rather than a Bootstrap `text-muted` class.
     &__hint {
         margin-bottom: 0;

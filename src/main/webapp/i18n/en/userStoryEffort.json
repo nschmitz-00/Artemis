@@ -4,8 +4,7 @@
             "title": "Effort",
             "estimatedEffortShort": "Estimated effort",
             "actualEffortShort": "Actual effort",
-            "notReported": "–",
-            "effortMissing": "Effort missing"
+            "notReported": "–"
         }
     }
 }

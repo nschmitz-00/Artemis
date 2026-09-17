@@ -299,6 +299,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
         more_feedback_requests: 'artemisApp.moreFeedback.list.title',
         instructor_dashboard: 'entity.action.instructorDashboard',
         assessment_dashboard: 'artemisApp.assessmentDashboard.home.title',
+        milestone_exercise_groups: 'artemisApp.exerciseVariantGroup.milestoneGroup',
         test_run_exercise_assessment_dashboard: 'artemisApp.exerciseAssessmentDashboard.home.title',
         iris: 'global.menu.admin.sidebar.iris',
         lti_configuration: 'global.menu.admin.sidebar.lti',

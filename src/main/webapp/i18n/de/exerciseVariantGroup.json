@@ -34,6 +34,15 @@
                         "issue": "Problem",
                         "penalty": "Punkte"
                     }
+                },
+                "dod": {
+                    "title": "DoD",
+                    "tooltip": {
+                        "noResult": "Definition of Done des Meilensteins: Es gibt noch kein Build-Ergebnis. Pushe deinen Code in das Meilenstein-Repository und schau dir die Meilenstein-Übersicht an.",
+                        "failing": "Tests der Definition of Done des Meilensteins schlagen fehl, daher wird der Meilenstein mit 0 Punkten bewertet. Die fehlschlagenden Aufgaben findest du in der Meilenstein-Übersicht.",
+                        "deducting": "Alle Tests der Definition of Done des Meilensteins sind erfolgreich, es wurden aber Code-Qualitätsprobleme gefunden, daher kann es zu Punktabzügen kommen. Details findest du in der Meilenstein-Übersicht.",
+                        "met": "Alle Tests der Definition of Done des Meilensteins sind erfolgreich und es wurden keine Punktabzüge wegen Code-Qualität gefunden."
+                    }
                 }
             },
             "edit": "Gruppe bearbeiten",
@@ -51,6 +60,30 @@
             "deleteDialog": {
                 "question": "Soll die Gruppe <strong>{{ title }}</strong> wirklich gelöscht werden? Die Aufgaben in dieser Gruppe werden <strong>nicht</strong> gelöscht, sondern nur aus der Gruppe entfernt.",
                 "typeNameToConfirm": "Bitte gib den Namen der Gruppe zur Bestätigung ein."
+            }
+        },
+        "milestoneAssessment": {
+            "title": "Meilenstein-Bewertung",
+            "assessingFor": "Bewertung von {{ student }}",
+            "nextExercise": "Nächste Aufgabe bewerten",
+            "overviewTab": "Meilenstein",
+            "exerciseNotStarted": "Diese:r Studierende hat diese Aufgabe nicht begonnen, es gibt also nichts zu bewerten.",
+            "quizAutomatic": "Quizze werden automatisch bewertet, es gibt also nichts manuell zu bewerten.",
+            "loadFailed": "Die Meilenstein-Bewertung konnte nicht geladen werden.",
+            "overview": {
+                "problemStatement": "Aufgabenstellung",
+                "noProblemStatement": "Der Meilenstein hat keine Aufgabenstellung.",
+                "codeQuality": "Codequalität",
+                "codeQualityDisabled": "Die statische Code-Analyse ist für diesen Meilenstein deaktiviert."
+            },
+            "dashboard": {
+                "title": "Meilenstein-Bewertungsdashboard",
+                "student": "Studierende:r",
+                "progress": "Bewertet",
+                "assess": "Bewerten",
+                "notStarted": "Nicht begonnen",
+                "unassessed": "Nicht bewertet",
+                "noStudents": "Noch hat kein:e Studierende:r diesen Meilenstein begonnen."
             }
         }
     }

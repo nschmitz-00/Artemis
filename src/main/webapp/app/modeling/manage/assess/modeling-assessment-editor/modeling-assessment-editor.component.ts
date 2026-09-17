@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Location } from '@angular/common';
 import { UnreferencedFeedbackComponent } from 'app/exercise/unreferenced-feedback/unreferenced-feedback.component';
 import { firstValueFrom } from 'rxjs';
@@ -149,10 +149,50 @@ export class ModelingAssessmentEditorComponent implements OnInit {
 
     private cancelConfirmationText!: string;
 
+    /** Whether the tutor changed feedback that is not saved yet, so an embedding host can ask before tearing this down. */
+    hasPendingChanges = false;
+
+    /** Records a feedback edit by the tutor. Called from the template, which is the only place such an edit starts. */
+    markPendingChanges(): void {
+        this.hasPendingChanges = true;
+    }
+
+    /**
+     * Replaces "assess next" entirely for a host that decides for itself what comes next. It runs before anything is
+     * fetched, so no other student's submission is locked.
+     */
+    readonly overrideNextSubmission = input<() => void>();
+    /** Lets a host with an override hide the "assess next" button once there is nothing left to move on to. */
+    readonly hasNextSubmission = input(true);
+    readonly nextSubmissionLabel = input('artemisApp.assessment.button.nextSubmission');
+
+    /**
+     * Identity supplied by a host rather than by the URL, for a page that embeds this component instead of routing to
+     * it - the milestone assessment page renders one per modeling exercise tab. Supplying {@link hostSubmissionId}
+     * switches it into embedded mode; without it nothing changes for the routed usage.
+     */
+    readonly hostCourseId = input<number | undefined>(undefined);
+    readonly hostExerciseId = input<number | undefined>(undefined);
+    readonly hostSubmissionId = input<number | undefined>(undefined);
+
+    /** Whether a host drives this component instead of the router; the injected route is then the host's. */
+    private readonly isEmbedded = computed<boolean>(() => this.hostSubmissionId() !== undefined);
+
     constructor() {
         const translateService = this.translateService;
 
         translateService.get('artemisApp.modelingAssessmentEditor.messages.confirmCancel').subscribe((text) => (this.cancelConfirmationText = text));
+
+        // Embedded, the host drives the load; registered here so it exists exactly once however often ngOnInit runs.
+        effect(() => {
+            const submissionId = this.hostSubmissionId();
+            const courseId = this.hostCourseId();
+            const exerciseId = this.hostExerciseId();
+            if (submissionId === undefined || courseId === undefined || exerciseId === undefined) {
+                return;
+            }
+            untracked(() => this.loadAssessment(courseId, exerciseId, String(submissionId)));
+        });
     }
 
     private get feedback(): Feedback[] {
@@ -195,6 +235,11 @@ export class ModelingAssessmentEditorComponent implements OnInit {
             this.userId = user!.id!;
         });
 
+        if (this.isEmbedded()) {
+            // The host drives the load through the effect in the constructor; the injected route is the host page's, so
+            // subscribing to it here would load whatever its parameters happen to say.
+            return;
+        }
         this.route.queryParamMap.subscribe((queryParams) => {
             this.isTestRun.set(queryParams.get('testRun') === 'true');
             // The URL decides the round, and an unusable value means the first one; see parseCorrectionRound for why
@@ -202,25 +247,33 @@ export class ModelingAssessmentEditorComponent implements OnInit {
             this.correctionRoundFromUrl = parseCorrectionRound(queryParams.get('correction-round'));
         });
         this.route.paramMap.subscribe((params) => {
-            this.assessmentNotPossibleYet.set(undefined);
-            this.courseId = Number(params.get('courseId'));
-            this.exerciseId = Number(params.get('exerciseId'));
             if (params.has('examId')) {
                 this.examId = Number(params.get('examId'));
                 this.exerciseGroupId = Number(params.get('exerciseGroupId'));
             }
-
-            this.exerciseDashboardLink.set(getExerciseDashboardLink(this.courseId, this.exerciseId, this.examId, this.isTestRun()));
-
-            const submissionId = params.get('submissionId');
             this.resultId.set(Number(params.get('resultId')) || 0);
-            this.correctionRound.set(this.correctionRoundFromUrl);
-            if (submissionId === 'new') {
-                this.loadRandomSubmission(this.exerciseId);
-            } else {
-                this.loadSubmission(Number(submissionId));
-            }
+            this.loadAssessment(Number(params.get('courseId')), Number(params.get('exerciseId')), params.get('submissionId')!);
         });
+    }
+
+    /**
+     * Loads one submission for assessment, or a random unassessed one for {@code 'new'}.
+     * <p>
+     * Extracted from the route subscription so a host can drive it directly with the ids the URL otherwise supplies.
+     */
+    private loadAssessment(courseId: number, exerciseId: number, submissionId: string): void {
+        this.assessmentNotPossibleYet.set(undefined);
+        this.hasPendingChanges = false;
+        this.courseId = courseId;
+        this.exerciseId = exerciseId;
+        this.exerciseDashboardLink.set(getExerciseDashboardLink(this.courseId, this.exerciseId, this.examId, this.isTestRun()));
+
+        this.correctionRound.set(this.correctionRoundFromUrl);
+        if (submissionId === 'new') {
+            this.loadRandomSubmission(this.exerciseId);
+        } else {
+            this.loadSubmission(Number(submissionId));
+        }
     }
 
     private async loadFeedbackSuggestions(exercise: ModelingExercise, submission: Submission): Promise<Feedback[]> {
@@ -467,6 +520,7 @@ export class ModelingAssessmentEditorComponent implements OnInit {
             next: (result: Result) => {
                 this.result.set(result);
                 this.handleFeedback(this.result()!.feedbacks);
+                this.hasPendingChanges = false;
                 this.alertService.closeAll();
                 this.alertService.success('artemisApp.modelingAssessmentEditor.messages.saveSuccessful');
             },
@@ -511,6 +565,7 @@ export class ModelingAssessmentEditorComponent implements OnInit {
         this.modelingAssessmentService.saveAssessment(this.result()!.id!, this.feedback, this.submission()!.id!, this.result()!.assessmentNote?.note, true).subscribe({
             next: (result: Result) => {
                 this.result.set(result);
+                this.hasPendingChanges = false;
 
                 this.alertService.closeAll();
                 this.alertService.success('artemisApp.modelingAssessmentEditor.messages.submitSuccessful');
@@ -566,16 +621,26 @@ export class ModelingAssessmentEditorComponent implements OnInit {
         const confirmCancel = window.confirm(this.cancelConfirmationText);
         if (confirmCancel) {
             this.modelingAssessmentService.cancelAssessment(this.submission()!.id!, this.result()?.id).subscribe(() => {
+                this.hasPendingChanges = false;
                 this.navigateBack();
             });
         }
     }
 
     onFeedbackChanged(feedback: Feedback[]) {
+        // The first change is the editor reporting the feedback it was loaded with, not an edit by the tutor.
+        if (this.isApollonModelLoaded) {
+            this.hasPendingChanges = true;
+        }
         this.updateApollonEditorWithFeedback(feedback);
     }
 
     assessNext() {
+        const overrideNextSubmission = this.overrideNextSubmission();
+        if (overrideNextSubmission) {
+            overrideNextSubmission();
+            return;
+        }
         this.isLoading.set(true);
         this.nextSubmissionBusy.set(true);
         this.modelingSubmissionService.getSubmissionWithoutAssessment(this.modelingExercise()!.id!, true, this.correctionRound()).subscribe({

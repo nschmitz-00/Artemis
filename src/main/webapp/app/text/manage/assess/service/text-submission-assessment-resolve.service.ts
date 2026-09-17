@@ -39,7 +39,7 @@ export interface TextAssessmentRouteData {
  * @param correctionRound the round the failed load was for
  * @returns the resolved route data for that error
  */
-function routeDataForError(error: HttpErrorResponse, correctionRound: number): Observable<TextAssessmentRouteData> {
+export function routeDataForError(error: HttpErrorResponse, correctionRound: number): Observable<TextAssessmentRouteData> {
     return of({ assessmentNotPossibleYet: getAssessmentNotPossibleYetState(error), correctionRound });
 }
 

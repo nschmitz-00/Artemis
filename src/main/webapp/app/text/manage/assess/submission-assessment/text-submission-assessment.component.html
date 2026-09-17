@@ -17,6 +17,8 @@
     [exerciseDashboardLink]="exerciseDashboardLink()"
     [hasAssessmentDueDatePassed]="hasAssessmentDueDatePassed()"
     [correctionRound]="correctionRound()"
+    [hasNextSubmission]="hasNextSubmission()"
+    [nextSubmissionLabel]="nextSubmissionLabel()"
     (save)="save()"
     (onSubmit)="submit()"
     (onCancel)="cancel()"
@@ -45,8 +47,8 @@
                     [(textBlockRefs)]="textBlockRefs"
                     [readOnly]="readOnly"
                     [highlightDifferences]="highlightDifferences()"
-                    (textBlockRefsChange)="validateFeedback()"
-                    (textBlockRefsAddedRemoved)="recalculateTextBlockRefs()"
+                    (textBlockRefsChange)="validateFeedback(); markPendingChanges()"
+                    (textBlockRefsAddedRemoved)="recalculateTextBlockRefs(); markPendingChanges()"
                     [criteria]="exercise!.gradingCriteria"
                 />
                 <!--endregion-->
@@ -64,7 +66,7 @@
                     [feedbacks]="unreferencedFeedback()"
                     (feedbacksChange)="unreferencedFeedback.set($event)"
                     [highlightDifferences]="highlightDifferences()"
-                    (feedbacksChange)="validateFeedback($event)"
+                    (feedbacksChange)="validateFeedback($event); markPendingChanges()"
                     [readOnly]="readOnly"
                     [useDefaultFeedbackSuggestionBadgeText]="true"
                     [resultId]="result()!.id!"

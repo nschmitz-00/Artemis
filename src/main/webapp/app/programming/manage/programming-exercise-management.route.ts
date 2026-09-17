@@ -67,6 +67,27 @@ export const routes: Routes = [
         children: repositorySubRoutes,
     },
     {
+        // Keyed on the group id, not on the anchor exercise id the sibling milestone routes use: both endpoints behind
+        // this page address the group, and neither page ever loads the anchor as an exercise.
+        path: 'milestone-exercise-groups/:groupId/assessment-dashboard',
+        loadComponent: () =>
+            import('app/programming/manage/assess/milestone-assessment/milestone-assessment-dashboard.component').then((m) => m.MilestoneAssessmentDashboardComponent),
+        data: {
+            authorities: IS_AT_LEAST_TUTOR,
+            pageTitle: 'artemisApp.milestoneAssessment.dashboard.title',
+        },
+        canActivate: [UserRouteAccessService],
+    },
+    {
+        path: 'milestone-exercise-groups/:groupId/assessment/:studentLogin',
+        loadComponent: () => import('app/programming/manage/assess/milestone-assessment/milestone-assessment.component').then((m) => m.MilestoneAssessmentComponent),
+        data: {
+            authorities: IS_AT_LEAST_TUTOR,
+            pageTitle: 'artemisApp.milestoneAssessment.title',
+        },
+        canActivate: [UserRouteAccessService],
+    },
+    {
         // UserStory create reuses the same programming-exercise update page as a normal exercise (see
         // ProgrammingExerciseUpdateComponent.isUserStoryMode), minus everything the milestone group already owns
         // (language, package, build config, static code analysis, timeline, ...) - only title/short name/categories/

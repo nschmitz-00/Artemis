@@ -237,6 +237,12 @@
                                         <fa-icon [icon]="faEye" />
                                         <span class="ms-1" jhiTranslate="artemisApp.exerciseVariantGroup.milestoneDetail.action"></span>
                                     </tum-ui-button>
+                                    <!-- Grading a milestone is organised by student rather than by submission, so it gets its own
+                                         dashboard instead of the per-exercise one each user story would otherwise send a tutor to. -->
+                                    <tum-ui-button severity="secondary" variant="outlined" size="small" (clicked)="openMilestoneAssessmentDashboard(card.group)">
+                                        <fa-icon [icon]="faListCheck" />
+                                        <span class="ms-1" jhiTranslate="artemisApp.milestoneAssessment.dashboard.title"></span>
+                                    </tum-ui-button>
                                     <tum-ui-button
                                         severity="warn"
                                         variant="outlined"

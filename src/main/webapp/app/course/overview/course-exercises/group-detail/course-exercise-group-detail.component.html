@@ -110,7 +110,15 @@
         <div class="d-flex flex-column h-100 overflow-hidden module-bg rounded-3 p-2">
             <div class="group-panel-scroll">
                 <div class="variant-callout rounded-3 p-3 mb-3">
-                    @if (milestoneDescriptionHtml(); as descriptionHtml) {
+                    @if (milestoneInstructionsExercise(); as milestoneInstructionsExercise) {
+                        <!-- Tasks can only show their tests' outcome against a participation, so the full renderer takes over
+                             once the milestone is started; until then the statement is shown with its task syntax stripped. -->
+                        <jhi-programming-exercise-instructions
+                            [exercise]="milestoneInstructionsExercise"
+                            [participation]="milestoneParticipation()"
+                            [personalParticipation]="true"
+                        />
+                    } @else if (milestoneDescriptionHtml(); as descriptionHtml) {
                         <div class="markdown-preview" [innerHTML]="descriptionHtml"></div>
                     } @else {
                         <div class="fw-semibold mb-1" jhiTranslate="artemisApp.exerciseVariantGroup.detail.callout.heading"></div>

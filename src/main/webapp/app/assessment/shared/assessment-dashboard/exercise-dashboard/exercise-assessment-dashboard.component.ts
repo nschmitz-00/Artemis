@@ -34,7 +34,7 @@ import { ProgrammingExercise } from 'app/programming/shared/entities/programming
 import { RepositoryType } from 'app/programming/shared/code-editor/model/code-editor.model';
 import { ProgrammingSubmissionService } from 'app/programming/shared/services/programming-submission.service';
 import { AccountService } from 'app/core/auth/account.service';
-import { Exercise, ExerciseType, getCourseFromExercise } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { Exercise, ExerciseType, baseExerciseType, getCourseFromExercise } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { TutorParticipation, TutorParticipationDTO, TutorParticipationStatus } from 'app/exercise/shared/entities/participation/tutor-participation.model';
 import { ExerciseService } from 'app/exercise/services/exercise.service';
 import { DueDateStat } from 'app/assessment/shared/assessment-dashboard/due-date-stat.model';
@@ -207,6 +207,11 @@ export class ExerciseAssessmentDashboardComponent implements OnInit, OnDestroy {
     reverseOrders = [true, false, false];
 
     readonly ExerciseType = ExerciseType;
+    /**
+     * What the exercise behaves like, so the template's programming branches also cover a user story and a milestone -
+     * both serialize under their own discriminator and would otherwise fall through every `=== PROGRAMMING` check.
+     */
+    protected readonly exerciseBaseType = computed<ExerciseType | undefined>(() => baseExerciseType(this.exercise()?.type));
     protected readonly RepositoryType = RepositoryType;
 
     // Mutated in place only within the getForTutors subscribe (alongside exercise.set()), so it renders on that signal's CD tick.
@@ -389,7 +394,7 @@ export class ExerciseAssessmentDashboardComponent implements OnInit, OnDestroy {
                 this.formattedGradingInstructions.set(this.artemisMarkdown.safeHtmlForMarkdown(exercise.gradingInstructions));
                 this.formattedProblemStatement.set(this.artemisMarkdown.safeHtmlForMarkdown(exercise.problemStatement));
 
-                switch (exercise.type) {
+                switch (baseExerciseType(exercise.type)) {
                     case ExerciseType.TEXT:
                         const textExercise = exercise as TextExercise;
                         this.formattedSampleSolution.set(this.artemisMarkdown.safeHtmlForMarkdown(textExercise.exampleSolution));
@@ -622,7 +627,7 @@ export class ExerciseAssessmentDashboardComponent implements OnInit, OnDestroy {
             submissionsObservable = this.submissionService.getTestRunSubmissionsForExercise(this.exerciseId());
         } else {
             // TODO: This could be one generic endpoint.
-            switch (this.exercise().type) {
+            switch (baseExerciseType(this.exercise().type)) {
                 case ExerciseType.TEXT:
                     submissionsObservable = this.textSubmissionService.getSubmissions(this.exerciseId(), { assessedByTutor: true }, correctionRound);
                     break;
@@ -705,7 +710,7 @@ export class ExerciseAssessmentDashboardComponent implements OnInit, OnDestroy {
      */
     private getSubmissionWithoutAssessmentForCorrectionRound(correctionRound: number): void {
         let submissionObservable: Observable<Submission | undefined> = of();
-        switch (this.exercise().type) {
+        switch (baseExerciseType(this.exercise().type)) {
             case ExerciseType.TEXT:
                 submissionObservable = this.textSubmissionService.getSubmissionWithoutAssessment(this.exerciseId(), 'head', correctionRound);
                 break;

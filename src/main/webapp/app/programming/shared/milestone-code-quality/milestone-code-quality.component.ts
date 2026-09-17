@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
+import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FaIconComponent } from '@fortawesome/angular-fontawesome';
 import { faCircleCheck, faCircleNotch, faCircleXmark, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { Feedback, STATIC_CODE_ANALYSIS_FEEDBACK_IDENTIFIER } from 'app/assessment/shared/entities/feedback.model';
@@ -10,6 +10,7 @@ import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pip
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
 import { InformationBox, InformationBoxComponent } from 'app/shared-ui/information-box/information-box.component';
 import { TumUiDialogComponent, TumUiTableDirective } from '@tumaet/ui-angular';
+import { parseScaIssue, scaFeedbackPenalty } from './milestone-code-quality.util';
 
 /** One static code analysis issue of the milestone's build, flattened for display. */
 interface CodeQualityIssue {
@@ -59,7 +60,7 @@ type CodeQualityStatus = 'building' | 'clean' | 'informational' | 'deducting';
     selector: 'jhi-milestone-code-quality',
     templateUrl: './milestone-code-quality.component.html',
     styleUrl: './milestone-code-quality.component.scss',
-    imports: [FaIconComponent, DecimalPipe, ArtemisTranslatePipe, TranslateDirective, InformationBoxComponent, TumUiDialogComponent, TumUiTableDirective],
+    imports: [FaIconComponent, DecimalPipe, NgTemplateOutlet, ArtemisTranslatePipe, TranslateDirective, InformationBoxComponent, TumUiDialogComponent, TumUiTableDirective],
     /* preserveWhitespaces: false is required here because the global tsconfig sets preserveWhitespaces: true,
      * which inserts whitespace text nodes that break [contentComponent] slot matching in jhi-information-box. */
     preserveWhitespaces: false,
@@ -74,6 +75,14 @@ export class MilestoneCodeQualityComponent {
     readonly isBuilding = input(false);
     /** Whether a build for the milestone's shared repository is queued but has not started yet. */
     readonly isQueued = input(false);
+    /**
+     * Renders the issue table directly instead of behind the information box that opens it in a dialog.
+     * <p>
+     * The student group page shows this among a row of header boxes, where the issue count is the whole point and the
+     * detail belongs in a dialog. The tutor assessment page gives it a tab of its own, where there is nothing to open
+     * and a trigger the tutor has to click first would only be in the way.
+     */
+    readonly inline = input(false);
 
     protected readonly faTriangleExclamation = faTriangleExclamation;
     protected readonly faCircleCheck = faCircleCheck;
@@ -170,31 +179,18 @@ export class MilestoneCodeQualityComponent {
     }
 
     /**
-     * Flattens one synthesized SCA feedback into a display row.
-     * <p>
-     * The detail text is a JSON `StaticCodeAnalysisIssue` the server writes, but it falls back to the plain message
-     * when the issue does not fit the column limit, so parsing it is not guaranteed to succeed - a single unreadable
-     * issue must not take the whole box down, and is shown with whatever the server did write.
+     * Flattens one synthesized SCA feedback into a display row. An issue whose detail text cannot be parsed (see
+     * {@link parseScaIssue}) is shown with whatever the server did write.
      */
     private toIssue(feedback: Feedback): CodeQualityIssue {
         const category = feedback.text!.substring(STATIC_CODE_ANALYSIS_FEEDBACK_IDENTIFIER.length);
-        let issue: StaticCodeAnalysisIssue | undefined;
-        if (feedback.detailText) {
-            try {
-                issue = StaticCodeAnalysisIssue.fromFeedback(feedback);
-            } catch {
-                issue = undefined;
-            }
-        }
-        // The same fallback the result dialog applies: the issue's own penalty when the server wrote one, otherwise the
-        // feedback's credits, which are negative for a deduction.
-        const penalty = issue?.penalty ?? -(feedback.credits ?? 0);
+        const issue = parseScaIssue(feedback);
         return {
             category,
             location: this.buildLocation(issue),
             rule: issue?.rule,
             message: issue?.message ?? feedback.detailText,
-            penalty: Math.max(0, penalty),
+            penalty: scaFeedbackPenalty(feedback, issue),
         };
     }
 

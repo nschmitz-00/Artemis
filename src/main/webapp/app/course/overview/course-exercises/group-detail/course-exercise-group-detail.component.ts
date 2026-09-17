@@ -46,7 +46,8 @@ import { Participation, getLatestSubmission } from 'app/exercise/shared/entities
 import { getLatestSubmissionResult } from 'app/exercise/shared/entities/submission/submission.model';
 import { ParticipationWebsocketService } from 'app/course/shared/services/participation-websocket.service';
 import { ProgrammingSubmissionService, ProgrammingSubmissionState } from 'app/programming/shared/services/programming-submission.service';
-import { MilestoneCodeQualityComponent } from './milestone-code-quality/milestone-code-quality.component';
+import { MilestoneCodeQualityComponent } from 'app/programming/shared/milestone-code-quality/milestone-code-quality.component';
+import { ProgrammingExerciseInstructionComponent } from 'app/programming/shared/instructions-render/programming-exercise-instruction.component';
 import { NgbDropdown, NgbDropdownItem, NgbDropdownMenu, NgbDropdownToggle } from '@ng-bootstrap/ng-bootstrap';
 
 @Component({
@@ -71,6 +72,7 @@ import { NgbDropdown, NgbDropdownItem, NgbDropdownMenu, NgbDropdownToggle } from
         NgbDropdownMenu,
         NgbDropdownItem,
         MilestoneCodeQualityComponent,
+        ProgrammingExerciseInstructionComponent,
     ],
     /* preserveWhitespaces: false is required here because the global tsconfig sets preserveWhitespaces: true,
      * which inserts whitespace text nodes that break [contentComponent] slot matching in jhi-information-box. */
@@ -125,7 +127,7 @@ export class CourseExerciseGroupDetailComponent {
      * place the group's static code analysis feedback lives (see `MilestoneCodeQualityComponent`). Undefined until the
      * milestone has been started and the request has come back.
      */
-    private readonly milestoneParticipation = signal<ProgrammingExerciseStudentParticipation | undefined>(undefined);
+    protected readonly milestoneParticipation = signal<ProgrammingExerciseStudentParticipation | undefined>(undefined);
 
     /**
      * The most recent milestone result pushed over the websocket, which supersedes the one the participation request
@@ -246,7 +248,27 @@ export class CourseExerciseGroupDetailComponent {
     });
 
     /**
-     * The milestone group's description, which is its anchor MilestoneExercise's problem statement. The milestone itself
+     * The milestone as the instructions renderer needs it once the student has started it: the participation's exercise,
+     * carrying the problem statement from the milestone-status request. That request is the documented source of the
+     * statement (the milestone itself is never sent to students), so it is set explicitly rather than trusting the
+     * participation's nested exercise to carry it.
+     * <p>
+     * Rendered through `ProgrammingExerciseInstructionComponent`, the milestone's `[task]` entries show the tests they
+     * reference together with their outcome in the student's latest milestone build - the milestone owns the group's
+     * full test suite, so its own result is where those outcomes live.
+     */
+    protected readonly milestoneInstructionsExercise = computed<ProgrammingExercise | undefined>(() => {
+        const exercise = this.milestoneExercise();
+        const problemStatement = this.milestoneStatus()?.problemStatement;
+        if (!exercise || !problemStatement) {
+            return undefined;
+        }
+        return cloneWith(exercise, { problemStatement });
+    });
+
+    /**
+     * The milestone group's description, which is its anchor MilestoneExercise's problem statement, as shown before the
+     * student has started the milestone (see {@link milestoneInstructionsExercise} for afterwards). The milestone itself
      * is never rendered to students, so it arrives via the milestone-status request the view already makes rather than
      * with the dashboard payload — the callout therefore falls back to the generic heading until that resolves.
      *

@@ -74,5 +74,8 @@
                 </jhi-information-box>
             }
         }
+        @if (showMilestoneDod()) {
+            <jhi-milestone-dod-status [exercise]="exercise()" />
+        }
     </div>
 }

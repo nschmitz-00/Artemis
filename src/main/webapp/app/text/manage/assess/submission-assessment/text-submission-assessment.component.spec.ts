@@ -552,6 +552,34 @@ describe('TextSubmissionAssessmentComponent', () => {
         expect(routerSpy).toHaveBeenCalledWith(url, queryParams);
     });
 
+    describe('embedded in a host page', () => {
+        it('loads the submission the host names itself, since no resolver runs for it', async () => {
+            const loadSpy = vi.spyOn(textAssessmentService, 'getFeedbackDataForExerciseSubmission').mockReturnValue(of(participation));
+
+            fixture.componentRef.setInput('hostCourseId', 123);
+            fixture.componentRef.setInput('hostExerciseId', 1);
+            fixture.componentRef.setInput('hostSubmissionId', 555);
+            fixture.detectChanges();
+            await fixture.whenStable();
+
+            expect(loadSpy).toHaveBeenCalledExactlyOnceWith(555, 0);
+            expect(component.participation).toBe(participation);
+            expect(component.exerciseId).toBe(1);
+            expect(component.hasPendingChanges).toBe(false);
+        });
+
+        it('hands "assess next" to the host without navigating to another submission', async () => {
+            const override = vi.fn();
+            fixture.componentRef.setInput('overrideNextSubmission', override);
+            const navigateSpy = vi.spyOn(router, 'navigate');
+
+            await component.nextSubmission();
+
+            expect(override).toHaveBeenCalledOnce();
+            expect(navigateSpy).not.toHaveBeenCalled();
+        });
+    });
+
     it('should always let instructors override', () => {
         component.exercise!.isAtLeastInstructor = true;
         expect(component.canOverride).toBe(true);

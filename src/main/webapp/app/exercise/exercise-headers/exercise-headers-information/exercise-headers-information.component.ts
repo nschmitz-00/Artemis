@@ -28,8 +28,10 @@ import { ResultHistoryDropdownComponent } from './result-history-dropdown/result
 import { NgbTooltip } from '@ng-bootstrap/ng-bootstrap';
 import { DEFAULT_ATHENA_FEEDBACK_REQUEST_LIMIT } from 'app/course/overview/exercise-details/request-feedback-button/request-feedback-button.component';
 import { UserStoryEffortService } from 'app/programming/shared/services/user-story-effort.service';
+import { UserStoryTaskService } from 'app/programming/shared/services/user-story-task.service';
 import { UserStoryEffort } from 'app/exercise/shared/entities/participation/programming-exercise-student-participation.model';
 import { UserStoryEffortFieldComponent } from 'app/programming/overview/user-story-effort/user-story-effort-field.component';
+import { MilestoneDodStatusComponent } from 'app/programming/shared/milestone-dod-status/milestone-dod-status.component';
 
 /**
  * Live, quiz-specific information shown in the exercise header during a live or practice quiz participation,
@@ -77,6 +79,7 @@ export function quizLiveHeaderInfoEqual(a: QuizLiveHeaderInfo | undefined, b: Qu
         SubmissionResultStatusComponent,
         InformationBoxComponent,
         UserStoryEffortFieldComponent,
+        MilestoneDodStatusComponent,
         DifficultyLevelComponent,
         ExerciseCategoriesComponent,
         ArtemisDatePipe,
@@ -95,6 +98,7 @@ export class ExerciseHeadersInformationComponent {
     private readonly destroyRef = inject(DestroyRef);
     private sortService = inject(SortService);
     private readonly userStoryEffortService = inject(UserStoryEffortService);
+    private readonly userStoryTaskService = inject(UserStoryTaskService);
     private serverDateService = inject(ArtemisServerDateService);
 
     /** Captured once: the server time used as the reference point for all relative/absolute date displays. */
@@ -165,6 +169,22 @@ export class ExerciseHeadersInformationComponent {
     });
 
     /**
+     * Whether to show the milestone's Definition of Done box: only on the page of a started user story in a milestone
+     * group. Read-only previews ({@link interactive} false) - the variant cards of the milestone group page - skip it,
+     * since every card would otherwise request the same milestone standing and repeat a box that page already covers.
+     */
+    readonly showMilestoneDod = computed<boolean>(() => {
+        const exercise = this.exercise();
+        return (
+            exercise.type === ExerciseType.USER_STORY &&
+            this.interactive() &&
+            this.studentParticipation()?.id !== undefined &&
+            exercise.exerciseVariantGroup?.type === 'milestone' &&
+            exercise.exerciseVariantGroup.id !== undefined
+        );
+    });
+
+    /**
      * The effort the student reported for a user story, shown as two header boxes.
      *
      * Loaded here rather than per box so both share one request, and only once a participation exists: without one there
@@ -176,6 +196,9 @@ export class ExerciseHeadersInformationComponent {
         effect(() => {
             const exercise = this.exercise();
             const participationExists = this.studentParticipation()?.id !== undefined;
+            // Tracked on purpose: a task created/edited/deleted elsewhere on the page changes the sum this reloads,
+            // so the effect must rerun on every board change, not just when the exercise or participation changes.
+            this.userStoryTaskService.boardVersion();
             untracked(() => this.loadReportedEffort(exercise, participationExists));
         });
     }

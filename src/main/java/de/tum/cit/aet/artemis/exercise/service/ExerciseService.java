@@ -764,6 +764,23 @@ public class ExerciseService {
     }
 
     /**
+     * Gets a set of {@link CalendarEventDTO}s derived from every {@link MilestoneExerciseGroup} associated to the given courseId, one DTO per
+     * group per non-null date among release, start, due and assessment due date - the same derivation {@link #getCalendarEventDTOsFromNonQuizExercises}
+     * applies to plain exercises. A milestone group's own dates always come off its anchor {@link de.tum.cit.aet.artemis.programming.domain.MilestoneExercise}
+     * (see {@link MilestoneExerciseGroup}), and the milestone anchor itself never appears in {@link #getCalendarEventDTOsFromNonQuizExercises}'s result: it is
+     * excluded there the same way it is excluded from the student-facing exercise list, since the group is what students see, not the anchor.
+     *
+     * @param courseId      the ID of the course
+     * @param userIsStudent indicates whether the logged-in user is a student
+     * @param language      the language that will be used add context information to titles (e.g. the title of a release event will be prefixed with "Release: ")
+     * @return the set of results
+     */
+    public Set<CalendarEventDTO> getCalendarEventDTOsFromMilestoneGroups(long courseId, boolean userIsStudent, Language language) {
+        Set<NonQuizExerciseCalendarEventDTO> dtos = milestoneExerciseGroupRepository.getCalendarEventDTOsForCourseId(courseId);
+        return dtos.stream().flatMap(dto -> deriveCalendarEventDTOs(dto, userIsStudent, language).stream()).collect(Collectors.toSet());
+    }
+
+    /**
      * Derives the following events for a given {@link NonQuizExerciseCalendarEventDTO}:
      * <ul>
      * <li>One event representing the release date if not null</li>

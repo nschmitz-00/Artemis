@@ -1,0 +1,19 @@
+<div class="milestone-overview">
+    <section>
+        <h4 jhiTranslate="artemisApp.milestoneAssessment.overview.problemStatement"></h4>
+        @if (problemStatementHtml(); as html) {
+            <div class="markdown-preview" [innerHTML]="html"></div>
+        } @else {
+            <p class="milestone-overview__empty" jhiTranslate="artemisApp.milestoneAssessment.overview.noProblemStatement"></p>
+        }
+    </section>
+
+    <section>
+        <h4 jhiTranslate="artemisApp.milestoneAssessment.overview.codeQuality"></h4>
+        @if (assessment().staticCodeAnalysisEnabled) {
+            <jhi-milestone-code-quality [exercise]="milestoneExercise()" [result]="assessment().milestoneResult" [inline]="true" />
+        } @else {
+            <p class="milestone-overview__empty" jhiTranslate="artemisApp.milestoneAssessment.overview.codeQualityDisabled"></p>
+        }
+    </section>
+</div>

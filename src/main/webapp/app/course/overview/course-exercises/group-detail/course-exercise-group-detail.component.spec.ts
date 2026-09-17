@@ -513,6 +513,7 @@ describe('CourseExerciseGroupDetailComponent', () => {
         function milestone(): {
             milestoneExercise: () => ProgrammingExercise | undefined;
             milestoneResult: () => Result | undefined;
+            milestoneInstructionsExercise: () => ProgrammingExercise | undefined;
         } {
             return fixture.componentInstance as never;
         }
@@ -540,6 +541,34 @@ describe('CourseExerciseGroupDetailComponent', () => {
             expect(participationSpy).toHaveBeenCalledWith(555);
             expect(milestone().milestoneExercise()?.id).toBe(99);
             expect(milestone().milestoneResult()).toBe(result);
+        });
+
+        it('hands the milestone statement with its task test ids to the instructions renderer once the participation is loaded', async () => {
+            const problemStatement = '[task][Sort the list](<testid>1</testid>,<testid>2</testid>)';
+            const participation = participationWithResult({ id: 888 } as Result);
+            await setup([milestoneGroupMember()], {
+                getMilestoneStatus: () => of({ ...startedStatus(), problemStatement }),
+                getStudentParticipationWithLatestResult: () => of(participation),
+            });
+            fixture.detectChanges();
+            await fixture.whenStable();
+
+            const instructionsExercise = milestone().milestoneInstructionsExercise();
+            expect(instructionsExercise?.id).toBe(99);
+            // Unstripped: the renderer needs the task syntax to resolve the tests against the milestone result.
+            expect(instructionsExercise?.problemStatement).toBe(problemStatement);
+            // A copy, so the participation's own exercise is left as the server sent it.
+            expect(participation.exercise?.problemStatement).toBeUndefined();
+        });
+
+        it('keeps the stripped description until the milestone participation is available', async () => {
+            const problemStatement = '[task][Sort the list](<testid>1</testid>)';
+            const notStarted = { milestoneExerciseId: 99, started: false, problemStatement } as MilestoneStatusDTO;
+            await setup([milestoneGroupMember()], { getMilestoneStatus: () => of(notStarted) });
+            fixture.detectChanges();
+            await fixture.whenStable();
+
+            expect(milestone().milestoneInstructionsExercise()).toBeUndefined();
         });
 
         it('does not request a participation before the student has started the milestone', async () => {

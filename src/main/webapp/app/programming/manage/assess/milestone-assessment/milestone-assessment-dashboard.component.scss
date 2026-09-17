@@ -1,0 +1,17 @@
+.milestone-dashboard {
+    // A group can have many stories, so the table is the one part that can genuinely exceed the page; it scrolls on
+    // its own so the page never scrolls horizontally.
+    &__scroll {
+        overflow-x: auto;
+    }
+
+    &__login {
+        margin-left: 0.4rem;
+        color: var(--text-body-secondary);
+        font-size: 0.85rem;
+    }
+
+    &__muted {
+        color: var(--text-body-secondary);
+    }
+}

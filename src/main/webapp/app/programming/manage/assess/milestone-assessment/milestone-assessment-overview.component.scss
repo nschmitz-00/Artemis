@@ -1,0 +1,11 @@
+.milestone-overview {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+
+    // Secondary prose: the semantic Artemis property rather than a Bootstrap `text-muted` class.
+    &__empty {
+        margin-bottom: 0;
+        color: var(--text-body-secondary);
+    }
+}
