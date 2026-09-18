@@ -21,7 +21,8 @@
             }"
             [routerLink]="sidebarItem()?.targetComponentSubRoute ? ['./', sidebarItem().targetComponentSubRoute, sidebarItem().id] : ['./', sidebarItem().id]"
             (click)="onNonExamCardClicked()"
-            [routerLinkActive]="'bg-selected border-selected'"
+            [class.bg-selected]="isItemActive()"
+            [class.border-selected]="isItemActive()"
         >
             <jhi-sidebar-card-item
                 [unreadCount]="this.sidebarItem().conversation?.unreadMessagesCount ?? 0"

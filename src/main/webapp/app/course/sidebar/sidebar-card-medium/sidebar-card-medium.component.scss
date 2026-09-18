@@ -56,4 +56,11 @@
     &:hover {
         background-image: linear-gradient(to bottom, color-mix(in srgb, var(--primary) 20%, var(--module-bg)), color-mix(in srgb, var(--primary) 5%, var(--module-bg))) !important;
     }
+
+    // The group tint above has to be `!important` to beat `bg-module`, so the selected state has to be too - otherwise
+    // the header of the open group is the one card in the sidebar that never shows it is selected.
+    &.bg-selected {
+        background-color: var(--sidebar-card-selected-bg) !important;
+        background-image: none !important;
+    }
 }
