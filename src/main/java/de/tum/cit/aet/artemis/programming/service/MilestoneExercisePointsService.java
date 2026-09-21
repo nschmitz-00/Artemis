@@ -79,6 +79,23 @@ public class MilestoneExercisePointsService {
     }
 
     /**
+     * Re-aggregates every student's milestone score after the milestone's own results were re-graded from its test cases
+     * (re-evaluation, or the score update at the due date). Re-grading rewrites each result's score as the raw build score
+     * - capped at the milestone's points - over the aggregated group points {@code MilestoneScoreService} had stored
+     * there, and nothing else would restore them: result events for a milestone are deliberately not turned into
+     * recomputations (see {@code ResultListener}), and the minutely sweep only looks at user story results.
+     * <p>
+     * Call this once the re-graded results are saved; a no-op for every exercise that is not a milestone.
+     *
+     * @param exercise the exercise whose results were just re-graded and saved
+     */
+    public void recomputeScoresAfterRegrade(ProgrammingExercise exercise) {
+        if (exercise instanceof MilestoneExercise) {
+            instanceMessageSendService.sendMilestoneScoreScheduleForGroup(exercise.getId());
+        }
+    }
+
+    /**
      * Recomputes the {@code maxPoints} of the milestone owning the given user story, if it has one.
      *
      * @param userStoryExerciseId the id of the user story whose group's milestone to sync

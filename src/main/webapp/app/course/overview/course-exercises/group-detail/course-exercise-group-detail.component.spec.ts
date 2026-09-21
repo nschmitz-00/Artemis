@@ -31,6 +31,7 @@ import { Result } from 'app/exercise/shared/entities/result/result.model';
 import { Participation } from 'app/exercise/shared/entities/participation/participation.model';
 import { ParticipationWebsocketService } from 'app/course/shared/services/participation-websocket.service';
 import { ProgrammingSubmissionService, ProgrammingSubmissionState, ProgrammingSubmissionStateObj } from 'app/programming/shared/services/programming-submission.service';
+import { Submission } from 'app/exercise/shared/entities/submission/submission.model';
 
 describe('CourseExerciseGroupDetailComponent', () => {
     let fixture: ComponentFixture<CourseExerciseGroupDetailComponent>;
@@ -95,7 +96,21 @@ describe('CourseExerciseGroupDetailComponent', () => {
     /** A milestone group member, so the component's milestone-status effect actually runs. */
     function milestoneGroupMember(): Exercise {
         const reference = { id: GROUP_ID, title: 'Sprint 1', type: 'milestone' as const };
-        return { id: 1, type: ExerciseType.PROGRAMMING, maxPoints: 10, exerciseVariantGroup: reference, problemStatement: 'a' } as unknown as Exercise;
+        return { id: 1, type: ExerciseType.USER_STORY, maxPoints: 10, exerciseVariantGroup: reference, problemStatement: 'a' } as unknown as Exercise;
+    }
+
+    /** A text exercise in the same milestone group, which counts on its own result rather than through the milestone. */
+    function milestoneTextMember(): Exercise {
+        const reference = { id: GROUP_ID, title: 'Sprint 1', type: 'milestone' as const };
+        return {
+            id: 2,
+            type: ExerciseType.TEXT,
+            maxPoints: 20,
+            includedInOverallScore: IncludedInOverallScore.INCLUDED_COMPLETELY,
+            exerciseVariantGroup: reference,
+            studentParticipations: [{ id: 202 } as StudentParticipation],
+            problemStatement: 'b',
+        } as unknown as Exercise;
     }
 
     async function setup(
@@ -193,6 +208,10 @@ describe('CourseExerciseGroupDetailComponent', () => {
     /** Reads the protected computed under test. */
     function achievedGroupPoints(): number {
         return (fixture.componentInstance as unknown as { achievedGroupPoints: () => number }).achievedGroupPoints();
+    }
+
+    function displayedGroupPoints(): number {
+        return (fixture.componentInstance as unknown as { displayedGroupPoints: () => number }).displayedGroupPoints();
     }
 
     beforeEach(() => {
@@ -616,11 +635,15 @@ describe('CourseExerciseGroupDetailComponent', () => {
             return { milestoneExerciseId: 99, started: true, participationId: 555 } as MilestoneStatusDTO;
         }
 
-        /** The REST snapshot the page starts from: one finished build worth 4 of the milestone's 20 points. */
+        /**
+         * The REST snapshot the page starts from: one finished build worth 2 of the milestone's 10 points. The milestone is
+         * worth exactly its only story (see milestoneGroupMember) - the server keeps the two equal, and a fixture where they
+         * differ would assert group points above the group's own maximum.
+         */
         function initialParticipation(): ProgrammingExerciseStudentParticipation {
             return {
                 id: 555,
-                exercise: { id: 99, type: 'milestone', staticCodeAnalysisEnabled: true, maxPoints: 20 } as unknown as ProgrammingExercise,
+                exercise: { id: 99, type: 'milestone', staticCodeAnalysisEnabled: true, maxPoints: 10 } as unknown as ProgrammingExercise,
                 submissions: [{ id: 777, results: [{ id: 888, score: 20 } as Result] }],
             } as unknown as ProgrammingExerciseStudentParticipation;
         }
@@ -725,16 +748,16 @@ describe('CourseExerciseGroupDetailComponent', () => {
             // The server writes the group's points (story points minus the SCA penalty) onto the milestone's own result.
             latestResultOf(555).next({ id: 888, score: 75 } as unknown as Result);
 
-            expect(achievedGroupPoints()).toBe(15);
+            expect(achievedGroupPoints()).toBe(7.5);
         });
 
         it('rounds a live score that does not divide cleanly into the milestone points', async () => {
             await setupStartedMilestone();
 
-            // 33.333 % of the milestone's 20 points is 6.6666 - the raw figure the header used to print in full.
+            // 33.333 % of the milestone's 10 points is 3.3333 - the raw figure the header used to print in full.
             latestResultOf(555).next({ id: 888, score: 33.333 } as unknown as Result);
 
-            expect(achievedGroupPoints()).toBe(6.7);
+            expect(achievedGroupPoints()).toBe(3.3);
         });
 
         it('honours a course configured for more decimals rather than forcing a single one', async () => {
@@ -742,7 +765,56 @@ describe('CourseExerciseGroupDetailComponent', () => {
 
             latestResultOf(555).next({ id: 888, score: 33.333 } as unknown as Result);
 
-            expect(achievedGroupPoints()).toBe(6.67);
+            expect(achievedGroupPoints()).toBe(3.33);
+        });
+
+        it('adds a non-story member result to the milestone points once it arrives live', async () => {
+            const textMember = milestoneTextMember();
+            await setup([milestoneGroupMember(), textMember], {
+                getMilestoneStatus: () => of(startedStatus()),
+                getStudentParticipationWithLatestResult: () => of(initialParticipation()),
+            });
+            fixture.detectChanges();
+            await fixture.whenStable();
+
+            // The milestone carries the story points only (20 % of its 10); the text member is not part of that aggregate.
+            participationChanges.next({
+                id: 202,
+                exercise: textMember,
+                submissions: [{ id: 3, results: [{ id: 4, rated: true, score: 50 } as Result] }],
+            } as unknown as StudentParticipation);
+
+            // 2 story points from the milestone snapshot + 50 % of the text member's 20 points.
+            expect(achievedGroupPoints()).toBe(12);
+        });
+
+        it('keeps showing the previous group points while a build is queued or running', async () => {
+            await setupStartedMilestone();
+            latestResultOf(555).next({ id: 888, score: 75 } as unknown as Result);
+            expect(displayedGroupPoints()).toBe(7.5);
+
+            pendingSubmissions.next({ participationId: 555, submissionState: ProgrammingSubmissionState.IS_QUEUED });
+            pendingSubmissions.next({ participationId: 555, submissionState: ProgrammingSubmissionState.IS_BUILDING_PENDING_SUBMISSION });
+            // Whatever passes through mid-build - here a zero - must not replace the settled value.
+            latestResultOf(555).next({ id: 889, score: 0 } as unknown as Result);
+            expect(displayedGroupPoints()).toBe(7.5);
+
+            pendingSubmissions.next({ participationId: 555, submissionState: ProgrammingSubmissionState.HAS_NO_PENDING_SUBMISSION });
+            latestResultOf(555).next({ id: 889, score: 50 } as unknown as Result);
+            expect(displayedGroupPoints()).toBe(5);
+        });
+
+        it('keeps the previous milestone result when a push adds a pending submission without one', async () => {
+            const withPendingSubmission = initialParticipation();
+            withPendingSubmission.submissions = [...(withPendingSubmission.submissions ?? []), { id: 778, results: [] } as unknown as Submission];
+            await setup([milestoneGroupMember()], {
+                getMilestoneStatus: () => of(startedStatus()),
+                getStudentParticipationWithLatestResult: () => of(withPendingSubmission),
+            });
+            fixture.detectChanges();
+            await fixture.whenStable();
+
+            expect(live().milestoneResult()?.id).toBe(888);
         });
     });
 });

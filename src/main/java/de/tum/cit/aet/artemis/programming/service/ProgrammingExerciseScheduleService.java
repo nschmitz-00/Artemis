@@ -75,10 +75,14 @@ public class ProgrammingExerciseScheduleService implements IExerciseScheduleServ
 
     private final ProfileService profileService;
 
+    private final MilestoneExercisePointsService milestoneExercisePointsService;
+
     public ProgrammingExerciseScheduleService(ScheduleService scheduleService, ProgrammingExerciseRepository programmingExerciseRepository,
             ProgrammingExerciseTestCaseRepository programmingExerciseTestCaseRepository, ResultRepository resultRepository, ParticipationRepository participationRepository,
             ProgrammingExerciseStudentParticipationRepository programmingExerciseParticipationRepository, ProgrammingTriggerService programmingTriggerService,
-            ProgrammingExerciseGradingService programmingExerciseGradingService, @Qualifier("taskScheduler") TaskScheduler scheduler, ProfileService profileService) {
+            ProgrammingExerciseGradingService programmingExerciseGradingService, @Qualifier("taskScheduler") TaskScheduler scheduler, ProfileService profileService,
+            // Lazy: the points service needs InstanceMessageSendService, which (via InstanceMessageReceiveService) needs this one.
+            @Lazy MilestoneExercisePointsService milestoneExercisePointsService) {
         this.scheduleService = scheduleService;
         this.programmingExerciseRepository = programmingExerciseRepository;
         this.programmingExerciseTestCaseRepository = programmingExerciseTestCaseRepository;
@@ -89,6 +93,7 @@ public class ProgrammingExerciseScheduleService implements IExerciseScheduleServ
         this.programmingExerciseGradingService = programmingExerciseGradingService;
         this.scheduler = scheduler;
         this.profileService = profileService;
+        this.milestoneExercisePointsService = milestoneExercisePointsService;
     }
 
     /**
@@ -332,6 +337,7 @@ public class ProgrammingExerciseScheduleService implements IExerciseScheduleServ
                 scheduleService.scheduleParticipationTask(participation, ParticipationLifecycle.DUE, () -> {
                     final List<Result> updatedResult = programmingExerciseGradingService.updateParticipationResults(participation);
                     resultRepository.saveAll(updatedResult);
+                    milestoneExercisePointsService.recomputeScoresAfterRegrade(participation.getProgrammingExercise());
                 }, "update student scores");
             }
         }, "lock student repository and participation");
@@ -415,6 +421,7 @@ public class ProgrammingExerciseScheduleService implements IExerciseScheduleServ
         return () -> SecurityUtils.runAsSystem(() -> {
             final List<Result> updatedResults = programmingExerciseGradingService.updateResultsOnlyRegularDueDateParticipations(exercise);
             resultRepository.saveAll(updatedResults);
+            milestoneExercisePointsService.recomputeScoresAfterRegrade(exercise);
         });
     }
 }

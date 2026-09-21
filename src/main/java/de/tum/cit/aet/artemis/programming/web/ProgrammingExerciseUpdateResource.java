@@ -356,6 +356,9 @@ public class ProgrammingExerciseUpdateResource {
             milestoneExercisePointsService.syncMaxPointsForUserStory(savedProgrammingExercise.getId());
         }
         if (savedProgrammingExercise instanceof MilestoneExercise) {
+            // update() already keeps the persisted points; re-deriving them as well makes the invariant hold even if the
+            // stored value had drifted before.
+            milestoneExercisePointsService.syncMaxPoints(savedProgrammingExercise.getId());
             MilestoneExercise freshMilestoneExercise = (MilestoneExercise) programmingExerciseRepository
                     .findByIdWithTemplateAndSolutionParticipationTeamAssignmentConfigCategoriesCompetenciesAndBuildConfigElseThrow(savedProgrammingExercise.getId());
             milestoneExerciseGroupRepository.findByMilestoneExerciseIdWithExercises(freshMilestoneExercise.getId())
@@ -396,7 +399,13 @@ public class ProgrammingExerciseUpdateResource {
         exercise.setCategories(dto.categories());
         exercise.setDifficulty(dto.difficulty());
 
-        exercise.setMaxPoints(dto.maxPoints());
+        // A milestone is worth exactly what its user stories are worth together, which MilestoneExercisePointsService derives
+        // and stores; the form has no points field and merely echoes back whatever it loaded. Taking that echo here pinned
+        // the milestone at a stale total whenever a story was added after the form was opened - and since a student's
+        // milestone score is a percentage of this number, their group points were then capped at that old total.
+        if (!(exercise instanceof MilestoneExercise)) {
+            exercise.setMaxPoints(dto.maxPoints());
+        }
         exercise.setBonusPoints(dto.bonusPoints());
         // A user story is always INCLUDED_COMPLETELY (its points count through its group, see UserStoryExercise); the
         // form does not offer the field, so an incoming value can only be stale or hand-crafted.

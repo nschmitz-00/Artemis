@@ -28,6 +28,7 @@ import de.tum.cit.aet.artemis.course.domain.Course;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
 import de.tum.cit.aet.artemis.programming.dto.ProgrammingExerciseGradingStatisticsDTO;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseRepository;
+import de.tum.cit.aet.artemis.programming.service.MilestoneExercisePointsService;
 import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseGradingService;
 
 /**
@@ -53,13 +54,17 @@ public class ProgrammingExerciseGradingResource {
 
     private final ResultRepository resultRepository;
 
+    private final MilestoneExercisePointsService milestoneExercisePointsService;
+
     public ProgrammingExerciseGradingResource(ProgrammingExerciseGradingService programmingExerciseGradingService, ProgrammingExerciseRepository programmingExerciseRepository,
-            AuthorizationCheckService authCheckService, UserRepository userRepository, ResultRepository resultRepository) {
+            AuthorizationCheckService authCheckService, UserRepository userRepository, ResultRepository resultRepository,
+            MilestoneExercisePointsService milestoneExercisePointsService) {
         this.programmingExerciseGradingService = programmingExerciseGradingService;
         this.programmingExerciseRepository = programmingExerciseRepository;
         this.authCheckService = authCheckService;
         this.userRepository = userRepository;
         this.resultRepository = resultRepository;
+        this.milestoneExercisePointsService = milestoneExercisePointsService;
     }
 
     /**
@@ -86,6 +91,7 @@ public class ProgrammingExerciseGradingResource {
 
         programmingExerciseGradingService.logReEvaluate(user, programmingExercise, course, updatedResults);
         resultRepository.saveAll(updatedResults);
+        milestoneExercisePointsService.recomputeScoresAfterRegrade(programmingExercise);
         return ResponseEntity.ok(updatedResults.size());
     }
 

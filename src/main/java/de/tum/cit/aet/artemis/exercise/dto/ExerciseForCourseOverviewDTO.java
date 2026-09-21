@@ -90,6 +90,8 @@ public record ExerciseForCourseOverviewDTO(ExerciseType type, String typeDiscrim
      */
     public ExerciseCourseScoreDTO toCourseScoreDTO(long courseId) {
         return new ExerciseCourseScoreDTO(id, type, includedInOverallScore, assessmentType, dueDate, assessmentDueDate, buildAndTestStudentSubmissionsAfterDueDate, maxPoints,
-                bonusPoints, courseId, variantGroupId, variantGroupMaxPoints, "milestone".equals(variantGroupType));
+                bonusPoints, courseId, variantGroupId, variantGroupMaxPoints,
+                // Only a user story is credited through its milestone; the group's other members count on their own.
+                "milestone".equals(variantGroupType) && "user-story".equals(typeDiscriminator));
     }
 }

@@ -82,6 +82,19 @@ public class ResultWebsocketService {
         websocketMessagingService.sendMessage(getNonPersonalExerciseResultDestination(participation.getExercise().getId()), ResultDTO.of(result));
     }
 
+    /**
+     * Broadcast a new result to tutors, instructors and admins only, without sending it to the participants. For a result
+     * whose score is still going to be rewritten before students may see it (see {@code MilestoneScoreService}), which
+     * then sends the final result through {@link #broadcastNewResult}.
+     *
+     * @param participation the participation the result belongs to
+     * @param result        the new result
+     */
+    public void broadcastNewResultToInstructors(Participation participation, Result result) {
+        programmingFeedbackSynthesizerService.attachSynthesizedFeedback(result);
+        websocketMessagingService.sendMessage(getNonPersonalExerciseResultDestination(participation.getExercise().getId()), ResultDTO.of(result));
+    }
+
     private void broadcastNewResultToParticipants(StudentParticipation studentParticipation, Result result) {
         final var exercise = studentParticipation.getExercise();
         boolean isWorkingPeriodOver;

@@ -56,6 +56,7 @@ import de.tum.cit.aet.artemis.plagiarism.api.PlagiarismCaseApi;
 import de.tum.cit.aet.artemis.plagiarism.api.dtos.PlagiarismMapping;
 import de.tum.cit.aet.artemis.plagiarism.domain.PlagiarismCase;
 import de.tum.cit.aet.artemis.plagiarism.domain.PlagiarismVerdict;
+import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 
 /**
  * Service Implementation for calculating course scores.
@@ -343,7 +344,8 @@ public class CourseScoreCalculationService {
      * {@code BLOCKING} category - see {@code MilestoneScoreService}), rather than from the raw sum of its user stories.
      * The anchor is not reachable from the exercises themselves - it has no {@code exerciseVariantGroup} of its own - so
      * the link is resolved through the repository; it also bypasses {@link #hasCountablePoints}, for the reason
-     * documented on the calculator's method.
+     * documented on the calculator's method. Only the group's user stories are skipped in favour of the anchor; its other
+     * members are credited to the group on their own results, like a plain variant group's.
      *
      * @param userId                  the id of the student whose per-group points are calculated
      * @param participationsOfStudent the student's graded participations (exercises must still be attached)
@@ -366,8 +368,8 @@ public class CourseScoreCalculationService {
             Exercise exercise = participation.getExercise();
             Long anchoredGroupId = groupIdByAnchorExerciseId.get(exercise.getId());
             ExerciseVariantGroup variantGroup = exercise.getExerciseVariantGroup();
-            boolean skip = anchoredGroupId == null
-                    && (variantGroup == null || groupsCreditedFromAnchor.contains(variantGroup.getId()) || !hasCountablePoints(ExerciseCourseScoreDTO.from(exercise)));
+            boolean skip = anchoredGroupId == null && (variantGroup == null || (exercise instanceof UserStoryExercise && groupsCreditedFromAnchor.contains(variantGroup.getId()))
+                    || !hasCountablePoints(ExerciseCourseScoreDTO.from(exercise)));
             if (skip) {
                 continue;
             }
@@ -702,10 +704,11 @@ public class CourseScoreCalculationService {
      * @param exercise the exercise whose involvement should be determined
      */
     private boolean includeIntoScoreCalculation(ExerciseCourseScoreDTO exercise) {
-        // A milestone group's points are carried by its MilestoneExercise, which counts here in its own right; counting
-        // its user stories as well would count the whole group twice. Their own includedInOverallScore stays
-        // INCLUDED_COMPLETELY on purpose (see UserStoryExercise) - membership, not that flag, is what excludes them.
-        return !exercise.memberOfMilestoneGroup() && hasCountablePoints(exercise);
+        // A milestone group's user story points are carried by its MilestoneExercise, which counts here in its own right;
+        // counting the stories as well would count them twice. Their own includedInOverallScore stays INCLUDED_COMPLETELY
+        // on purpose (see UserStoryExercise) - the flag, not that field, is what excludes them. The group's other members
+        // are not part of that aggregate and count here like any exercise.
+        return !exercise.creditedThroughMilestone() && hasCountablePoints(exercise);
     }
 
     /**

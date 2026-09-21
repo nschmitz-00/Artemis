@@ -94,13 +94,17 @@ public class MilestoneScoreScheduleService {
 
     private final ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository;
 
+    private final MilestoneExercisePointsService milestoneExercisePointsService;
+
     public MilestoneScoreScheduleService(@Qualifier("taskScheduler") TaskScheduler scheduler, MilestoneScoreService milestoneScoreService,
-            MilestoneExerciseGroupRepository milestoneExerciseGroupRepository,
-            ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository) {
+            MilestoneExerciseGroupRepository milestoneExerciseGroupRepository, ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository,
+            // Lazy: the points service reaches back into this one (via InstanceMessageSendService) to schedule a group.
+            @Lazy MilestoneExercisePointsService milestoneExercisePointsService) {
         this.scheduler = scheduler;
         this.milestoneScoreService = milestoneScoreService;
         this.milestoneExerciseGroupRepository = milestoneExerciseGroupRepository;
         this.programmingExerciseStudentParticipationRepository = programmingExerciseStudentParticipationRepository;
+        this.milestoneExercisePointsService = milestoneExercisePointsService;
     }
 
     /**
@@ -134,7 +138,29 @@ public class MilestoneScoreScheduleService {
             catch (Exception ex) {
                 log.error("Cannot schedule milestone score service", ex);
             }
+            try {
+                resyncAllMilestoneMaxPoints();
+            }
+            catch (Exception ex) {
+                log.error("Cannot re-sync the points of the milestone exercises", ex);
+            }
         }, Instant.now().plusSeconds(PARTICIPATION_SCORES_SCHEDULE_DELAY_SEC));
+    }
+
+    /**
+     * Re-derives every milestone's {@code maxPoints} from its user stories once at startup.
+     * <p>
+     * A milestone's points used to be overwritten by whatever the milestone edit form echoed back, which pinned them at a
+     * stale total (typically just the first story's points) and capped every student's group points there. The update
+     * path no longer does that, but milestones already affected stay wrong until something re-syncs them. The sync only
+     * writes when the value actually moved, and then schedules the group's scores for recomputation, so the stored scores -
+     * percentages of that total - are rewritten against the corrected one rather than silently rescaled.
+     */
+    private void resyncAllMilestoneMaxPoints() {
+        SecurityUtils.setAuthorizationObject();
+        for (Long milestoneExerciseId : milestoneExerciseGroupRepository.findAllMilestoneExerciseIds()) {
+            milestoneExercisePointsService.syncMaxPoints(milestoneExerciseId);
+        }
     }
 
     public void activate() {

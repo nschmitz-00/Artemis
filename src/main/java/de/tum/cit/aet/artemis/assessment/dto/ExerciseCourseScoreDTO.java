@@ -14,19 +14,22 @@ import de.tum.cit.aet.artemis.exercise.domain.ExerciseType;
 import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
 import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
+import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 
 /**
  * The exercise facts the course score calculation needs.
  * <p>
- * {@code memberOfMilestoneGroup} marks an exercise whose {@code MilestoneExerciseGroup}'s anchor
- * {@code MilestoneExercise} already accounts for the whole group's points; such members must be skipped or the group is
- * counted twice. It cannot be derived from {@code variantGroupMaxPoints}, which a milestone group always leaves
- * {@code null} and which is therefore indistinguishable from an uncapped plain variant group.
+ * {@code creditedThroughMilestone} marks a {@code UserStoryExercise} of a {@code MilestoneExerciseGroup}: its points
+ * already reach the student through the group's anchor {@code MilestoneExercise} (see {@code MilestoneScoreService}), so
+ * it must be skipped or they are counted twice. Every other member of a milestone group - text, modeling, file upload,
+ * quiz or plain programming - is not part of that aggregate and counts on its own result, like any exercise. The flag
+ * cannot be derived from {@code variantGroupMaxPoints}, which a milestone group always leaves {@code null} and which is
+ * therefore indistinguishable from an uncapped plain variant group.
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public record ExerciseCourseScoreDTO(long id, ExerciseType type, @NotNull IncludedInOverallScore includedInOverallScore, @NotNull AssessmentType assessmentType,
         @Nullable ZonedDateTime dueDate, @Nullable ZonedDateTime assessmentDueDate, @Nullable ZonedDateTime buildAndTestStudentSubmissionsAfterDueDate, double maxPoints,
-        @Nullable Double bonusPoints, long courseId, @Nullable Long variantGroupId, @Nullable Double variantGroupMaxPoints, boolean memberOfMilestoneGroup) {
+        @Nullable Double bonusPoints, long courseId, @Nullable Long variantGroupId, @Nullable Double variantGroupMaxPoints, boolean creditedThroughMilestone) {
 
     /**
      * JPQL constructor that accepts the raw entity class produced by Hibernate's {@code TYPE(...)} function
@@ -34,9 +37,9 @@ public record ExerciseCourseScoreDTO(long id, ExerciseType type, @NotNull Includ
      */
     public ExerciseCourseScoreDTO(long id, Class<? extends Exercise> type, @NotNull IncludedInOverallScore includedInOverallScore, @NotNull AssessmentType assessmentType,
             @Nullable ZonedDateTime dueDate, @Nullable ZonedDateTime assessmentDueDate, @Nullable ZonedDateTime buildAndTestStudentSubmissionsAfterDueDate, double maxPoints,
-            @Nullable Double bonusPoints, long courseId, @Nullable Long variantGroupId, @Nullable Double variantGroupMaxPoints, boolean memberOfMilestoneGroup) {
+            @Nullable Double bonusPoints, long courseId, @Nullable Long variantGroupId, @Nullable Double variantGroupMaxPoints, boolean creditedThroughMilestone) {
         this(id, ExerciseType.getExerciseTypeFromClass(type), includedInOverallScore, assessmentType, dueDate, assessmentDueDate, buildAndTestStudentSubmissionsAfterDueDate,
-                maxPoints, bonusPoints, courseId, variantGroupId, variantGroupMaxPoints, memberOfMilestoneGroup);
+                maxPoints, bonusPoints, courseId, variantGroupId, variantGroupMaxPoints, creditedThroughMilestone);
     }
 
     /**
@@ -53,9 +56,9 @@ public record ExerciseCourseScoreDTO(long id, ExerciseType type, @NotNull Includ
         var variantGroup = exercise.getExerciseVariantGroup();
         Long variantGroupId = variantGroup != null ? variantGroup.getId() : null;
         Double variantGroupMaxPoints = variantGroup != null ? variantGroup.getMaxPoints() : null;
-        boolean memberOfMilestoneGroup = variantGroup instanceof MilestoneExerciseGroup;
+        boolean creditedThroughMilestone = variantGroup instanceof MilestoneExerciseGroup && exercise instanceof UserStoryExercise;
         return new ExerciseCourseScoreDTO(exercise.getId(), ExerciseType.getExerciseTypeFromClass(exercise.getClass()), exercise.getIncludedInOverallScore(),
                 exercise.getAssessmentType(), exercise.getDueDate(), exercise.getAssessmentDueDate(), buildAndTestStudentSubmissionsAfterDueDate, exercise.getMaxPoints(),
-                exercise.getBonusPoints(), exercise.getCourseViaExerciseGroupOrCourseMember().getId(), variantGroupId, variantGroupMaxPoints, memberOfMilestoneGroup);
+                exercise.getBonusPoints(), exercise.getCourseViaExerciseGroupOrCourseMember().getId(), variantGroupId, variantGroupMaxPoints, creditedThroughMilestone);
     }
 }

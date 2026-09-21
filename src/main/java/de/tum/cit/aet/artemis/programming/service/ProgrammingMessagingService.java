@@ -25,6 +25,7 @@ import de.tum.cit.aet.artemis.iris.api.PyrisEventApi;
 import de.tum.cit.aet.artemis.iris.service.pyris.event.NewResultEvent;
 import de.tum.cit.aet.artemis.lti.api.LtiApi;
 import de.tum.cit.aet.artemis.notification.service.notifications.GroupNotificationService;
+import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseParticipation;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParticipation;
@@ -92,8 +93,16 @@ public class ProgrammingMessagingService {
      */
     public void notifyUserAboutNewResult(Result result, ProgrammingExerciseParticipation participation) {
         log.debug("Send result to client over websocket. Result: {}, Submission: {}, Participation: {}", result, result.getSubmission(), result.getSubmission().getParticipation());
-        // notify user via websocket
-        resultWebsocketService.broadcastNewResult((Participation) participation, result);
+        if (isMilestoneResultAwaitingAggregation(result, participation)) {
+            // The build's raw score is not what the student is owed for a milestone: MilestoneScoreService is about to rewrite
+            // it into the group's points (a fan-out story result schedules it) and broadcasts that final result itself. Sending
+            // the raw one first made the student's group page show a wrong number - typically 0 - until the rewrite arrived.
+            resultWebsocketService.broadcastNewResultToInstructors((Participation) participation, result);
+        }
+        else {
+            // notify user via websocket
+            resultWebsocketService.broadcastNewResult((Participation) participation, result);
+        }
 
         if (participation instanceof ProgrammingExerciseStudentParticipation studentParticipation) {
             // do not try to report results for template or solution participations
@@ -101,6 +110,16 @@ public class ProgrammingMessagingService {
             // Inform Iris about the submission status (when certain conditions are met)
             notifyIrisAboutSubmissionStatus(result);
         }
+    }
+
+    /**
+     * A rated result of a student's own (non-practice) milestone participation is always aggregated afterwards, and the
+     * aggregation broadcasts it; an unrated one is not (the aggregation reads the latest rated result), so it is still
+     * sent as usual.
+     */
+    private static boolean isMilestoneResultAwaitingAggregation(Result result, ProgrammingExerciseParticipation participation) {
+        return result.isRated() && participation instanceof ProgrammingExerciseStudentParticipation studentParticipation && !studentParticipation.isPracticeMode()
+                && studentParticipation.getExercise() instanceof MilestoneExercise;
     }
 
     /**
