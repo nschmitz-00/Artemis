@@ -66,7 +66,7 @@
                 @if (exerciseSumMaxPoints() > 0) {
                     <jhi-information-box [informationBoxData]="pointsInfoBoxData()">
                         <span contentComponent class="d-flex align-items-center gap-1">
-                            <span>{{ achievedGroupPoints() }} / {{ effectiveGroupMaxPoints() }}</span>
+                            <span>{{ displayedGroupPoints() }} / {{ effectiveGroupMaxPoints() }}</span>
                             @if (capReducesMaxPoints()) {
                                 <fa-icon
                                     [icon]="faCircleInfo"

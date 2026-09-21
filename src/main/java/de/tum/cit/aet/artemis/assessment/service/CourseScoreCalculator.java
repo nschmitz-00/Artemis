@@ -189,7 +189,9 @@ public final class CourseScoreCalculator {
      * codebase violates a {@code BLOCKING} category. Summing the stories instead would report a number the student's
      * course score never agrees with. The stories are skipped for exactly that reason - but only for the groups whose
      * anchor is actually present in {@code context}; a caller that cannot supply one keeps the member-sum behaviour
-     * rather than silently reporting nothing.
+     * rather than silently reporting nothing. The group's other members (text, modeling, file upload, quiz, plain
+     * programming) are not part of the anchor's aggregate, so they are added to the same group on their own results,
+     * exactly as a plain variant group's members are.
      * <p>
      * The anchor deliberately bypasses {@link #hasCountablePoints}. That gate answers "do these points count towards the
      * course score yet", which is decided separately in {@link #calculateCourseScoreForStudent}; this map is the
@@ -222,7 +224,7 @@ public final class CourseScoreCalculator {
                 addAchievedPoints(achievedPointsPerGroup, anchoredGroupId, null, exercise, gradeScorePerExercise, plagiarismCasesForStudent, context.settings());
                 continue;
             }
-            if (exercise.variantGroupId() == null || groupsCreditedFromAnchor.contains(exercise.variantGroupId())) {
+            if (exercise.variantGroupId() == null || (exercise.creditedThroughMilestone() && groupsCreditedFromAnchor.contains(exercise.variantGroupId()))) {
                 continue;
             }
             if (hasCountablePoints(exercise, context.calculationTime())) {
@@ -351,10 +353,11 @@ public final class CourseScoreCalculator {
      * @return true if the exercise counts towards the course score
      */
     public static boolean includeIntoScoreCalculation(ExerciseCourseScoreDTO exercise, ZonedDateTime calculationTime) {
-        // A milestone group's points are carried by its MilestoneExercise, which counts here in its own right; counting
-        // its user stories as well would count the whole group twice. Their own includedInOverallScore stays
-        // INCLUDED_COMPLETELY on purpose (see UserStoryExercise) - membership, not that flag, is what excludes them.
-        return !exercise.memberOfMilestoneGroup() && hasCountablePoints(exercise, calculationTime);
+        // A milestone group's user story points are carried by its MilestoneExercise, which counts here in its own right;
+        // counting the stories as well would count them twice. Their own includedInOverallScore stays INCLUDED_COMPLETELY
+        // on purpose (see UserStoryExercise) - the flag, not that field, is what excludes them. The group's other members
+        // are not part of that aggregate and count here like any exercise.
+        return !exercise.creditedThroughMilestone() && hasCountablePoints(exercise, calculationTime);
     }
 
     /**

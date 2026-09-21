@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, EnvironmentInjector, afterNextRender, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, EnvironmentInjector, afterNextRender, computed, effect, inject, linkedSignal, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
@@ -7,7 +7,7 @@ import { faCircleInfo, faLayerGroup, faPlayCircle, faRotateRight, faWrench } fro
 import { Subscription } from 'rxjs';
 import { filter, finalize, map, skip } from 'rxjs/operators';
 import { HttpErrorResponse } from '@angular/common/http';
-import { DifficultyLevel, Exercise, IncludedInOverallScore, getExerciseUrlSegment, getIcon } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { DifficultyLevel, Exercise, ExerciseType, IncludedInOverallScore, getExerciseUrlSegment, getIcon } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { CourseExerciseGroup, buildGroupsFromExercises } from 'app/exercise/shared/entities/exercise/course-exercise-group.model';
 import { CourseOverviewExercisesService } from 'app/course/overview/services/course-overview-exercises.service';
 import { CourseStorageService } from 'app/course/manage/services/course-storage.service';
@@ -42,8 +42,8 @@ import { ProgrammingExerciseStudentParticipation } from 'app/exercise/shared/ent
 import { ProgrammingExerciseParticipationService } from 'app/programming/manage/services/programming-exercise-participation.service';
 import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
 import { Result } from 'app/exercise/shared/entities/result/result.model';
-import { Participation, getLatestSubmission } from 'app/exercise/shared/entities/participation/participation.model';
-import { getLatestSubmissionResult } from 'app/exercise/shared/entities/submission/submission.model';
+import { Participation } from 'app/exercise/shared/entities/participation/participation.model';
+import { getLatestResultOfStudentParticipation } from 'app/exercise/participation/participation.utils';
 import { ParticipationWebsocketService } from 'app/course/shared/services/participation-websocket.service';
 import { ProgrammingSubmissionService, ProgrammingSubmissionState } from 'app/programming/shared/services/programming-submission.service';
 import { MilestoneCodeQualityComponent } from 'app/programming/shared/milestone-code-quality/milestone-code-quality.component';
@@ -161,8 +161,9 @@ export class CourseExerciseGroupDetailComponent {
         if (liveResult) {
             return liveResult;
         }
-        const participation = this.milestoneParticipation();
-        return participation ? getLatestSubmissionResult(getLatestSubmission(participation)) : undefined;
+        // Across all submissions rather than off the latest one: a push creates a pending submission without a result, and
+        // the latest submission's result would then be nothing for the whole build.
+        return getLatestResultOfStudentParticipation(this.milestoneParticipation(), true);
     });
 
     private readonly groupId = signal<number | undefined>(undefined);
@@ -228,23 +229,63 @@ export class CourseExerciseGroupDetailComponent {
      * The student's group points, taken from the authoritative server value via {@link ScoresStorageService}, which is
      * already capped and plagiarism-adjusted. Falls back to 0 until the dashboard scores load.
      * <p>
-     * Once a live milestone result has arrived it takes precedence: for a milestone group the group's points *are* the
-     * milestone result's score, which the server recomputes as `sum(story points) - static code analysis penalty` and
-     * writes onto that very result (`MilestoneScoreService`). That value is not plagiarism-adjusted, unlike the stored
-     * one, so a flagged student's figure only re-aligns on the next dashboard load - the accepted price of showing a
-     * live number, and it only ever applies after the student's own push.
+     * For a milestone group, a live update takes precedence once one has arrived while the page is open - a milestone
+     * result, or a new result on any of the group's other members. The group's points are then rebuilt the way the
+     * server builds them: the milestone result's score, which `MilestoneScoreService` recomputes as
+     * `sum(story points) - static code analysis penalty`, plus every non-story member's own points (text, modeling, file
+     * upload, quiz and plain programming members are not part of that aggregate - they count on their own results). That
+     * live figure is not plagiarism-adjusted, unlike the stored one, so a flagged student's number only re-aligns on the
+     * next dashboard load - the accepted price of showing a live number.
      */
     protected readonly achievedGroupPoints = computed<number>(() => {
-        const liveScore = this.liveMilestoneResult()?.score;
-        const milestoneMaxPoints = this.milestoneExercise()?.maxPoints;
-        if (liveScore !== undefined && milestoneMaxPoints !== undefined) {
-            return this.roundPoints((liveScore / 100) * milestoneMaxPoints);
-        }
         const group = this.group();
         if (group?.id === undefined) {
             return 0;
         }
+        if (group.type === 'milestone' && this.hasLiveMilestoneGroupUpdate()) {
+            return this.roundPoints(this.milestoneResultPoints() + this.nonStoryMemberPoints());
+        }
         return this.roundPoints(this.scoresStorageService.getStoredAchievedGroupPoints(this.courseId, group.id) ?? 0);
+    });
+
+    /** Whether anything that changes a milestone group's points has been pushed since the page loaded its stored value. */
+    private readonly hasLiveMilestoneGroupUpdate = computed<boolean>(() => {
+        if (this.liveMilestoneResult()) {
+            return true;
+        }
+        const liveExerciseIds = this.liveParticipations();
+        return this.nonStoryMembers().some((exercise) => exercise.id !== undefined && liveExerciseIds.has(exercise.id));
+    });
+
+    /** The points the milestone's own result carries - the group's user story points after the code quality penalty. */
+    private readonly milestoneResultPoints = computed<number>(() => {
+        const score = this.milestoneResult()?.score;
+        const milestoneMaxPoints = this.milestoneExercise()?.maxPoints;
+        return score !== undefined && milestoneMaxPoints !== undefined ? (score / 100) * milestoneMaxPoints : 0;
+    });
+
+    /** The members of the group that are not user stories, and so are credited on their own results rather than through the milestone. */
+    private readonly nonStoryMembers = computed<Exercise[]>(() =>
+        this.exercises().filter((exercise) => exercise.type !== ExerciseType.USER_STORY && exercise.includedInOverallScore !== IncludedInOverallScore.NOT_INCLUDED),
+    );
+
+    /** The points the student holds on the group's non-story members, each from its latest rated result. */
+    private readonly nonStoryMemberPoints = computed<number>(() =>
+        this.nonStoryMembers().reduce((sum, exercise) => {
+            const score = getLatestResultOfStudentParticipation(this.exerciseParticipation(exercise), false)?.score;
+            return sum + (score !== undefined ? (score / 100) * (exercise.maxPoints ?? 0) : 0);
+        }, 0),
+    );
+
+    /**
+     * What the points box shows: {@link achievedGroupPoints}, except that a queued or running milestone build keeps the
+     * value from before it instead of whatever passes through in the meantime. The group's points only have a new
+     * settled value once the build's aggregated result has arrived, so anything shown earlier (a zero, or a raw build
+     * score) would only flash a wrong number at the student.
+     */
+    protected readonly displayedGroupPoints = linkedSignal<{ points: number; isBuildPending: boolean }, number>({
+        source: () => ({ points: this.achievedGroupPoints(), isBuildPending: this.isMilestoneBuilding() || this.isMilestoneQueued() }),
+        computation: (source, previous) => (source.isBuildPending && previous !== undefined ? previous.value : source.points),
     });
 
     /**

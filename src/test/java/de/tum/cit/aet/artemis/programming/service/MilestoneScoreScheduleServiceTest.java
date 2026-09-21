@@ -55,7 +55,7 @@ class MilestoneScoreScheduleServiceTest {
         when(milestoneExerciseGroupRepository.findMilestoneExerciseIdByUserStoryExerciseId(anyLong())).thenReturn(Optional.of(MILESTONE_EXERCISE_ID));
 
         service = new MilestoneScoreScheduleService(scheduler, milestoneScoreService, milestoneExerciseGroupRepository,
-                mock(ProgrammingExerciseStudentParticipationRepository.class));
+                mock(ProgrammingExerciseStudentParticipationRepository.class), mock(MilestoneExercisePointsService.class));
         service.activate();
     }
 

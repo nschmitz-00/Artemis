@@ -344,6 +344,16 @@ public interface MilestoneExerciseGroupRepository extends ArtemisJpaRepository<M
     List<MilestoneGroupAnchorDTO> findAnchorsByGroupIds(@Param("groupIds") Collection<Long> groupIds);
 
     /**
+     * @return the ids of every anchor {@code MilestoneExercise}, one per milestone group that has one
+     */
+    @Query("""
+            SELECT g.milestoneExercise.id
+            FROM MilestoneExerciseGroup g
+            WHERE g.milestoneExercise IS NOT NULL
+            """)
+    List<Long> findAllMilestoneExerciseIds();
+
+    /**
      * Counts a group's members without loading them, for the "cannot delete a non-empty milestone group" guard. The
      * anchor exercise is never itself a member of that collection, so no exclusion is needed here.
      *

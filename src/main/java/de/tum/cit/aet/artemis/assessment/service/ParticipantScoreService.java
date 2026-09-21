@@ -41,6 +41,7 @@ import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
 import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
 import de.tum.cit.aet.artemis.exercise.domain.Team;
 import de.tum.cit.aet.artemis.exercise.repository.TeamRepository;
+import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 
 @Profile(PROFILE_CORE)
 @Lazy
@@ -124,9 +125,10 @@ public class ParticipantScoreService {
         Set<Exercise> exercisesToConsider = course.getExercises().stream().filter(Exercise::isCourseExercise)
                 .filter(exercise -> exercise.getReleaseDate() == null || exercise.getReleaseDate().isBefore(ZonedDateTime.now()))
                 .filter(exercise -> exercise.getIncludedInOverallScore() != IncludedInOverallScore.NOT_INCLUDED)
-                // A milestone group's points are carried by its MilestoneExercise, which is considered here in its own
-                // right; its user stories would count the same points a second time. See UserStoryExercise.
-                .filter(exercise -> !(exercise.getExerciseVariantGroup() instanceof MilestoneExerciseGroup)).collect(Collectors.toSet());
+                // A milestone group's user story points are carried by its MilestoneExercise, which is considered here in its
+                // own right; the stories would count the same points a second time. See UserStoryExercise. The group's other
+                // members are not part of that aggregate and count like any exercise.
+                .filter(exercise -> !(exercise instanceof UserStoryExercise && exercise.getExerciseVariantGroup() instanceof MilestoneExerciseGroup)).collect(Collectors.toSet());
 
         // this is the denominator when we calculate the achieved score of a student
         double regularAchievablePoints = exercisesToConsider.stream().filter(exercise -> exercise.getIncludedInOverallScore() == IncludedInOverallScore.INCLUDED_COMPLETELY)
