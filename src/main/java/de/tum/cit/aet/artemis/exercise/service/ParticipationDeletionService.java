@@ -25,6 +25,7 @@ import de.tum.cit.aet.artemis.exercise.domain.Exercise;
 import de.tum.cit.aet.artemis.exercise.domain.InitializationState;
 import de.tum.cit.aet.artemis.exercise.domain.Submission;
 import de.tum.cit.aet.artemis.exercise.domain.participation.StudentParticipation;
+import de.tum.cit.aet.artemis.exercise.repository.MilestoneExerciseGroupRepository;
 import de.tum.cit.aet.artemis.exercise.repository.ParticipationRepository;
 import de.tum.cit.aet.artemis.exercise.repository.StudentParticipationRepository;
 import de.tum.cit.aet.artemis.exercise.repository.SubmissionRepository;
@@ -36,6 +37,7 @@ import de.tum.cit.aet.artemis.localvc.service.vcs.VersionControlService;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParticipation;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingSubmission;
+import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseStudentParticipationRepository;
 import de.tum.cit.aet.artemis.programming.service.BuildLogEntryService;
 
@@ -76,13 +78,15 @@ public class ParticipationDeletionService {
 
     private final Optional<SharedQueueManagementService> localCISharedBuildJobQueueService;
 
+    private final MilestoneExerciseGroupRepository milestoneExerciseGroupRepository;
+
     public ParticipationDeletionService(StudentParticipationRepository studentParticipationRepository, ParticipantScoreRepository participantScoreRepository,
             SubmissionRepository submissionRepository, Optional<CompetencyProgressApi> competencyProgressApi, ParticipationRepository participationRepository,
             TeamScoreRepository teamScoreRepository, ResultService resultService, StudentScoreRepository studentScoreRepository,
             ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository,
             Optional<ContinuousIntegrationService> continuousIntegrationService, Optional<VersionControlService> versionControlService, GitService gitService,
             BuildLogEntryService buildLogEntryService, ParticipationVcsAccessTokenService participationVcsAccessTokenService,
-            Optional<SharedQueueManagementService> localCISharedBuildJobQueueService) {
+            Optional<SharedQueueManagementService> localCISharedBuildJobQueueService, MilestoneExerciseGroupRepository milestoneExerciseGroupRepository) {
         this.studentParticipationRepository = studentParticipationRepository;
         this.participantScoreRepository = participantScoreRepository;
         this.submissionRepository = submissionRepository;
@@ -98,6 +102,7 @@ public class ParticipationDeletionService {
         this.buildLogEntryService = buildLogEntryService;
         this.participationVcsAccessTokenService = participationVcsAccessTokenService;
         this.localCISharedBuildJobQueueService = localCISharedBuildJobQueueService;
+        this.milestoneExerciseGroupRepository = milestoneExerciseGroupRepository;
     }
 
     /**
@@ -158,7 +163,10 @@ public class ParticipationDeletionService {
         StudentParticipation participation = studentParticipationRepository.findByIdElseThrow(participationId);
         log.info("Request to delete Participation : {}", participation);
 
-        if (participation instanceof ProgrammingExerciseStudentParticipation programmingExerciseParticipation) {
+        // UserStoryExercise participations share the repository of the student's milestone participation. It must only be deleted with the milestone participation.
+        boolean sharesRepository = participation.getExercise() instanceof UserStoryExercise;
+
+        if (participation instanceof ProgrammingExerciseStudentParticipation programmingExerciseParticipation && !sharesRepository) {
             var repositoryUri = programmingExerciseParticipation.getVcsRepositoryUri();
             String buildPlanId = programmingExerciseParticipation.getBuildPlanId();
 
@@ -180,6 +188,10 @@ public class ParticipationDeletionService {
             gitService.deleteLocalRepository(repositoryUri);
 
             participationVcsAccessTokenService.deleteByParticipationId(participationId);
+            deleteChildExerciseParticipations(programmingExerciseParticipation);
+        }
+        else if (sharesRepository) {
+            participationVcsAccessTokenService.deleteByParticipationId(participationId);
         }
 
         // If local CI is active, remove all queued jobs for participation
@@ -187,6 +199,31 @@ public class ParticipationDeletionService {
 
         deleteResultsAndSubmissionsOfParticipation(participationId, deleteParticipantScores);
         studentParticipationRepository.delete(participation);
+    }
+
+    /**
+     * Deletes the participations of the same student in every other exercise of the milestone's exercise group (of any exercise type, e.g. user story or file upload exercises).
+     * Does nothing if the participation does not belong to a milestone exercise group.
+     *
+     * @param milestoneParticipation the participation of a (potential) milestone exercise
+     */
+    private void deleteChildExerciseParticipations(ProgrammingExerciseStudentParticipation milestoneParticipation) {
+        var student = milestoneParticipation.getStudent();
+        if (student.isEmpty()) {
+            return;
+        }
+        long milestoneExerciseId = milestoneParticipation.getExercise().getId();
+        var group = milestoneExerciseGroupRepository.findByMilestoneExerciseIdWithExercises(milestoneExerciseId);
+        if (group.isEmpty()) {
+            return;
+        }
+        for (Exercise member : group.get().getExercises()) {
+            if (member.getId().equals(milestoneExerciseId)) {
+                continue;
+            }
+            studentParticipationRepository.findByExerciseIdAndStudentIdWithEagerSubmissions(member.getId(), student.get().getId())
+                    .forEach(childParticipation -> delete(childParticipation.getId(), true));
+        }
     }
 
     /**
