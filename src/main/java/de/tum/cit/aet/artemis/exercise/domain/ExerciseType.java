@@ -1,5 +1,7 @@
 package de.tum.cit.aet.artemis.exercise.domain;
 
+import org.hibernate.proxy.HibernateProxy;
+
 import com.fasterxml.jackson.annotation.JsonValue;
 
 import de.tum.cit.aet.artemis.fileupload.domain.FileUploadExercise;
@@ -60,6 +62,7 @@ public enum ExerciseType {
      * @return the exercise type corresponding to the class
      */
     public static ExerciseType getExerciseTypeFromClass(Class<? extends Exercise> exerciseClass) {
+        exerciseClass = unproxiedClass(exerciseClass);
         return switch (exerciseClass.getSimpleName()) {
             case "TextExercise" -> TEXT;
             // MilestoneExercise and UserStoryExercise are ProgrammingExercise subtypes (see the programming.domain
@@ -89,10 +92,29 @@ public enum ExerciseType {
      * @return the discriminator, e.g. {@code "programming"}, {@code "user-story"} or {@code "milestone"}
      */
     public static String getDiscriminatorFromClass(Class<? extends Exercise> exerciseClass) {
+        exerciseClass = unproxiedClass(exerciseClass);
         return switch (exerciseClass.getSimpleName()) {
             case "MilestoneExercise" -> "milestone";
             case "UserStoryExercise" -> "user-story";
             default -> getExerciseTypeFromClass(exerciseClass).getValue();
         };
+    }
+
+    /**
+     * Strips a Hibernate proxy subclass (e.g. {@code MilestoneExercise$HibernateProxy}) back to the entity class it proxies.
+     * <p>
+     * A {@code MilestoneExercise} is referenced through the {@code LAZY} {@code MilestoneExerciseGroup.milestoneExercise}
+     * association. Once that proxy exists in a persistence context, every later query returning the same row hands back
+     * the proxy instance rather than a plain entity (to preserve identity), so {@code exercise.getClass()} can be the
+     * generated proxy class even for an exercise loaded directly, e.g. as part of {@code course.getExercises()}.
+     *
+     * @param exerciseClass the class, possibly a Hibernate proxy class
+     * @return the entity class
+     */
+    private static Class<? extends Exercise> unproxiedClass(Class<? extends Exercise> exerciseClass) {
+        if (HibernateProxy.class.isAssignableFrom(exerciseClass)) {
+            return exerciseClass.getSuperclass().asSubclass(Exercise.class);
+        }
+        return exerciseClass;
     }
 }
