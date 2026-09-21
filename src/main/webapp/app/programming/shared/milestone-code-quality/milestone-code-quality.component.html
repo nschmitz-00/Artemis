@@ -8,7 +8,7 @@
             <jhi-information-box [informationBoxData]="infoBoxData()">
                 <span contentComponent class="code-quality__summary">
                     @if (status() === 'building') {
-                        <fa-icon [icon]="faCircleNotch" animation="spin" class="text-state-info" />
+                        <fa-icon [icon]="faCircleNotch" size="lg" animation="spin" class="text-primary" />
                         <span class="code-quality__pending" [jhiTranslate]="pendingLabel()"></span>
                     } @else {
                         @switch (status()) {
