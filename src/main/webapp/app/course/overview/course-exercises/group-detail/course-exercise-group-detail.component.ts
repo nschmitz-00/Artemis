@@ -339,19 +339,12 @@ export class CourseExerciseGroupDetailComponent {
      * is never rendered to students, so it arrives via the milestone-status request the view already makes rather than
      * with the dashboard payload — the callout therefore falls back to the generic heading until that resolves.
      *
-     * Rendered the same way the member previews are (see {@link renderProblemStatements}), minus the PlantUML extension:
-     * that one is stateful (setExerciseId plus callbacks flushed in afterNextRender) and cannot be driven from a pure
-     * computed. A milestone blurb needing PlantUML would have to move into renderProblemStatements.
+     * Rendered by {@link renderProblemStatements}, in the same pass as the member previews and with the same PlantUML
+     * extension, so diagrams in the description render before the milestone is started too. It is a signal rather than a
+     * computed because that extension is stateful (setExerciseId plus callbacks flushed in afterNextRender), which a pure
+     * computed cannot drive.
      */
-    protected readonly milestoneDescriptionHtml = computed<SafeHtml | undefined>(() => {
-        const problemStatement = this.milestoneStatus()?.problemStatement;
-        if (!problemStatement) {
-            return undefined;
-        }
-        // Strip task syntax — [task][Name](tests) → Name — so it renders as plain text instead of a link.
-        const preprocessed = problemStatement.replace(taskRegex, (_match, name: string) => name);
-        return this.sanitizer.bypassSecurityTrustHtml(htmlForMarkdown(preprocessed));
-    });
+    protected readonly milestoneDescriptionHtml = signal<SafeHtml | undefined>(undefined);
 
     protected readonly pointsInfoBoxData = computed<InformationBox>(() => ({
         title: 'artemisApp.courseOverview.exerciseDetails.points',
@@ -428,7 +421,9 @@ export class CourseExerciseGroupDetailComponent {
         effect(() => {
             const exercises = this.exercises();
             const statements = this.problemStatements();
-            untracked(() => this.renderProblemStatements(exercises, statements));
+            const status = this.milestoneStatus();
+            const milestoneDescription = status?.problemStatement ? { milestoneExerciseId: status.milestoneExerciseId, problemStatement: status.problemStatement } : undefined;
+            untracked(() => this.renderProblemStatements(exercises, statements, milestoneDescription));
         });
 
         // The course itself is already loaded by the course overview container this route lives in; the only field read
@@ -696,7 +691,16 @@ export class CourseExerciseGroupDetailComponent {
         this.loadMilestoneStatus(groupId);
     }
 
-    private renderProblemStatements(exercises: Exercise[], statements: Map<number, string>): void {
+    /**
+     * Renders the member previews and the milestone's description (see {@link milestoneDescriptionHtml}), including their
+     * PlantUML diagrams. Both go through one pass on purpose: the pass starts by clearing the pending diagram callbacks
+     * and flushes them once after the next render, so a second, separate pass would drop the first one's diagrams.
+     */
+    private renderProblemStatements(
+        exercises: Exercise[],
+        statements: Map<number, string>,
+        milestoneDescription?: { milestoneExerciseId: number; problemStatement: string },
+    ): void {
         this.plantUmlCallbacks = [];
         const map = new Map<number, SafeHtml>();
 
@@ -704,15 +708,12 @@ export class CourseExerciseGroupDetailComponent {
             if (exercise.id === undefined) continue;
             const ps = exercise.problemStatement ?? statements.get(exercise.id);
             if (!ps) continue;
-
-            // Strip task syntax — [task][Name](tests) → Name — so it renders as plain text instead of a link.
-            const preprocessed = ps.replace(taskRegex, (_match, name: string) => name);
-            this.plantUmlWrapper.setExerciseId(exercise.id);
-            const html = htmlForMarkdown(preprocessed, [this.plantUmlWrapper.getExtension()]);
-            map.set(exercise.id, this.sanitizer.bypassSecurityTrustHtml(html));
+            map.set(exercise.id, this.renderStatement(exercise.id, ps));
         }
 
         this.renderedStatements.set(map);
+        // Diagram containers are scoped by exercise id; the anchor's id never equals a member's, so they cannot collide.
+        this.milestoneDescriptionHtml.set(milestoneDescription ? this.renderStatement(milestoneDescription.milestoneExerciseId, milestoneDescription.problemStatement) : undefined);
 
         afterNextRender(
             () => {
@@ -721,6 +722,14 @@ export class CourseExerciseGroupDetailComponent {
             },
             { injector: this.injector },
         );
+    }
+
+    /** One problem statement as preview HTML: task syntax stripped to its name, PlantUML diagrams scoped to the exercise. */
+    private renderStatement(exerciseId: number, problemStatement: string): SafeHtml {
+        // Strip task syntax — [task][Name](tests) → Name — so it renders as plain text instead of a link.
+        const preprocessed = problemStatement.replace(taskRegex, (_match, name: string) => name);
+        this.plantUmlWrapper.setExerciseId(exerciseId);
+        return this.sanitizer.bypassSecurityTrustHtml(htmlForMarkdown(preprocessed, [this.plantUmlWrapper.getExtension()]));
     }
 
     /**

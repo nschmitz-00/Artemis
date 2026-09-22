@@ -902,6 +902,36 @@ describe('CourseExerciseGroupDetailComponent', () => {
             expect(state().milestoneStatus()?.problemStatement).toBe('Description of group 10');
         });
 
+        it('renders the description of a milestone that is not started yet with its diagrams, scoped to the milestone', async () => {
+            const notStarted = {
+                milestoneExerciseId: 100,
+                started: false,
+                problemStatement: '[task][Implement A](testA)\n\n@startuml\nA -> B\n@enduml',
+            } as MilestoneStatusDTO;
+            await setup([member(GROUP_ID, 1)], { getMilestoneStatus: () => of(notStarted) });
+            const setExerciseId = vi.spyOn(TestBed.inject(ProgrammingExercisePlantUmlExtensionWrapper), 'setExerciseId');
+            fixture.detectChanges();
+            await fixture.whenStable();
+
+            // Scoped to the anchor, so its diagram containers cannot collide with a member preview's.
+            expect(setExerciseId).toHaveBeenCalledWith(100);
+            const description = String((fixture.componentInstance as unknown as { milestoneDescriptionHtml: () => unknown }).milestoneDescriptionHtml());
+            expect(description).toContain('Implement A');
+            expect(description).not.toContain('[task]');
+        });
+
+        it('re-renders the description for the group switched to', async () => {
+            await setup([member(GROUP_ID, 1), member(OTHER_GROUP_ID, 2)], { getMilestoneStatus: (_courseId, groupId) => of(statusOf(groupId)) });
+            const setExerciseId = vi.spyOn(TestBed.inject(ProgrammingExercisePlantUmlExtensionWrapper), 'setExerciseId');
+            fixture.detectChanges();
+            await fixture.whenStable();
+
+            await switchTo(OTHER_GROUP_ID);
+
+            expect(setExerciseId).toHaveBeenCalledWith(200);
+            expect(String((fixture.componentInstance as unknown as { milestoneDescriptionHtml: () => unknown }).milestoneDescriptionHtml())).toContain('Description of group 20');
+        });
+
         it("keeps each group's live milestone result to that group", async () => {
             await setupTwoGroups((_courseId, groupId) => of(statusOf(groupId)));
             latestResultOf(1000).next({ id: 901, score: 40 } as unknown as Result);
