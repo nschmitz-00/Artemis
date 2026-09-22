@@ -109,16 +109,32 @@ export class CourseExerciseGroupDetailComponent {
     private readonly programmingSubmissionService = inject(ProgrammingSubmissionService);
     private readonly now = this.serverDateService.now();
 
-    /** Whether the requesting student has started the group's anchor milestone exercise; undefined until loaded. */
-    protected readonly milestoneStatus = signal<MilestoneStatusDTO | undefined>(undefined);
+    /*
+     * The milestone state below is kept per group (and per participation), never as a single value. The router reuses this
+     * component when only :groupId changes, and a group that was already loaded is not fetched again - so a single value
+     * would keep showing whichever group was loaded last: going 1 -> 2 -> 1 left group 2's description, task results and
+     * code quality on group 1's page. Each response is stored under the key it was requested for and the current group's
+     * entry is selected by computeds, which also keeps a late response for a group already left from overwriting the
+     * one on screen.
+     */
+
+    /** Each loaded group's milestone status, keyed by group id. */
+    private readonly milestoneStatusByGroupId = signal<Map<number, MilestoneStatusDTO>>(new Map());
+    /** Whether the requesting student has started the current group's anchor milestone exercise; undefined until loaded. */
+    protected readonly milestoneStatus = computed<MilestoneStatusDTO | undefined>(() => {
+        const groupId = this.groupId();
+        return groupId === undefined ? undefined : this.milestoneStatusByGroupId().get(groupId);
+    });
     protected readonly isStartingMilestone = signal(false);
     /**
-     * Whether the milestone-status request failed. Without it the header simply renders nothing when the request fails
+     * Groups whose milestone-status request failed. Without this the header simply renders nothing when the request fails
      * - no button, no message - which is indistinguishable from "this group has no start action", and a 404 (the most
      * likely failure here) is suppressed by the global alert handler, so the failure was completely invisible.
      */
-    protected readonly milestoneStatusFailed = signal(false);
-    protected readonly isLoadingMilestoneStatus = signal(false);
+    private readonly failedMilestoneStatusGroupIds = signal<ReadonlySet<number>>(new Set());
+    private readonly loadingMilestoneStatusGroupIds = signal<ReadonlySet<number>>(new Set());
+    protected readonly milestoneStatusFailed = computed<boolean>(() => this.isCurrentGroupIn(this.failedMilestoneStatusGroupIds()));
+    protected readonly isLoadingMilestoneStatus = computed<boolean>(() => this.isCurrentGroupIn(this.loadingMilestoneStatusGroupIds()));
     /** Milestone groups whose status has already been requested, so revisiting a group does not re-fetch it. */
     private readonly requestedMilestoneStatusGroupIds = new Set<number>();
 
@@ -127,7 +143,12 @@ export class CourseExerciseGroupDetailComponent {
      * place the group's static code analysis feedback lives (see `MilestoneCodeQualityComponent`). Undefined until the
      * milestone has been started and the request has come back.
      */
-    protected readonly milestoneParticipation = signal<ProgrammingExerciseStudentParticipation | undefined>(undefined);
+    protected readonly milestoneParticipation = computed<ProgrammingExerciseStudentParticipation | undefined>(() => {
+        const participationId = this.milestoneStatus()?.participationId;
+        return participationId === undefined ? undefined : this.milestoneParticipationsById().get(participationId);
+    });
+    /** Each loaded milestone participation, keyed by participation id. */
+    private readonly milestoneParticipationsById = signal<Map<number, ProgrammingExerciseStudentParticipation>>(new Map());
 
     /**
      * The most recent milestone result pushed over the websocket, which supersedes the one the participation request
@@ -138,7 +159,12 @@ export class CourseExerciseGroupDetailComponent {
      * and the same static code analysis feedback - the aggregation rewrites the very same row - so the code-quality
      * box does not flicker between two different issue sets; only the score changes.
      */
-    private readonly liveMilestoneResult = signal<Result | undefined>(undefined);
+    private readonly liveMilestoneResult = computed<Result | undefined>(() => {
+        const participationId = this.milestoneStatus()?.participationId;
+        return participationId === undefined ? undefined : this.liveMilestoneResultsByParticipationId().get(participationId);
+    });
+    /** The latest websocket result per milestone participation, keyed by the participation it was subscribed for. */
+    private readonly liveMilestoneResultsByParticipationId = signal<Map<number, Result>>(new Map());
     /** Whether the milestone's build is queued / running, so the code-quality box can say so instead of showing a stale count. */
     protected readonly isMilestoneBuilding = signal(false);
     protected readonly isMilestoneQueued = signal(false);
@@ -532,7 +558,7 @@ export class CourseExerciseGroupDetailComponent {
                 map((result) => cloneWith(result, { completionDate: convertDateFromServer(result.completionDate) })),
                 takeUntilDestroyed(this.destroyRef),
             )
-            .subscribe((result) => this.liveMilestoneResult.set(result));
+            .subscribe((result) => this.liveMilestoneResultsByParticipationId.update((results) => new Map(results).set(participationId, result)));
 
         if (milestoneExerciseId === undefined) {
             return;
@@ -622,7 +648,7 @@ export class CourseExerciseGroupDetailComponent {
             .getStudentParticipationWithLatestResult(participationId)
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
-                next: (participation) => this.milestoneParticipation.set(participation),
+                next: (participation) => this.milestoneParticipationsById.update((participations) => new Map(participations).set(participationId, participation)),
                 error: () => this.requestedMilestoneParticipationIds.delete(participationId),
             });
     }
@@ -634,22 +660,31 @@ export class CourseExerciseGroupDetailComponent {
      */
     private loadMilestoneStatus(groupId: number): void {
         this.requestedMilestoneStatusGroupIds.add(groupId);
-        this.milestoneStatusFailed.set(false);
-        this.isLoadingMilestoneStatus.set(true);
+        this.failedMilestoneStatusGroupIds.update((groupIds) => withoutId(groupIds, groupId));
+        this.loadingMilestoneStatusGroupIds.update((groupIds) => withId(groupIds, groupId));
         this.exerciseVariantGroupService
             .getMilestoneStatus(this.courseId, groupId)
             .pipe(
-                finalize(() => this.isLoadingMilestoneStatus.set(false)),
+                finalize(() => this.loadingMilestoneStatusGroupIds.update((groupIds) => withoutId(groupIds, groupId))),
                 takeUntilDestroyed(this.destroyRef),
             )
             .subscribe({
-                next: (status) => this.milestoneStatus.set(status),
+                next: (status) => this.setMilestoneStatus(groupId, status),
                 error: (error: HttpErrorResponse) => {
                     this.requestedMilestoneStatusGroupIds.delete(groupId);
-                    this.milestoneStatusFailed.set(true);
+                    this.failedMilestoneStatusGroupIds.update((groupIds) => withId(groupIds, groupId));
                     this.alertService.error('artemisApp.exerciseVariantGroup.detail.milestoneStatusLoadFailed');
                 },
             });
+    }
+
+    private setMilestoneStatus(groupId: number, status: MilestoneStatusDTO): void {
+        this.milestoneStatusByGroupId.update((statuses) => new Map(statuses).set(groupId, status));
+    }
+
+    private isCurrentGroupIn(groupIds: ReadonlySet<number>): boolean {
+        const groupId = this.groupId();
+        return groupId !== undefined && groupIds.has(groupId);
     }
 
     /** Retries the milestone-status request after a failure, from the button rendered in the start action's place. */
@@ -722,7 +757,8 @@ export class CourseExerciseGroupDetailComponent {
      */
     protected startMilestone(): void {
         const status = this.milestoneStatus();
-        if (!status || status.started || this.isStartingMilestone()) {
+        const groupId = this.groupId();
+        if (!status || groupId === undefined || status.started || this.isStartingMilestone()) {
             return;
         }
         this.isStartingMilestone.set(true);
@@ -732,7 +768,9 @@ export class CourseExerciseGroupDetailComponent {
             .subscribe({
                 next: (participation) => {
                     const programmingParticipation = participation as ProgrammingExerciseStudentParticipation;
-                    this.milestoneStatus.set(
+                    // Stored under the group the start was requested for, which need not be the one on screen by now.
+                    this.setMilestoneStatus(
+                        groupId,
                         cloneWith(status, { started: true, participationId: programmingParticipation.id, repositoryUri: programmingParticipation.repositoryUri }),
                     );
                 },
@@ -772,4 +810,16 @@ export class CourseExerciseGroupDetailComponent {
         }
         return ['/courses', this.courseId, 'exercises', status.milestoneExerciseId, 'repository', status.participationId];
     }
+}
+
+/** A copy of the set with the id added; a signal only notifies when the reference changes. */
+function withId(ids: ReadonlySet<number>, id: number): ReadonlySet<number> {
+    return new Set(ids).add(id);
+}
+
+/** A copy of the set without the id. */
+function withoutId(ids: ReadonlySet<number>, id: number): ReadonlySet<number> {
+    const copy = new Set(ids);
+    copy.delete(id);
+    return copy;
 }

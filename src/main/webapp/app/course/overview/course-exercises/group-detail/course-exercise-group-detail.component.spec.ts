@@ -4,7 +4,7 @@ import { ActivatedRoute } from '@angular/router';
 import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
-import { BehaviorSubject, EMPTY, Observable, of, throwError } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, filter, of, throwError } from 'rxjs';
 import dayjs from 'dayjs/esm';
 import { MockProvider } from 'ng-mocks';
 import { InformationBox } from 'app/shared-ui/information-box/information-box.component';
@@ -46,6 +46,8 @@ describe('CourseExerciseGroupDetailComponent', () => {
     let participationChanges: BehaviorSubject<Participation | undefined>;
     let pendingSubmissions: BehaviorSubject<ProgrammingSubmissionStateObj>;
     let registeredParticipations: { participationId?: number; exerciseId?: number }[];
+    /** The route's params, so a test can switch groups the way the router does: same component, new :groupId. */
+    let routeParams: BehaviorSubject<{ groupId: string }>;
     let releasedResultParticipationIds: number[];
     let releasedSubmissionParticipationIds: number[];
 
@@ -117,15 +119,16 @@ describe('CourseExerciseGroupDetailComponent', () => {
         exercises: Exercise[],
         options?: {
             getProblemStatements?: () => Observable<ExerciseProblemStatementDTO[]>;
-            getMilestoneStatus?: () => Observable<MilestoneStatusDTO>;
-            getStudentParticipationWithLatestResult?: () => Observable<ProgrammingExerciseStudentParticipation>;
+            getMilestoneStatus?: (courseId: number, groupId: number) => Observable<MilestoneStatusDTO>;
+            getStudentParticipationWithLatestResult?: (participationId: number) => Observable<ProgrammingExerciseStudentParticipation>;
             /** The course's configured points accuracy; left unset the component rounds to the model's default of 1. */
             accuracyOfScores?: number;
         },
     ): Promise<void> {
         const course = { id: 1, exercises, accuracyOfScores: options?.accuracyOfScores } as Course;
+        routeParams = new BehaviorSubject({ groupId: String(GROUP_ID) });
         const route = {
-            params: of({ groupId: String(GROUP_ID) }),
+            params: routeParams,
             parent: { parent: { snapshot: { params: { courseId: '1' } } } },
         } as unknown as ActivatedRoute;
 
@@ -815,6 +818,100 @@ describe('CourseExerciseGroupDetailComponent', () => {
             await fixture.whenStable();
 
             expect(live().milestoneResult()?.id).toBe(888);
+        });
+    });
+
+    describe('switching between milestone groups', () => {
+        const OTHER_GROUP_ID = 20;
+
+        function member(groupId: number, exerciseId: number): Exercise {
+            const reference = { id: groupId, title: `Sprint ${groupId}`, type: 'milestone' as const };
+            return { id: exerciseId, type: ExerciseType.USER_STORY, maxPoints: 10, exerciseVariantGroup: reference, problemStatement: 'a' } as unknown as Exercise;
+        }
+
+        function statusOf(groupId: number): MilestoneStatusDTO {
+            return {
+                milestoneExerciseId: groupId * 10,
+                started: true,
+                participationId: groupId * 100,
+                problemStatement: `Description of group ${groupId}`,
+            } as MilestoneStatusDTO;
+        }
+
+        function participationOf(participationId: number): ProgrammingExerciseStudentParticipation {
+            return {
+                id: participationId,
+                exercise: { id: participationId / 10, type: 'milestone', maxPoints: 10 } as unknown as ProgrammingExercise,
+                submissions: [{ id: participationId + 1, results: [{ id: participationId + 2, score: 50 } as Result] }],
+            } as unknown as ProgrammingExerciseStudentParticipation;
+        }
+
+        /** Access to the protected milestone state under test. */
+        function state(): {
+            milestoneStatus: () => MilestoneStatusDTO | undefined;
+            milestoneParticipation: () => ProgrammingExerciseStudentParticipation | undefined;
+            milestoneResult: () => Result | undefined;
+        } {
+            return fixture.componentInstance as never;
+        }
+
+        async function switchTo(groupId: number): Promise<void> {
+            routeParams.next({ groupId: String(groupId) });
+            fixture.detectChanges();
+            await fixture.whenStable();
+        }
+
+        async function setupTwoGroups(getMilestoneStatus: (courseId: number, groupId: number) => Observable<MilestoneStatusDTO>): Promise<void> {
+            await setup([member(GROUP_ID, 1), member(OTHER_GROUP_ID, 2)], {
+                getMilestoneStatus,
+                getStudentParticipationWithLatestResult: (participationId) => of(participationOf(participationId)),
+            });
+            fixture.detectChanges();
+            await fixture.whenStable();
+        }
+
+        it('shows the first group again after switching away and back, without requesting it twice', async () => {
+            const getMilestoneStatus = vi.fn((_courseId: number, groupId: number) => of(statusOf(groupId)));
+            await setupTwoGroups(getMilestoneStatus);
+            expect(state().milestoneStatus()?.problemStatement).toBe('Description of group 10');
+
+            await switchTo(OTHER_GROUP_ID);
+            expect(state().milestoneStatus()?.problemStatement).toBe('Description of group 20');
+            expect(state().milestoneParticipation()?.id).toBe(2000);
+
+            await switchTo(GROUP_ID);
+            // This is what stayed on group 20's description, task results and code quality before.
+            expect(state().milestoneStatus()?.problemStatement).toBe('Description of group 10');
+            expect(state().milestoneParticipation()?.id).toBe(1000);
+            expect(state().milestoneResult()?.id).toBe(1002);
+            // Revisiting a group still does not re-fetch it.
+            expect(getMilestoneStatus.mock.calls.filter(([, groupId]) => groupId === GROUP_ID)).toHaveLength(1);
+        });
+
+        it('does not let a late response for the group just left overwrite the one on screen', async () => {
+            const lateStatusOfFirstGroup = new BehaviorSubject<MilestoneStatusDTO | undefined>(undefined);
+            await setupTwoGroups((_courseId, groupId) =>
+                groupId === GROUP_ID ? (lateStatusOfFirstGroup.pipe(filter((status) => !!status)) as Observable<MilestoneStatusDTO>) : of(statusOf(groupId)),
+            );
+
+            await switchTo(OTHER_GROUP_ID);
+            lateStatusOfFirstGroup.next(statusOf(GROUP_ID));
+            expect(state().milestoneStatus()?.problemStatement).toBe('Description of group 20');
+
+            await switchTo(GROUP_ID);
+            expect(state().milestoneStatus()?.problemStatement).toBe('Description of group 10');
+        });
+
+        it("keeps each group's live milestone result to that group", async () => {
+            await setupTwoGroups((_courseId, groupId) => of(statusOf(groupId)));
+            latestResultOf(1000).next({ id: 901, score: 40 } as unknown as Result);
+            expect(state().milestoneResult()?.id).toBe(901);
+
+            await switchTo(OTHER_GROUP_ID);
+            expect(state().milestoneResult()?.id).toBe(2002);
+
+            await switchTo(GROUP_ID);
+            expect(state().milestoneResult()?.id).toBe(901);
         });
     });
 });
