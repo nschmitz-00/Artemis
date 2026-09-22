@@ -35,6 +35,8 @@ public class ProgrammingExerciseTaskService {
 
     private final ProgrammingExerciseTestCaseRepository programmingExerciseTestCaseRepository;
 
+    private final MilestoneExercisePointsService milestoneExercisePointsService;
+
     /**
      * Pattern that is used to extract the tasks (capturing group {@code name}) and test case names (capturing groups {@code tests}) from the problem statement.
      * Example: "[task][Implement BubbleSort](testBubbleSort,testBubbleSortHidden)". Following groups are extracted by the capturing groups:
@@ -84,9 +86,12 @@ public class ProgrammingExerciseTaskService {
     private static final Pattern TESTID_PATTERN = Pattern.compile(TESTID_START + "(\\d+)" + TESTID_END);
 
     public ProgrammingExerciseTaskService(ProgrammingExerciseTaskRepository programmingExerciseTaskRepository,
-            ProgrammingExerciseTestCaseRepository programmingExerciseTestCaseRepository) {
+            ProgrammingExerciseTestCaseRepository programmingExerciseTestCaseRepository,
+            // Lazy: the points service reaches the messaging services, which in turn depend on services that use this one.
+            @Lazy MilestoneExercisePointsService milestoneExercisePointsService) {
         this.programmingExerciseTaskRepository = programmingExerciseTaskRepository;
         this.programmingExerciseTestCaseRepository = programmingExerciseTestCaseRepository;
+        this.milestoneExercisePointsService = milestoneExercisePointsService;
     }
 
     /**
@@ -147,6 +152,8 @@ public class ProgrammingExerciseTaskService {
             task.setExercise(exercise);
         }
         programmingExerciseTaskRepository.saveAll(tasksToBeSaved);
+        // A milestone's tasks are its Definition of Done, which gates its students' points (see MilestoneScoreService).
+        milestoneExercisePointsService.recomputeScores(exercise);
     }
 
     /**

@@ -91,7 +91,7 @@ public class ProgrammingExerciseGradingResource {
 
         programmingExerciseGradingService.logReEvaluate(user, programmingExercise, course, updatedResults);
         resultRepository.saveAll(updatedResults);
-        milestoneExercisePointsService.recomputeScoresAfterRegrade(programmingExercise);
+        milestoneExercisePointsService.recomputeScores(programmingExercise);
         return ResponseEntity.ok(updatedResults.size());
     }
 

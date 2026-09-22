@@ -224,6 +224,33 @@ class UserStoryExerciseGradingFanOutTest extends AbstractProgrammingIntegrationI
         return reloadWithTypedFeedback(milestoneParticipation);
     }
 
+    /**
+     * Makes the given test the milestone's Definition of Done: a task of the milestone's own problem statement references
+     * it, and the tasks are derived from that statement the way saving the milestone derives them.
+     */
+    private ProgrammingExerciseTestCase defineMilestoneDefinitionOfDone(String testName) {
+        ProgrammingExerciseTestCase testCase = createTestCase(milestoneExercise, testName);
+        MilestoneExercise freshMilestone = (MilestoneExercise) programmingExerciseRepository.findByIdElseThrow(milestoneExercise.getId());
+        freshMilestone.setProblemStatement("[task][Implement " + testName + "](" + testName + ")");
+        freshMilestone = (MilestoneExercise) programmingExerciseRepository.save(freshMilestone);
+        programmingExerciseTaskService.updateTasksFromProblemStatement(freshMilestone);
+        return testCase;
+    }
+
+    /** Aggregates the student's milestone score for a group of two fully solved user stories (2.0 points each). */
+    private Result aggregateWithFullySolvedStories(List<TestCaseFeedback> milestoneTestFeedback) {
+        UserStoryExercise userStory1 = createUserStoryExercise("us1");
+        UserStoryExercise userStory2 = createUserStoryExercise("us2");
+        milestoneExercisePointsService.syncMaxPoints(milestoneExercise.getId());
+
+        ProgrammingExerciseStudentParticipation milestoneParticipation = participationFor(milestoneExercise);
+        buildGradedMilestoneResult(milestoneParticipation, "commit-1", milestoneTestFeedback);
+        saveRatedUserStoryResult(participationFor(userStory1), "commit-1", 100.0);
+        saveRatedUserStoryResult(participationFor(userStory2), "commit-1", 100.0);
+
+        return milestoneScoreService.recalculate(milestoneExercise.getId(), userUtilService.getUserByLogin(studentLogin).getId()).orElseThrow();
+    }
+
     /** Persists a rated result of the given percentage for a user story participation, as a fan-out or a tutor would. */
     private void saveRatedUserStoryResult(ProgrammingExerciseStudentParticipation participation, String commitHash, double score) {
         Result result = buildSourceResult(participation, commitHash, List.of());
@@ -291,6 +318,41 @@ class UserStoryExerciseGradingFanOutTest extends AbstractProgrammingIntegrationI
         assertThat(us2Result.getScaFeedbacks()).isEmpty();
         assertThat(us1Result.getScore()).isEqualTo(100.0);
         assertThat(us2Result.getScore()).isEqualTo(100.0);
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void failingDefinitionOfDoneGradesTheMilestoneWithZeroPoints() {
+        enableStaticCodeAnalysis(CategoryState.GRADED, 0.0, null);
+        ProgrammingExerciseTestCase definitionOfDoneTest = defineMilestoneDefinitionOfDone("testA");
+
+        Result aggregated = aggregateWithFullySolvedStories(List.of(testCaseFeedback(definitionOfDoneTest, false)));
+
+        // Both stories are fully solved, but a test the milestone's own tasks demand fails.
+        assertThat(aggregated.getScore()).isZero();
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void passingDefinitionOfDoneKeepsTheSummedUserStoryPoints() {
+        enableStaticCodeAnalysis(CategoryState.GRADED, 0.0, null);
+        ProgrammingExerciseTestCase definitionOfDoneTest = defineMilestoneDefinitionOfDone("testA");
+
+        Result aggregated = aggregateWithFullySolvedStories(List.of(testCaseFeedback(definitionOfDoneTest, true)));
+
+        assertThat(aggregated.getScore()).isEqualTo(100.0);
+    }
+
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void definitionOfDoneTestThatDidNotRunGradesTheMilestoneWithZeroPoints() {
+        enableStaticCodeAnalysis(CategoryState.GRADED, 0.0, null);
+        defineMilestoneDefinitionOfDone("testA");
+
+        // The build reported no outcome at all for the referenced test - it cannot count as passed.
+        Result aggregated = aggregateWithFullySolvedStories(List.of());
+
+        assertThat(aggregated.getScore()).isZero();
     }
 
     @Test

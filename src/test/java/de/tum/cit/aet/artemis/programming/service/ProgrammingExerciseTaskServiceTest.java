@@ -32,7 +32,8 @@ class ProgrammingExerciseTaskServiceTest extends AbstractProgrammingIntegrationI
 
     @BeforeEach
     void setUp() {
-        programmingExerciseTaskService = new ProgrammingExerciseTaskService(programmingExerciseTaskRepository, programmingExerciseTestCaseRepository);
+        programmingExerciseTaskService = new ProgrammingExerciseTaskService(programmingExerciseTaskRepository, programmingExerciseTestCaseRepository,
+                mock(MilestoneExercisePointsService.class));
     }
 
     @Test

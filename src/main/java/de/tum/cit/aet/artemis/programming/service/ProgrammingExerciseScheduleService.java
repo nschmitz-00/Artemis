@@ -337,7 +337,7 @@ public class ProgrammingExerciseScheduleService implements IExerciseScheduleServ
                 scheduleService.scheduleParticipationTask(participation, ParticipationLifecycle.DUE, () -> {
                     final List<Result> updatedResult = programmingExerciseGradingService.updateParticipationResults(participation);
                     resultRepository.saveAll(updatedResult);
-                    milestoneExercisePointsService.recomputeScoresAfterRegrade(participation.getProgrammingExercise());
+                    milestoneExercisePointsService.recomputeScores(participation.getProgrammingExercise());
                 }, "update student scores");
             }
         }, "lock student repository and participation");
@@ -421,7 +421,7 @@ public class ProgrammingExerciseScheduleService implements IExerciseScheduleServ
         return () -> SecurityUtils.runAsSystem(() -> {
             final List<Result> updatedResults = programmingExerciseGradingService.updateResultsOnlyRegularDueDateParticipations(exercise);
             resultRepository.saveAll(updatedResults);
-            milestoneExercisePointsService.recomputeScoresAfterRegrade(exercise);
+            milestoneExercisePointsService.recomputeScores(exercise);
         });
     }
 }

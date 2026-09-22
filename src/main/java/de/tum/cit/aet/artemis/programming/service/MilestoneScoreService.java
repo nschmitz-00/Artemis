@@ -5,6 +5,8 @@ import static de.tum.cit.aet.artemis.core.config.Constants.PROFILE_CORE;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,15 +19,18 @@ import de.tum.cit.aet.artemis.assessment.domain.Result;
 import de.tum.cit.aet.artemis.assessment.domain.ScaFeedback;
 import de.tum.cit.aet.artemis.assessment.repository.ResultRepository;
 import de.tum.cit.aet.artemis.assessment.repository.ScaFeedbackRepository;
+import de.tum.cit.aet.artemis.assessment.repository.TestCaseFeedbackRepository;
 import de.tum.cit.aet.artemis.assessment.web.ResultWebsocketService;
 import de.tum.cit.aet.artemis.exercise.domain.Exercise;
 import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
 import de.tum.cit.aet.artemis.exercise.repository.MilestoneExerciseGroupRepository;
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParticipation;
+import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseTestCase;
 import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseStudentParticipationRepository;
+import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseTaskRepository;
 
 /**
  * Aggregates a {@link MilestoneExerciseGroup}'s points onto its anchor {@link MilestoneExercise}, which is the only
@@ -35,7 +40,10 @@ import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseStudentP
  * milestone points = sum(points achieved on each UserStoryExercise) - static code analysis penalty
  * </pre>
  *
- * and {@code 0} outright if the shared codebase violates a {@link CategoryState#BLOCKING} category.
+ * and {@code 0} outright if the shared codebase violates a {@link CategoryState#BLOCKING} category, or if the milestone's
+ * Definition of Done is failing: any test referenced by a task of the milestone's own problem statement has not passed in
+ * the milestone's latest build (see {@link #isDefinitionOfDoneFailing}). Both zero the milestone - the group's user story
+ * points - only; the group's other members count on their own results elsewhere and are unaffected.
  * <p>
  * <b>Why the penalty is applied here and nowhere else.</b> Every user story of a group shares one repository and one CI
  * build, so a static code analysis violation belongs to the group's codebase rather than to any one story. Charging it
@@ -71,10 +79,15 @@ public class MilestoneScoreService {
 
     private final ResultWebsocketService resultWebsocketService;
 
+    private final ProgrammingExerciseTaskRepository programmingExerciseTaskRepository;
+
+    private final TestCaseFeedbackRepository testCaseFeedbackRepository;
+
     public MilestoneScoreService(MilestoneExerciseGroupRepository milestoneExerciseGroupRepository,
             ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository, ProgrammingExerciseRepository programmingExerciseRepository,
             ProgrammingExerciseGradingService programmingExerciseGradingService, ResultRepository resultRepository, ScaFeedbackRepository scaFeedbackRepository,
-            ResultWebsocketService resultWebsocketService) {
+            ResultWebsocketService resultWebsocketService, ProgrammingExerciseTaskRepository programmingExerciseTaskRepository,
+            TestCaseFeedbackRepository testCaseFeedbackRepository) {
         this.milestoneExerciseGroupRepository = milestoneExerciseGroupRepository;
         this.programmingExerciseStudentParticipationRepository = programmingExerciseStudentParticipationRepository;
         this.programmingExerciseRepository = programmingExerciseRepository;
@@ -82,6 +95,8 @@ public class MilestoneScoreService {
         this.resultRepository = resultRepository;
         this.scaFeedbackRepository = scaFeedbackRepository;
         this.resultWebsocketService = resultWebsocketService;
+        this.programmingExerciseTaskRepository = programmingExerciseTaskRepository;
+        this.testCaseFeedbackRepository = testCaseFeedbackRepository;
     }
 
     /**
@@ -133,11 +148,13 @@ public class MilestoneScoreService {
         // The exact rule an ordinary exercise applies to its own result, applied here to the group's points instead.
         boolean blocked = !programmingExerciseGradingService.findBlockingStaticCodeAnalysisFeedback(milestoneExercise, scaFeedback).isEmpty();
 
-        double points = blocked ? 0.0 : Math.max(0.0, achievedPoints - penaltyPoints);
+        boolean definitionOfDoneFailing = isDefinitionOfDoneFailing(milestoneExerciseId, result);
+
+        double points = blocked || definitionOfDoneFailing ? 0.0 : Math.max(0.0, achievedPoints - penaltyPoints);
         result.setScore(points, milestoneExercise.getMaxPoints(), milestoneExercise.getCourseViaExerciseGroupOrCourseMember());
 
-        log.debug("Aggregated milestone {} for student {}: {} story points - {} penalty{} = {} of {} points.", milestoneExerciseId, studentId, achievedPoints, penaltyPoints,
-                blocked ? " (blocked)" : "", points, milestoneExercise.getMaxPoints());
+        log.debug("Aggregated milestone {} for student {}: {} story points - {} penalty{}{} = {} of {} points.", milestoneExerciseId, studentId, achievedPoints, penaltyPoints,
+                blocked ? " (blocked)" : "", definitionOfDoneFailing ? " (definition of done failing)" : "", points, milestoneExercise.getMaxPoints());
 
         Result savedResult = resultRepository.save(result);
         broadcastAggregatedResult(milestoneParticipation.get(), milestoneExercise, savedResult.getId(), studentId);
@@ -182,6 +199,35 @@ public class MilestoneScoreService {
         catch (Exception e) {
             log.warn("Could not broadcast the aggregated milestone result {} of exercise {} for student {}", resultId, milestoneExercise.getId(), studentId, e);
         }
+    }
+
+    /**
+     * Whether the milestone's Definition of Done is failing for the given milestone result: the tests referenced by the
+     * tasks of the milestone's own problem statement must all have passed in it. A failed test, a test that did not run
+     * and a result without any test feedback (a build failure) all fail it - the same rule the student's Definition of
+     * Done box applies ({@code MilestoneDodStatusComponent}).
+     * <p>
+     * Only active test cases count: an inactive one is no longer executed, so it could never pass and would zero the
+     * milestone for good. A milestone whose tasks reference no test at all has no Definition of Done to fail.
+     * <p>
+     * Both are loaded through repositories for the same reason as the static code analysis feedback in
+     * {@link #recalculate}: this runs outside any session, and {@code Result#testCaseFeedbacks} is lazy.
+     *
+     * @param milestoneExerciseId the id of the milestone exercise whose tasks define the Definition of Done
+     * @param milestoneResult     the milestone result to judge
+     * @return true if at least one referenced test has not passed
+     */
+    private boolean isDefinitionOfDoneFailing(long milestoneExerciseId, Result milestoneResult) {
+        Set<Long> referencedTestCaseIds = programmingExerciseTaskRepository.findByExerciseIdWithTestCases(milestoneExerciseId).stream()
+                .flatMap(task -> task.getTestCases().stream()).filter(testCase -> Boolean.TRUE.equals(testCase.isActive())).map(ProgrammingExerciseTestCase::getId)
+                .collect(Collectors.toSet());
+        if (referencedTestCaseIds.isEmpty()) {
+            return false;
+        }
+        Set<Long> passedTestCaseIds = testCaseFeedbackRepository.findWithTestCaseByResultIds(List.of(milestoneResult.getId())).stream()
+                .filter(feedback -> Boolean.TRUE.equals(feedback.isPositive()) && feedback.getTestCase() != null).map(feedback -> feedback.getTestCase().getId())
+                .collect(Collectors.toSet());
+        return !passedTestCaseIds.containsAll(referencedTestCaseIds);
     }
 
     /**
