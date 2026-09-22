@@ -104,13 +104,6 @@ public class UserStoryExerciseService {
         userStoryExercise.setStaticCodeAnalysisEnabled(false);
         userStoryExercise.setMaxStaticCodeAnalysisPenalty(null);
 
-        // A fresh copy every time (rather than mutating an existing one in place) is simplest and matches the copy
-        // constructor's own contract (it already clears the back-reference and any per-copy secret); Hibernate
-        // orphan-removes the previous row via the unique @OneToOne on replacement.
-        if (milestoneExercise.getBuildConfig() != null) {
-            userStoryExercise.setBuildConfig(new ProgrammingExerciseBuildConfig(milestoneExercise.getBuildConfig()));
-        }
-
         String templateRepositoryUri = milestoneExercise.getTemplateRepositoryUri();
         if (userStoryExercise.getTemplateParticipation() == null) {
             userStoryExercise.setTemplateParticipation(new TemplateProgrammingExerciseParticipation());
@@ -131,10 +124,28 @@ public class UserStoryExerciseService {
         userStoryExercise.generateAndSetProjectKey();
 
         // Requires both exercises to already have an id (an unsaved new UserStoryExercise has none yet) - the caller
-        // saves the exercise first and calls syncTestCasesFromMilestone separately in that case; see the create endpoint.
+        // saves the exercise first and calls syncBuildConfigFromMilestone and syncTestCasesFromMilestone separately in
+        // that case; see the create endpoint.
         if (userStoryExercise.getId() != null) {
+            syncBuildConfigFromMilestone(userStoryExercise, milestoneExercise);
             syncTestCasesFromMilestone(userStoryExercise, milestoneExercise);
         }
+    }
+
+    /**
+     * Copies the milestone's build configuration onto the user story. The configuration is a row of its own that holds
+     * its exercise's key, so each user story needs its own row even though the content is the milestone's. An existing
+     * row of the user story is overwritten in place, which keeps the one-configuration-per-exercise key intact.
+     *
+     * @param userStoryExercise the already-persisted exercise to receive the configuration
+     * @param milestoneExercise the group's milestone exercise to copy the configuration from
+     */
+    public void syncBuildConfigFromMilestone(UserStoryExercise userStoryExercise, MilestoneExercise milestoneExercise) {
+        programmingExerciseBuildConfigRepository.findByProgrammingExerciseId(milestoneExercise.getId()).ifPresent(milestoneBuildConfig -> {
+            ProgrammingExerciseBuildConfig copy = new ProgrammingExerciseBuildConfig(milestoneBuildConfig);
+            programmingExerciseBuildConfigRepository.findByProgrammingExerciseId(userStoryExercise.getId()).ifPresent(existing -> copy.setId(existing.getId()));
+            programmingExerciseBuildConfigRepository.saveForExercise(copy, userStoryExercise);
+        });
     }
 
     /**
@@ -225,16 +236,13 @@ public class UserStoryExerciseService {
 
     /**
      * Re-fetches the persisted user story exercise identified by {@code userStoryExerciseId} with its
-     * templateParticipation/solutionParticipation/buildConfig eagerly loaded, then runs {@link #applyMilestoneConfig}
-     * on that fresh instance and saves any newly attached build config first.
+     * templateParticipation/solutionParticipation eagerly loaded, then runs {@link #applyMilestoneConfig} on that fresh
+     * instance.
      * <p>
      * The re-fetch is needed because this architecture runs without an open Hibernate session across repository
      * calls: a caller's own instance (e.g. loaded by a generic {@code ExerciseRepository} lookup, or a member from
      * {@code MilestoneExerciseGroup.getExercises()}) never eagerly loads those associations, which
      * {@code applyMilestoneConfig} dereferences directly - it would otherwise throw {@code LazyInitializationException}.
-     * The build config needs its own save first because it doesn't cascade PERSIST (see the field's
-     * {@code @OneToOne} on {@code ProgrammingExercise}), matching
-     * {@code ProgrammingExerciseCreationUpdateService.saveNewExerciseWithOwnAssociations}'s save dance.
      *
      * @param userStoryExerciseId the id of the already-persisted user story exercise to update
      * @param milestoneExercise   the group's milestone exercise, the source of truth for the shared config
@@ -242,13 +250,8 @@ public class UserStoryExerciseService {
      */
     public UserStoryExercise applyMilestoneConfigFreshFromDatabase(long userStoryExerciseId, MilestoneExercise milestoneExercise) {
         UserStoryExercise userStoryExercise = (UserStoryExercise) programmingExerciseRepository
-                .findByIdWithTemplateAndSolutionParticipationTeamAssignmentConfigCategoriesCompetenciesAndBuildConfigElseThrow(userStoryExerciseId);
+                .findByIdWithTemplateAndSolutionParticipationTeamAssignmentConfigCategoriesCompetenciesAndVariantGroupElseThrow(userStoryExerciseId);
         applyMilestoneConfig(userStoryExercise, milestoneExercise);
-        var buildConfig = userStoryExercise.getBuildConfig();
-        if (buildConfig != null && buildConfig.getId() == null) {
-            buildConfig.setProgrammingExercise(userStoryExercise);
-            userStoryExercise.setBuildConfig(programmingExerciseBuildConfigRepository.save(buildConfig));
-        }
         return userStoryExercise;
     }
 

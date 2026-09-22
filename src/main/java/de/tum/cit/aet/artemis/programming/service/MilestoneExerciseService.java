@@ -33,9 +33,11 @@ import de.tum.cit.aet.artemis.exercise.service.ExerciseVersionService;
 import de.tum.cit.aet.artemis.exercise.service.ParticipationService;
 import de.tum.cit.aet.artemis.plagiarism.domain.PlagiarismDetectionConfigHelper;
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
+import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseBuildConfig;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParticipation;
 import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 import de.tum.cit.aet.artemis.programming.exception.ContinuousIntegrationException;
+import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseBuildConfigRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseStudentParticipationRepository;
 
@@ -96,6 +98,8 @@ public class MilestoneExerciseService {
 
     private final ProgrammingExerciseRepository programmingExerciseRepository;
 
+    private final ProgrammingExerciseBuildConfigRepository programmingExerciseBuildConfigRepository;
+
     public MilestoneExerciseService(CourseRepository courseRepository, MilestoneExerciseGroupRepository milestoneExerciseGroupRepository,
             ExerciseVariantGroupService exerciseVariantGroupService, ProgrammingExerciseValidationService programmingExerciseValidationService,
             ProgrammingExerciseCreationUpdateService programmingExerciseCreationUpdateService, StaticCodeAnalysisService staticCodeAnalysisService,
@@ -103,7 +107,7 @@ public class MilestoneExerciseService {
             ChannelService channelService, ParticipationService participationService, ProgrammingExerciseGradingService programmingExerciseGradingService,
             ResultRepository resultRepository, ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository,
             MilestoneExercisePointsService milestoneExercisePointsService, CompetencyExerciseLinkService competencyExerciseLinkService,
-            ProgrammingExerciseRepository programmingExerciseRepository) {
+            ProgrammingExerciseRepository programmingExerciseRepository, ProgrammingExerciseBuildConfigRepository programmingExerciseBuildConfigRepository) {
         this.courseRepository = courseRepository;
         this.milestoneExerciseGroupRepository = milestoneExerciseGroupRepository;
         this.exerciseVariantGroupService = exerciseVariantGroupService;
@@ -121,6 +125,7 @@ public class MilestoneExerciseService {
         this.milestoneExercisePointsService = milestoneExercisePointsService;
         this.competencyExerciseLinkService = competencyExerciseLinkService;
         this.programmingExerciseRepository = programmingExerciseRepository;
+        this.programmingExerciseBuildConfigRepository = programmingExerciseBuildConfigRepository;
     }
 
     /**
@@ -161,13 +166,12 @@ public class MilestoneExerciseService {
             throws IOException, GitAPIException, ContinuousIntegrationException {
         Course course = courseRepository.findByIdElseThrow(courseId);
         MilestoneExercise milestoneExercise = createDTO.toMilestoneExercise();
+        ProgrammingExerciseBuildConfig buildConfig = createDTO.toBuildConfig();
         milestoneExercise.setCourse(course);
-        // Milestones aren't Athena-assessed - they are never included in an overall score to begin with.
-        milestoneExercise.setFeedbackSuggestionModule(null);
-        programmingExerciseValidationService.validateNewProgrammingExerciseSettings(milestoneExercise, course);
+        programmingExerciseValidationService.validateNewProgrammingExerciseSettings(milestoneExercise, buildConfig, course);
         PlagiarismDetectionConfigHelper.validatePlagiarismDetectionConfigOrThrow(milestoneExercise, ENTITY_NAME);
 
-        MilestoneExercise createdMilestoneExercise = (MilestoneExercise) programmingExerciseCreationUpdateService.createProgrammingExercise(milestoneExercise, false);
+        MilestoneExercise createdMilestoneExercise = (MilestoneExercise) programmingExerciseCreationUpdateService.createProgrammingExercise(milestoneExercise, buildConfig, false);
         if (Boolean.TRUE.equals(createdMilestoneExercise.isStaticCodeAnalysisEnabled())) {
             staticCodeAnalysisService.createDefaultCategories(createdMilestoneExercise);
         }
@@ -176,14 +180,9 @@ public class MilestoneExerciseService {
         MilestoneExerciseGroup group = new MilestoneExerciseGroup();
         group.setTitle(createdMilestoneExercise.getTitle());
         group.setMilestoneExercise(createdMilestoneExercise);
-        // The course owns the unidirectional collection, so save the group first to get an id, then attach it to write
-        // the course_id FK. Not transactional (this codebase avoids service-level @Transactional); a failure between the
-        // two saves leaves an orphan, course-less group - the milestone exercise itself is already fully created.
-        group = milestoneExerciseGroupRepository.save(group);
-        Course courseForGroup = courseRepository.findWithEagerExerciseVariantGroupsByIdElseThrow(courseId);
-        courseForGroup.addExerciseVariantGroup(group);
-        courseRepository.save(courseForGroup);
-        return group;
+        // The group holds the course key itself, so it is saved together with its course in one write.
+        group.setCourse(course);
+        return milestoneExerciseGroupRepository.save(group);
     }
 
     /**
@@ -231,7 +230,6 @@ public class MilestoneExerciseService {
         userStoryExercise.setCourse(course);
         userStoryExercise.setExerciseGroup(null);
         userStoryExercise.setExerciseVariantGroup(milestoneGroup);
-        userStoryExercise.setFeedbackSuggestionModule(null);
         // A user story's points count through its group, so it stays INCLUDED_COMPLETELY and the field is not offered in
         // the form (USER_STORY_HIDDEN_FIELDS). Double counting is prevented by the score calculation skipping milestone
         // group members - see CourseScoreCalculator.includeIntoScoreCalculation - not by lying about this value.
@@ -248,12 +246,15 @@ public class MilestoneExerciseService {
         competencyExerciseLinkService.updateCompetencyLinks(createDTO, userStoryExercise);
         var competencyLinks = competencyExerciseLinkService.extractCompetencyLinksForCreation(userStoryExercise);
 
-        programmingExerciseValidationService.validateNewProgrammingExerciseSettings(userStoryExercise, course);
+        // The user story builds exactly like its milestone, so it gets a copy of the milestone's build config.
+        ProgrammingExerciseBuildConfig buildConfig = new ProgrammingExerciseBuildConfig(
+                programmingExerciseBuildConfigRepository.getProgrammingExerciseBuildConfigElseThrow(milestoneGroup.getMilestoneExercise().getId()));
+        programmingExerciseValidationService.validateNewProgrammingExerciseSettings(userStoryExercise, buildConfig, course);
         PlagiarismDetectionConfigHelper.validatePlagiarismDetectionConfigOrThrow(userStoryExercise, VARIANT_GROUP_ENTITY_NAME);
 
-        // applyMilestoneConfig above attaches a fresh, still-transient buildConfig (copied from the milestone exercise)
-        // and template/solution participations - none of which cascade PERSIST, so they need their own save dance.
-        UserStoryExercise created = programmingExerciseCreationUpdateService.saveNewExerciseWithOwnAssociations(userStoryExercise);
+        // applyMilestoneConfig above attaches fresh, still-transient template/solution participations, which do not cascade
+        // PERSIST, so they need their own save dance, as does the build config.
+        UserStoryExercise created = programmingExerciseCreationUpdateService.saveNewExerciseWithOwnAssociations(userStoryExercise, buildConfig);
         competencyExerciseLinkService.addCompetencyLinksForCreation(created, competencyLinks);
         if (!created.getCompetencyLinks().isEmpty()) {
             // The links cascade from the exercise, and nothing else on this path saves it again.
@@ -291,8 +292,7 @@ public class MilestoneExerciseService {
     private void backfillExistingParticipantsForNewUserStoryExercise(UserStoryExercise created, MilestoneExerciseGroup milestoneGroup) {
         long milestoneExerciseId = milestoneGroup.getMilestoneExercise().getId();
         for (ProgrammingExerciseStudentParticipation newParticipation : participationService.provisionParticipationsForNewUserStoryExercise(created)) {
-            newParticipation.getStudent()
-                    .flatMap(student -> programmingExerciseStudentParticipationRepository.findByExerciseIdAndStudentLogin(milestoneExerciseId, student.getLogin()))
+            newParticipation.getStudent().flatMap(student -> programmingExerciseStudentParticipationRepository.findByExerciseIdAndStudentId(milestoneExerciseId, student.getId()))
                     .flatMap(milestoneParticipation -> resultRepository.findLatestResultWithFeedbacksForParticipation(milestoneParticipation.getId(), true))
                     .ifPresent(latestMilestoneResult -> programmingExerciseGradingService.fanOutResultToUserStoryExercise(latestMilestoneResult, created, newParticipation));
         }
@@ -317,7 +317,7 @@ public class MilestoneExerciseService {
         // The milestone's problem statement doubles as the group's description in the student group view - the milestone
         // itself is never rendered, so this endpoint is the only path that can hand it to the group view.
         String problemStatement = milestoneExerciseGroupRepository.findMilestoneProblemStatementByGroupId(groupId).orElse(null);
-        var participation = programmingExerciseStudentParticipationRepository.findByExerciseIdAndStudentLogin(milestoneExerciseId, user.getLogin());
+        var participation = programmingExerciseStudentParticipationRepository.findByExerciseIdAndStudentId(milestoneExerciseId, user.getId());
         return participation.map(p -> new MilestoneStatusDTO(milestoneExerciseId, true, p.getId(), p.getRepositoryUri(), problemStatement))
                 .orElseGet(() -> new MilestoneStatusDTO(milestoneExerciseId, false, null, null, problemStatement));
     }

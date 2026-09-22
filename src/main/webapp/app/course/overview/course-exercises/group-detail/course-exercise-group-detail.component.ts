@@ -12,6 +12,7 @@ import { CourseExerciseGroup, buildGroupsFromExercises } from 'app/exercise/shar
 import { CourseOverviewExercisesService } from 'app/course/overview/services/course-overview-exercises.service';
 import { CourseStorageService } from 'app/course/manage/services/course-storage.service';
 import { ExerciseVariantGroupService, MilestoneStatusDTO } from 'app/course/manage/exercises/exercise-variant-group.service';
+import { CourseSidebarToggleButtonComponent } from 'app/course/shared/course-sidebar-toggle-button/course-sidebar-toggle-button.component';
 import { EntityTitleService, EntityType } from 'app/core/navbar/entity-title.service';
 import { ProgrammingExercisePlantUmlExtensionWrapper } from 'app/programming/shared/instructions-render/extensions/programming-exercise-plant-uml.extension';
 import { taskRegex } from 'app/programming/shared/instructions-render/extensions/programming-exercise-task.extension';
@@ -31,7 +32,7 @@ import { ScoresStorageService } from 'app/course/manage/course-scores/scores-sto
 import { AlertService } from 'app/foundation/service/alert.service';
 import { isDateLessThanAWeekInTheFuture } from 'app/foundation/util/date.utils';
 import { roundValueSpecifiedByCourseSettings } from 'app/foundation/util/utils';
-import { cloneWith } from 'app/foundation/util/deep-clone.util';
+import { cloneWith, hydrate } from 'app/foundation/util/deep-clone.util';
 import { convertDateFromServer } from 'app/foundation/util/date.utils';
 import { TumUiTooltipDirective } from '@tumaet/ui-angular';
 import { ExerciseActionButtonComponent } from 'app/shared-ui/components/buttons/exercise-action-button/exercise-action-button.component';
@@ -73,6 +74,7 @@ import { NgbDropdown, NgbDropdownItem, NgbDropdownMenu, NgbDropdownToggle } from
         NgbDropdownItem,
         MilestoneCodeQualityComponent,
         ProgrammingExerciseInstructionComponent,
+        CourseSidebarToggleButtonComponent,
     ],
     /* preserveWhitespaces: false is required here because the global tsconfig sets preserveWhitespaces: true,
      * which inserts whitespace text nodes that break [contentComponent] slot matching in jhi-information-box. */
@@ -206,11 +208,11 @@ export class CourseExerciseGroupDetailComponent {
     /** Member participations already handed to the websocket service, so an unrelated re-render does not re-register them. */
     private readonly registeredVariantParticipationIds = new Set<number>();
 
-    private readonly problemStatements = signal<Map<number, string>>(new Map());
-    /** Groups whose member previews have already been requested, so revisiting a group does not re-fetch them. */
-    private readonly requestedGroupIds = new Set<number>();
+    protected readonly isSidebarCollapsed = signal(false);
+    private readonly sidebarToggle = signal<(() => void) | undefined>(undefined);
+    protected readonly showSidebarToggle = computed(() => !!this.sidebarToggle());
+    protected readonly toggleSidebar = () => this.sidebarToggle()?.();
 
-    protected readonly renderedStatements = signal<Map<number, SafeHtml>>(new Map());
     private plantUmlCallbacks: Array<() => void> = [];
 
     protected readonly group = computed<CourseExerciseGroup | undefined>(() => {
@@ -339,8 +341,8 @@ export class CourseExerciseGroupDetailComponent {
      * is never rendered to students, so it arrives via the milestone-status request the view already makes rather than
      * with the dashboard payload — the callout therefore falls back to the generic heading until that resolves.
      *
-     * Rendered by {@link renderProblemStatements}, in the same pass as the member previews and with the same PlantUML
-     * extension, so diagrams in the description render before the milestone is started too. It is a signal rather than a
+     * Rendered by {@link renderMilestoneDescription} with the PlantUML extension, so diagrams in the description render
+     * before the milestone is started too. It is a signal rather than a
      * computed because that extension is stateful (setExerciseId plus callbacks flushed in afterNextRender), which a pure
      * computed cannot drive.
      */
@@ -419,11 +421,9 @@ export class CourseExerciseGroupDetailComponent {
             .subscribe((cb) => this.plantUmlCallbacks.push(cb));
 
         effect(() => {
-            const exercises = this.exercises();
-            const statements = this.problemStatements();
             const status = this.milestoneStatus();
             const milestoneDescription = status?.problemStatement ? { milestoneExerciseId: status.milestoneExerciseId, problemStatement: status.problemStatement } : undefined;
-            untracked(() => this.renderProblemStatements(exercises, statements, milestoneDescription));
+            untracked(() => this.renderMilestoneDescription(milestoneDescription));
         });
 
         // The course itself is already loaded by the course overview container this route lives in; the only field read
@@ -451,41 +451,6 @@ export class CourseExerciseGroupDetailComponent {
                     this.entityTitleService.setTitle(EntityType.EXERCISE_VARIANT_GROUP, [g.id], g.title);
                 }
             });
-
-        effect(() => {
-            const group = this.group();
-            const groupId = group?.id;
-            if (group === undefined || groupId === undefined || this.requestedGroupIds.has(groupId)) {
-                return;
-            }
-            // The dashboard strips problem statements to stay small, so any member missing one needs the batch preview
-            // request. When every member already carries its statement (e.g. inlined by a caller), there is nothing to do.
-            const needsPreview = (group.exercises ?? []).some((exercise) => exercise.id !== undefined && exercise.problemStatement === undefined);
-            if (!needsPreview) {
-                return;
-            }
-            this.requestedGroupIds.add(groupId);
-            // One lightweight batch request for the whole group instead of one heavyweight exercise-details request per member.
-            this.exerciseVariantGroupService
-                .getProblemStatements(this.courseId, groupId)
-                .pipe(takeUntilDestroyed(this.destroyRef))
-                .subscribe({
-                    next: (previews) => {
-                        const next = new Map(this.problemStatements());
-                        for (const preview of previews) {
-                            if (preview.problemStatement !== undefined) {
-                                next.set(preview.exerciseId, preview.problemStatement);
-                            }
-                        }
-                        this.problemStatements.set(next);
-                    },
-                    error: () => {
-                        // The group was optimistically marked as requested; release it so a later change (or revisit)
-                        // can retry the batch instead of leaving the previews permanently blocked.
-                        this.requestedGroupIds.delete(groupId);
-                    },
-                });
-        });
 
         effect(() => {
             const group = this.group();
@@ -692,27 +657,11 @@ export class CourseExerciseGroupDetailComponent {
     }
 
     /**
-     * Renders the member previews and the milestone's description (see {@link milestoneDescriptionHtml}), including their
-     * PlantUML diagrams. Both go through one pass on purpose: the pass starts by clearing the pending diagram callbacks
-     * and flushes them once after the next render, so a second, separate pass would drop the first one's diagrams.
+     * Renders the milestone's description (see {@link milestoneDescriptionHtml}), including its PlantUML diagrams, which
+     * are injected once the rendered markup is in the DOM.
      */
-    private renderProblemStatements(
-        exercises: Exercise[],
-        statements: Map<number, string>,
-        milestoneDescription?: { milestoneExerciseId: number; problemStatement: string },
-    ): void {
+    private renderMilestoneDescription(milestoneDescription?: { milestoneExerciseId: number; problemStatement: string }): void {
         this.plantUmlCallbacks = [];
-        const map = new Map<number, SafeHtml>();
-
-        for (const exercise of exercises) {
-            if (exercise.id === undefined) continue;
-            const ps = exercise.problemStatement ?? statements.get(exercise.id);
-            if (!ps) continue;
-            map.set(exercise.id, this.renderStatement(exercise.id, ps));
-        }
-
-        this.renderedStatements.set(map);
-        // Diagram containers are scoped by exercise id; the anchor's id never equals a member's, so they cannot collide.
         this.milestoneDescriptionHtml.set(milestoneDescription ? this.renderStatement(milestoneDescription.milestoneExerciseId, milestoneDescription.problemStatement) : undefined);
 
         afterNextRender(
@@ -724,7 +673,17 @@ export class CourseExerciseGroupDetailComponent {
         );
     }
 
-    /** One problem statement as preview HTML: task syntax stripped to its name, PlantUML diagrams scoped to the exercise. */
+    /**
+     * Hands this page the exercise sidebar's state and its toggle. Implementing it is what makes
+     * {@code CourseExercisesComponent} recognise the activated route component as one that renders the expand button
+     * itself, so a collapsed sidebar can be brought back from a group page rather than only from an exercise page.
+     */
+    setSidebarToggle(isCollapsed: boolean, toggleSidebar: () => void): void {
+        this.isSidebarCollapsed.set(isCollapsed);
+        this.sidebarToggle.set(toggleSidebar);
+    }
+
+    /** A problem statement as preview HTML: task syntax stripped to its name, PlantUML diagrams scoped to the exercise. */
     private renderStatement(exerciseId: number, problemStatement: string): SafeHtml {
         // Strip task syntax — [task][Name](tests) → Name — so it renders as plain text instead of a link.
         const preprocessed = problemStatement.replace(taskRegex, (_match, name: string) => name);
@@ -772,7 +731,8 @@ export class CourseExerciseGroupDetailComponent {
         }
         this.isStartingMilestone.set(true);
         this.courseExerciseService
-            .startExercise(status.milestoneExerciseId)
+            // The milestone itself is never loaded before it is started; only the new participation is read below.
+            .startExercise(status.milestoneExerciseId, hydrate(new ProgrammingExercise(undefined, undefined), { id: status.milestoneExerciseId, type: ExerciseType.MILESTONE }))
             .pipe(finalize(() => this.isStartingMilestone.set(false)))
             .subscribe({
                 next: (participation) => {

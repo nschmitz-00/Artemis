@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
+import de.tum.cit.aet.artemis.account.repository.UserRepository;
 import de.tum.cit.aet.artemis.assessment.domain.Result;
 import de.tum.cit.aet.artemis.assessment.repository.ResultRepository;
 import de.tum.cit.aet.artemis.exercise.domain.Exercise;
@@ -63,16 +64,19 @@ public class MilestoneAssessmentService {
 
     private final ProgrammingFeedbackSynthesizerService programmingFeedbackSynthesizerService;
 
+    private final UserRepository userRepository;
+
     public MilestoneAssessmentService(MilestoneExerciseGroupRepository milestoneExerciseGroupRepository,
             ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository, StudentParticipationRepository studentParticipationRepository,
             ProgrammingExerciseRepository programmingExerciseRepository, ResultRepository resultRepository,
-            ProgrammingFeedbackSynthesizerService programmingFeedbackSynthesizerService) {
+            ProgrammingFeedbackSynthesizerService programmingFeedbackSynthesizerService, UserRepository userRepository) {
         this.milestoneExerciseGroupRepository = milestoneExerciseGroupRepository;
         this.programmingExerciseStudentParticipationRepository = programmingExerciseStudentParticipationRepository;
         this.studentParticipationRepository = studentParticipationRepository;
         this.programmingExerciseRepository = programmingExerciseRepository;
         this.resultRepository = resultRepository;
         this.programmingFeedbackSynthesizerService = programmingFeedbackSynthesizerService;
+        this.userRepository = userRepository;
     }
 
     /**
@@ -119,14 +123,15 @@ public class MilestoneAssessmentService {
         MilestoneExerciseGroup group = milestoneExerciseGroupRepository.findByIdAndCourseIdWithDetailsElseThrow(groupId, courseId);
         long milestoneExerciseId = milestoneExerciseId(group);
         MilestoneExercise milestoneExercise = (MilestoneExercise) programmingExerciseRepository.findByIdElseThrow(milestoneExerciseId);
+        long studentId = userRepository.getArbitraryValueElseThrow(userRepository.findIdByLogin(studentLogin), studentLogin);
 
         List<MilestoneAssessmentExerciseDTO> exercises = orderedExercises(group).stream().map(exercise -> toExerciseDTO(exercise,
-                studentParticipationRepository.findWithSubmissionsResultsAndAssessorByExerciseIdAndStudentLogin(exercise.getId(), studentLogin).stream().findFirst().orElse(null)))
+                studentParticipationRepository.findWithSubmissionsResultsAndAssessorByExerciseIdAndStudentId(exercise.getId(), studentId).stream().findFirst().orElse(null)))
                 .toList();
 
         return new MilestoneAssessmentDTO(milestoneExerciseId, milestoneExercise.getTitle(), milestoneExercise.getProblemStatement(),
                 Boolean.TRUE.equals(milestoneExercise.isStaticCodeAnalysisEnabled()), milestoneExercise.getMaxStaticCodeAnalysisPenalty(), milestoneExercise.getMaxPoints(),
-                milestoneResult(milestoneExerciseId, studentLogin, milestoneExercise), exercises);
+                milestoneResult(milestoneExerciseId, studentId, milestoneExercise), exercises);
     }
 
     /**
@@ -137,9 +142,9 @@ public class MilestoneAssessmentService {
      * the synthesizer walk there itself would mean a lazy load that {@code open-in-view} being off does not allow.
      */
     @Nullable
-    private ResultDTO milestoneResult(long milestoneExerciseId, String studentLogin, MilestoneExercise milestoneExercise) {
+    private ResultDTO milestoneResult(long milestoneExerciseId, long studentId, MilestoneExercise milestoneExercise) {
         Optional<ProgrammingExerciseStudentParticipation> milestoneParticipation = programmingExerciseStudentParticipationRepository
-                .findByExerciseIdAndStudentLogin(milestoneExerciseId, studentLogin);
+                .findByExerciseIdAndStudentId(milestoneExerciseId, studentId);
         if (milestoneParticipation.isEmpty()) {
             return null;
         }

@@ -104,7 +104,7 @@ public class UserStoryEffortService {
             throw new BadRequestAlertException("Effort can only be reported for a user story exercise", ENTITY_NAME, "notUserStoryExercise");
         }
         // Team-aware: for a team exercise this resolves the team's single participation, so its members share one pair.
-        StudentParticipation participation = participationService.findOneByExerciseAndStudentLoginAnyState(exercise, user.getLogin())
+        StudentParticipation participation = participationService.findOneByExerciseAndStudentAnyState(exercise, user)
                 .orElseThrow(() -> new BadRequestAlertException("The exercise has to be started before its effort can be reported", ENTITY_NAME, "participationMissing"));
         // Belt and braces: the lookup above is already scoped to this user, so this only ever fires if that changes.
         participationAuthorizationCheckService.checkCanAccessParticipationElseThrow(participation);

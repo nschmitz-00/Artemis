@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import org.jspecify.annotations.Nullable;
@@ -29,8 +30,12 @@ import de.tum.cit.aet.artemis.core.exception.AccessForbiddenException;
  */
 public final class SecurityUtils {
 
+    /** The shared email expression, compiled once. {@code Constants.SIMPLE_EMAIL_REGEX} stays a string because bean validation interpolates it. */
+    private static final Pattern SIMPLE_EMAIL_PATTERN = Pattern.compile(SIMPLE_EMAIL_REGEX);
+
     /**
-     * Roles in descending order of precedence, matching the role hierarchy declared in {@code SecurityConfiguration}.
+     * Roles in descending order of precedence, for reporting which role a request acted with. This is a ranking, not the
+     * role hierarchy: {@code SecurityConfiguration} no longer lets an administrator authority imply a teaching role.
      */
     private static final Role[] ROLES_BY_PRECEDENCE = { Role.SUPER_ADMIN, Role.ADMIN, Role.INSTRUCTOR, Role.EDITOR, Role.TEACHING_ASSISTANT, Role.STUDENT };
 
@@ -38,7 +43,7 @@ public final class SecurityUtils {
     }
 
     public static boolean isEmail(String input) {
-        return input.matches(SIMPLE_EMAIL_REGEX);
+        return SIMPLE_EMAIL_PATTERN.matcher(input).matches();
     }
 
     /**

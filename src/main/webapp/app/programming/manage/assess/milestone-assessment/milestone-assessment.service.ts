@@ -5,7 +5,7 @@ import { Result } from 'app/exercise/shared/entities/result/result.model';
 import { ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.model';
 
 /**
- * One exercise of a milestone group as it stands for a single student (mirrors the backend
+ * One exercise of a milestone group as it stands for a single student (mirrors the server
  * {@code MilestoneAssessmentExerciseDTO}). Most are user stories; a group may also hold text, modeling, file upload and
  * quiz exercises, which the server lists after the stories.
  * <p>
@@ -31,7 +31,7 @@ export interface MilestoneAssessmentExercise {
     assessed?: boolean;
 }
 
-/** One student's standing across a whole milestone group (mirrors the backend {@code MilestoneAssessmentStudentDTO}). */
+/** One student's standing across a whole milestone group (mirrors the server {@code MilestoneAssessmentStudentDTO}). */
 export interface MilestoneAssessmentStudent {
     studentLogin: string;
     studentName?: string;
@@ -40,7 +40,7 @@ export interface MilestoneAssessmentStudent {
 }
 
 /**
- * Everything the milestone assessment page needs for one student (mirrors the backend {@code MilestoneAssessmentDTO}).
+ * Everything the milestone assessment page needs for one student (mirrors the server {@code MilestoneAssessmentDTO}).
  * <p>
  * {@link milestoneResult} is the milestone's own result, which is the only place the group's static code analysis
  * feedback exists: the fan-out copies only test case feedback down to the stories, and every story has static code

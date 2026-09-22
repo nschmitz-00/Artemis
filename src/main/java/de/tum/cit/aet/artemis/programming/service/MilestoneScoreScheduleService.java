@@ -98,8 +98,7 @@ public class MilestoneScoreScheduleService {
 
     public MilestoneScoreScheduleService(@Qualifier("taskScheduler") TaskScheduler scheduler, MilestoneScoreService milestoneScoreService,
             MilestoneExerciseGroupRepository milestoneExerciseGroupRepository, ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository,
-            // Lazy: the points service reaches back into this one (via InstanceMessageSendService) to schedule a group.
-            @Lazy MilestoneExercisePointsService milestoneExercisePointsService) {
+            MilestoneExercisePointsService milestoneExercisePointsService) {
         this.scheduler = scheduler;
         this.milestoneScoreService = milestoneScoreService;
         this.milestoneExerciseGroupRepository = milestoneExerciseGroupRepository;
@@ -157,7 +156,7 @@ public class MilestoneScoreScheduleService {
      * percentages of that total - are rewritten against the corrected one rather than silently rescaled.
      */
     private void resyncAllMilestoneMaxPoints() {
-        SecurityUtils.setAuthorizationObject();
+        SecurityUtils.setSystemAuthorizationObject();
         for (Long milestoneExerciseId : milestoneExerciseGroupRepository.findAllMilestoneExerciseIds()) {
             milestoneExercisePointsService.syncMaxPoints(milestoneExerciseId);
         }
@@ -184,7 +183,7 @@ public class MilestoneScoreScheduleService {
      */
     @Scheduled(cron = "0 * * * * *")
     protected void scheduleMissedResults() {
-        SecurityUtils.setAuthorizationObject();
+        SecurityUtils.setSystemAuthorizationObject();
         if (isRunning.get()) {
             sweepForMissedResults();
         }
@@ -231,7 +230,7 @@ public class MilestoneScoreScheduleService {
         pendingResolutions.incrementAndGet();
         scheduler.schedule(() -> {
             try {
-                SecurityUtils.setAuthorizationObject();
+                SecurityUtils.setSystemAuthorizationObject();
                 milestoneExerciseGroupRepository.findMilestoneExerciseIdByUserStoryExerciseId(userStoryExerciseId)
                         .ifPresent(milestoneExerciseId -> scheduleTask(milestoneExerciseId, studentId));
             }
@@ -266,7 +265,7 @@ public class MilestoneScoreScheduleService {
         pendingResolutions.incrementAndGet();
         scheduler.schedule(() -> {
             try {
-                SecurityUtils.setAuthorizationObject();
+                SecurityUtils.setSystemAuthorizationObject();
                 var participations = programmingExerciseStudentParticipationRepository.findAllByExerciseIdAndRepositoryUriIsNotNullAndTestRunFalse(milestoneExerciseId);
                 participations.forEach(participation -> participation.getStudent().ifPresent(student -> scheduleTask(milestoneExerciseId, student.getId())));
                 log.debug("Scheduled milestone score tasks for {} participants of milestone exercise {}.", participations.size(), milestoneExerciseId);
@@ -314,7 +313,7 @@ public class MilestoneScoreScheduleService {
         synchronized (lockStripes[Math.floorMod(milestoneScoreId.hashCode(), NUM_LOCK_STRIPES)]) {
             long start = System.currentTimeMillis();
             try {
-                SecurityUtils.setAuthorizationObject();
+                SecurityUtils.setSystemAuthorizationObject();
                 Optional<Result> updated = milestoneScoreService.recalculate(milestoneScoreId.milestoneExerciseId(), milestoneScoreId.studentId());
                 updated.ifPresent(result -> log.debug("Updated milestone score for milestone exercise {} and student {} to {}.", milestoneScoreId.milestoneExerciseId(),
                         milestoneScoreId.studentId(), result.getScore()));

@@ -13,6 +13,7 @@ import org.jspecify.annotations.Nullable;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import de.tum.cit.aet.artemis.core.domain.DomainObject;
+import de.tum.cit.aet.artemis.core.domain.Parent;
 import de.tum.cit.aet.artemis.exercise.domain.participation.Participation;
 
 /**
@@ -62,6 +63,7 @@ public class UserStoryTask extends DomainObject {
 
     @ManyToOne
     @JoinColumn(name = "participation_id", nullable = false)
+    @Parent
     private Participation participation;
 
     public String getTitle() {

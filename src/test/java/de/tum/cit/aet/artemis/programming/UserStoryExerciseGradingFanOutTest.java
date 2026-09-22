@@ -114,6 +114,7 @@ class UserStoryExerciseGradingFanOutTest extends AbstractProgrammingIntegrationI
         group = new MilestoneExerciseGroup();
         group.setTitle("Milestone Group " + TEST_PREFIX);
         group.setMilestoneExercise(milestoneExercise);
+        group.setCourse(course);
         group = (MilestoneExerciseGroup) exerciseVariantGroupRepository.save(group);
 
         course = courseRepository.findWithEagerExerciseVariantGroupsByIdElseThrow(course.getId());

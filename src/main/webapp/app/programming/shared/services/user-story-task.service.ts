@@ -5,7 +5,7 @@ import { UserStoryTask } from 'app/exercise/shared/entities/participation/progra
 
 /**
  * Reads and writes the tasks the current user creates for themself while working on a user story exercise (mirrors
- * the backend {@code UserStoryTaskResource}).
+ * the server {@code UserStoryTaskResource}).
  *
  * Every endpoint acts on the caller's own participation, or a task on it - there is nothing here for reading or
  * writing someone else's board.

@@ -20,9 +20,7 @@ export interface UpdateFileUploadExerciseDto {
     bonusPoints?: number;
     includedInOverallScore?: IncludedInOverallScore;
     allowComplaintsForAutomaticAssessments?: boolean;
-    allowFeedbackRequests?: boolean;
     presentationScoreEnabled?: boolean;
-    allowTutorScoreRowActions?: boolean;
     secondCorrectionEnabled?: boolean;
 
     releaseDate?: string;
@@ -39,7 +37,6 @@ export interface UpdateFileUploadExerciseDto {
 
     gradingCriteria?: GradingCriterion[];
     gradingInstructions?: string;
-    feedbackSuggestionModule?: string;
     competencyLinks?: CompetencyLinkDTO[];
 }
 
@@ -69,9 +66,7 @@ export function toUpdateFileUploadExerciseDTO(fileUploadExercise: FileUploadExer
         bonusPoints: fileUploadExercise.bonusPoints,
         includedInOverallScore: fileUploadExercise.includedInOverallScore,
         allowComplaintsForAutomaticAssessments: fileUploadExercise.allowComplaintsForAutomaticAssessments ?? false,
-        allowFeedbackRequests: fileUploadExercise.allowFeedbackRequests ?? false,
         presentationScoreEnabled: fileUploadExercise.presentationScoreEnabled ?? false,
-        allowTutorScoreRowActions: fileUploadExercise.allowTutorScoreRowActions ?? false,
         secondCorrectionEnabled: fileUploadExercise.secondCorrectionEnabled ?? false,
         releaseDate: convertDateFromClient(fileUploadExercise.releaseDate),
         startDate: convertDateFromClient(fileUploadExercise.startDate),
@@ -84,7 +79,6 @@ export function toUpdateFileUploadExerciseDTO(fileUploadExercise: FileUploadExer
         exerciseGroupId: fileUploadExercise.exerciseGroup?.id,
         gradingCriteria: fileUploadExercise.gradingCriteria ?? [],
         gradingInstructions: fileUploadExercise.gradingInstructions,
-        feedbackSuggestionModule: fileUploadExercise.feedbackSuggestionModule,
         competencyLinks: (fileUploadExercise.competencyLinks ?? []).map((link) => toCompetencyLinkDTO(link, 1)),
     };
 }

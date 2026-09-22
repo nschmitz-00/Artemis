@@ -82,7 +82,8 @@ public record ExerciseForCourseOverviewDTO(ExerciseType type, String typeDiscrim
         Set<QuizBatchOverviewDTO> quizBatches = quizBatchStarted ? Set.of(QuizBatchOverviewDTO.STARTED) : Set.of();
         return new ExerciseOverviewDTO(typeDiscriminator, id, title, maxPoints, bonusPoints, releaseDate, startDate, dueDate, assessmentDueDate, assessmentType, difficulty, mode,
                 teamMode, includedInOverallScore, categories, presentationScoreEnabled, allowFeedbackRequests, allowOnlineEditor, allowOfflineIde, staticCodeAnalysisEnabled,
-                quizEnded, quizBatches, studentAssignedTeamId, teamMode, variantGroup, studentParticipations);
+                // the programming configuration stays off the overview wire (see CourseOverviewLoadProfileTest); only lecture exercise units carry it
+                null, null, null, null, null, quizEnded, quizBatches, studentAssignedTeamId, teamMode, variantGroup, studentParticipations);
     }
 
     /**

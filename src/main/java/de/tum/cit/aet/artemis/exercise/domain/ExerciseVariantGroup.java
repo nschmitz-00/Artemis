@@ -1,8 +1,12 @@
 package de.tum.cit.aet.artemis.exercise.domain;
 
+import static de.tum.cit.aet.artemis.core.util.DateUtil.validateStrictDateSequence;
+
 import java.time.ZonedDateTime;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
-import java.util.Objects;
+import java.util.List;
 import java.util.Set;
 
 import jakarta.persistence.Column;
@@ -13,19 +17,26 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Inheritance;
 import jakarta.persistence.InheritanceType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
 import org.hibernate.annotations.ConcreteProxy;
+import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.annotation.JsonTypeName;
 
 import de.tum.cit.aet.artemis.core.domain.DomainObject;
+import de.tum.cit.aet.artemis.core.domain.Parent;
 import de.tum.cit.aet.artemis.core.exception.BadRequestAlertException;
+import de.tum.cit.aet.artemis.course.domain.Course;
 
 /**
  * An {@code ExerciseVariantGroup} bundles a set of {@link Exercise}s that are interchangeable variants of one another
@@ -49,6 +60,7 @@ import de.tum.cit.aet.artemis.core.exception.BadRequestAlertException;
 @DiscriminatorValue("V")
 @ConcreteProxy
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
+@JsonTypeName("variant")
 @JsonSubTypes({ @JsonSubTypes.Type(value = MilestoneExerciseGroup.class, name = "milestone") })
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class ExerciseVariantGroup extends DomainObject {
@@ -81,18 +93,36 @@ public class ExerciseVariantGroup extends DomainObject {
     @Column(name = "example_solution_publication_date")
     private ZonedDateTime exampleSolutionPublicationDate;
 
+    /**
+     * The course the group belongs to. The key lives here rather than on the course so that a group cannot exist
+     * without one: a course-less group is invisible to every course query and would linger forever.
+     */
+    @ManyToOne
+    @JoinColumn(name = "course_id", nullable = false)
+    @JsonIgnore
+    @Parent
+    private Course course;
+
     // Ignore "course" as well to break the Course -> exerciseVariantGroups -> group -> exercises -> exercise.course cycle,
     // mirroring the guard on Course.exercises.
     @OneToMany(mappedBy = "exerciseVariantGroup", fetch = FetchType.LAZY)
     @JsonIgnoreProperties(value = { "exerciseVariantGroup", "course" }, allowSetters = true)
     private Set<Exercise> exercises = new HashSet<>();
 
+    public Course getCourse() {
+        return course;
+    }
+
+    public void setCourse(Course course) {
+        this.course = course;
+    }
+
     public String getTitle() {
         return title;
     }
 
-    public void setTitle(String title) {
-        this.title = Objects.requireNonNull(title, "title must not be null").strip();
+    public void setTitle(@NonNull String title) {
+        this.title = title.strip();
     }
 
     @Nullable
@@ -168,24 +198,38 @@ public class ExerciseVariantGroup extends DomainObject {
     }
 
     /**
-     * Whether this group's timeline fields are internally consistent, mirroring {@link Exercise#validateDates()}
-     * (release &lt;= start &lt;= due, assessment due not before release or due). The example solution date only needs to
-     * follow the release date; the stricter "not before due date" rule depends on {@code IncludedInOverallScore}, which a
-     * group lacks, so it is enforced per member when the timeline is applied.
+     * Whether this group's timeline fields are internally consistent, mirroring {@link Exercise#validateBaseDates()}. All
+     * configured dates must follow the strict ordering used for course exercises, and an assessment due date requires a due
+     * date.
      *
      * @return {@code true} if the set dates do not contradict each other
      */
     public boolean areDatesValid() {
         // Read through the getters (not the raw fields) so a subclass that overrides them to delegate elsewhere
         // (e.g. MilestoneExerciseGroup, whose dates live on its MilestoneExercise) is validated correctly.
-        //@formatter:off
-        return isNotAfterAndNotNull(getReleaseDate(), getDueDate())
-                && isNotAfterAndNotNull(getReleaseDate(), getStartDate())
-                && isNotAfterAndNotNull(getStartDate(), getDueDate())
-                && isValidAssessmentDueDate(getStartDate(), getDueDate(), getAssessmentDueDate())
-                && isValidAssessmentDueDate(getReleaseDate(), getDueDate(), getAssessmentDueDate())
-                && isNotAfterAndNotNull(getReleaseDate(), getExampleSolutionPublicationDate());
-        //@formatter:on
+        ZonedDateTime release = getReleaseDate();
+        ZonedDateTime start = getStartDate();
+        ZonedDateTime due = getDueDate();
+        ZonedDateTime assessmentDue = getAssessmentDueDate();
+        ZonedDateTime exampleSolutionPublication = getExampleSolutionPublicationDate();
+        boolean releaseDateValid = validateStrictDateSequence(List.of(), release, Arrays.asList(start, due, assessmentDue, exampleSolutionPublication));
+        boolean startDateValid = validateStrictDateSequence(Collections.singletonList(release), start, Arrays.asList(due, assessmentDue, exampleSolutionPublication));
+        boolean dueDateValid = validateStrictDateSequence(Arrays.asList(release, start), due, Arrays.asList(assessmentDue, exampleSolutionPublication));
+        boolean assessmentDueDateValid = validateAssessmentDueDate(release, start, due, assessmentDue, exampleSolutionPublication);
+        boolean exampleSolutionPublicationDateValid = validateStrictDateSequence(Arrays.asList(release, start, due, assessmentDue), exampleSolutionPublication, List.of());
+
+        return releaseDateValid && startDateValid && dueDateValid && assessmentDueDateValid && exampleSolutionPublicationDateValid;
+    }
+
+    private static boolean validateAssessmentDueDate(ZonedDateTime release, ZonedDateTime start, ZonedDateTime due, ZonedDateTime assessmentDue,
+            ZonedDateTime exampleSolutionPublication) {
+        if (assessmentDue == null) {
+            return true;
+        }
+        if (due == null) {
+            return false;
+        }
+        return validateStrictDateSequence(Arrays.asList(release, start, due), assessmentDue, Collections.singletonList(exampleSolutionPublication));
     }
 
     /** Like {@link #areDatesValid()}, but throws so create/update callers reject an inconsistent timeline instead of saving it. */
@@ -193,24 +237,6 @@ public class ExerciseVariantGroup extends DomainObject {
         if (!areDatesValid()) {
             throw new BadRequestAlertException("The group dates are not valid", "exerciseVariantGroup", "noValidDates");
         }
-    }
-
-    private static boolean isValidAssessmentDueDate(ZonedDateTime releaseDate, ZonedDateTime dueDate, ZonedDateTime assessmentDueDate) {
-        if (assessmentDueDate == null) {
-            return true;
-        }
-        // There cannot be an assessmentDueDate without a dueDate.
-        if (dueDate == null) {
-            return false;
-        }
-        return isNotAfterAndNotNull(dueDate, assessmentDueDate) && isNotAfterAndNotNull(releaseDate, assessmentDueDate);
-    }
-
-    private static boolean isNotAfterAndNotNull(ZonedDateTime previousDate, ZonedDateTime laterDate) {
-        if (previousDate == null || laterDate == null) {
-            return true;
-        }
-        return !previousDate.isAfter(laterDate);
     }
 
     @Override

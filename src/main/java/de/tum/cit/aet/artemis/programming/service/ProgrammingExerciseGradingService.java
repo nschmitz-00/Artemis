@@ -478,14 +478,14 @@ public class ProgrammingExerciseGradingService {
         if (student.isEmpty()) {
             return;
         }
-        String studentLogin = student.get().getLogin();
+        long studentId = student.get().getId();
 
         milestoneExerciseGroupRepository.findByMilestoneExerciseIdWithExercises(milestoneExercise.getId()).ifPresent(group -> {
             for (Exercise member : group.getExercises()) {
                 if (!(member instanceof UserStoryExercise userStoryExercise)) {
                     continue;
                 }
-                programmingExerciseStudentParticipationRepository.findByExerciseIdAndStudentLogin(userStoryExercise.getId(), studentLogin).ifPresent(targetParticipation -> {
+                programmingExerciseStudentParticipationRepository.findByExerciseIdAndStudentId(userStoryExercise.getId(), studentId).ifPresent(targetParticipation -> {
                     ProgrammingSubmission pendingSubmission = new ProgrammingSubmission();
                     pendingSubmission.setParticipation(targetParticipation);
                     pendingSubmission.setSubmitted(true);
@@ -525,19 +525,17 @@ public class ProgrammingExerciseGradingService {
                     if (student.isEmpty()) {
                         return;
                     }
-                    String studentLogin = student.get().getLogin();
+                    long studentId = student.get().getId();
                     milestoneExerciseGroupRepository.findByMilestoneExerciseIdWithExercises(milestoneExercise.getId()).ifPresent(group -> {
                         for (Exercise member : group.getExercises()) {
                             if (!(member instanceof UserStoryExercise userStoryExercise)) {
                                 continue;
                             }
-                            programmingExerciseStudentParticipationRepository.findByExerciseIdAndStudentLogin(userStoryExercise.getId(), studentLogin)
-                                    .ifPresent(targetParticipation -> {
-                                        var submissionProcessingDTO = new SubmissionProcessingDTO(userStoryExercise.getId(), targetParticipation.getId(), commitHash,
-                                                submissionDate, buildStartDate, estimatedCompletionDate);
-                                        programmingMessagingService.notifyUserAboutSubmissionProcessing(submissionProcessingDTO, userStoryExercise.getId(),
-                                                targetParticipation.getId());
-                                    });
+                            programmingExerciseStudentParticipationRepository.findByExerciseIdAndStudentId(userStoryExercise.getId(), studentId).ifPresent(targetParticipation -> {
+                                var submissionProcessingDTO = new SubmissionProcessingDTO(userStoryExercise.getId(), targetParticipation.getId(), commitHash, submissionDate,
+                                        buildStartDate, estimatedCompletionDate);
+                                programmingMessagingService.notifyUserAboutSubmissionProcessing(submissionProcessingDTO, userStoryExercise.getId(), targetParticipation.getId());
+                            });
                         }
                     });
                 }));
@@ -557,14 +555,14 @@ public class ProgrammingExerciseGradingService {
             // Team-mode milestones aren't part of the repository-sharing scheme (see ParticipationService) - nothing to fan out to.
             return;
         }
-        String studentLogin = student.get().getLogin();
+        long studentId = student.get().getId();
 
         milestoneExerciseGroupRepository.findByMilestoneExerciseIdWithExercises(milestoneExercise.getId()).ifPresent(group -> {
             for (Exercise member : group.getExercises()) {
                 if (!(member instanceof UserStoryExercise userStoryExercise)) {
                     continue;
                 }
-                programmingExerciseStudentParticipationRepository.findByExerciseIdAndStudentLogin(userStoryExercise.getId(), studentLogin)
+                programmingExerciseStudentParticipationRepository.findByExerciseIdAndStudentId(userStoryExercise.getId(), studentId)
                         .ifPresent(targetParticipation -> fanOutResultToUserStoryExercise(milestoneResult, userStoryExercise, targetParticipation));
             }
         });
@@ -831,7 +829,7 @@ public class ProgrammingExerciseGradingService {
      * @param participation for which the results should be updated.
      * @return a list of updated results (maximum two: latest automatic, and latest manual result).
      */
-    public List<Result> updateParticipationResults(final ProgrammingExerciseStudentParticipation participation) {
+    public List<Result> updateParticipationResults(@NonNull final ProgrammingExerciseStudentParticipation participation) {
         final ProgrammingExercise exercise = participation.getProgrammingExercise();
         final Set<ProgrammingExerciseTestCase> testCases = testCaseRepository.findByExerciseIdAndActive(exercise.getId(), true);
         final Set<ProgrammingExerciseTestCase> testCasesBeforeDueDate = filterTestCasesForStudents(testCases, true);

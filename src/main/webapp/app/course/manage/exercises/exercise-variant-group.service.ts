@@ -13,7 +13,7 @@ import { ProgrammingExercise, ProgrammingLanguage, ProjectType } from 'app/progr
 import { ProgrammingExerciseBuildConfig } from 'app/programming/shared/entities/programming-exercise-build.config';
 import { cloneWith, deepClone } from 'app/foundation/util/deep-clone.util';
 
-/** Server representation of an exercise variant group (mirrors the backend {@code ExerciseVariantGroupDTO}). */
+/** Server representation of an exercise variant group (mirrors the server-side {@code ExerciseVariantGroupDTO}). */
 export interface ExerciseVariantGroupDTO {
     id?: number;
     title?: string;
@@ -37,14 +37,8 @@ export interface ExerciseVariantGroupDTO {
     exerciseIds?: number[];
 }
 
-/** Lightweight preview payload for a group member (mirrors the backend {@code ExerciseProblemStatementDTO}). */
-export interface ExerciseProblemStatementDTO {
-    exerciseId: number;
-    problemStatement?: string;
-}
-
 /**
- * Whether the requesting student has started a milestone group's anchor milestone exercise (mirrors the backend
+ * Whether the requesting student has started a milestone group's anchor milestone exercise (mirrors the server
  * {@code MilestoneStatusDTO}). The milestone exercise itself is never shown to students, so this is the only way the
  * group view can tell whether to offer "Start exercise" for it — and the only way it can reach the milestone's problem
  * statement, which doubles as the group's description.
@@ -133,14 +127,6 @@ export class ExerciseVariantGroupService {
             .pipe(map((groups) => groups.map((group) => cloneWith(this.convertDatesFromServer(group), { type: 'milestone' as const }))));
     }
 
-    /**
-     * Loads the problem statements of a group's visible members in a single request, so the student group-detail page
-     * can render previews without fanning out one heavyweight exercise-details request per member.
-     */
-    getProblemStatements(courseId: number, groupId: number): Observable<ExerciseProblemStatementDTO[]> {
-        return this.http.get<ExerciseProblemStatementDTO[]>(`${this.resourceUrl(courseId)}/${groupId}/problem-statements`);
-    }
-
     /** Whether the requesting student has started the group's anchor milestone exercise. */
     getMilestoneStatus(courseId: number, groupId: number): Observable<MilestoneStatusDTO> {
         return this.http.get<MilestoneStatusDTO>(`${this.milestoneResourceUrl(courseId)}/${groupId}/milestone-status`);
@@ -216,7 +202,7 @@ export class ExerciseVariantGroupService {
 }
 
 /**
- * Payload for creating a milestone exercise group (mirrors the backend {@code CreateMilestoneExerciseGroupDTO}). The
+ * Payload for creating a milestone exercise group (mirrors the server {@code CreateMilestoneExerciseGroupDTO}). The
  * server provisions the anchor {@code MilestoneExercise} from these settings; the group's own title is taken from it,
  * and the owning course from the request path.
  */
@@ -270,7 +256,7 @@ export function toCreateMilestoneGroupPayload(milestoneExercise: ProgrammingExer
 }
 
 /**
- * Payload for creating a user story exercise in a milestone exercise group (mirrors the backend
+ * Payload for creating a user story exercise in a milestone exercise group (mirrors the server
  * {@code CreateUserStoryExerciseDTO}). These are exactly the settings a user story owns for itself.
  *
  * Everything else a programming exercise has — the timeline, the Language/Version-Control settings, the build config,
@@ -290,7 +276,6 @@ export interface CreateUserStoryExerciseDTO {
     bonusPoints?: number;
     assessmentType?: AssessmentType;
     allowComplaintsForAutomaticAssessments?: boolean;
-    allowFeedbackRequests?: boolean;
     presentationScoreEnabled?: boolean;
     secondCorrectionEnabled?: boolean;
     gradingInstructions?: string;
@@ -299,7 +284,7 @@ export interface CreateUserStoryExerciseDTO {
 }
 
 /**
- * A created user story exercise (mirrors the backend {@code UserStoryExerciseDTO}): enough to navigate to it and render
+ * A created user story exercise (mirrors the server {@code UserStoryExerciseDTO}): enough to navigate to it and render
  * it, without the exercise graph behind it. The timeline is the owning group's.
  */
 export interface UserStoryExerciseDTO {
@@ -339,7 +324,6 @@ export function toCreateUserStoryExercisePayload(exercise: ProgrammingExercise):
         bonusPoints: exercise.bonusPoints,
         assessmentType: exercise.assessmentType,
         allowComplaintsForAutomaticAssessments: exercise.allowComplaintsForAutomaticAssessments,
-        allowFeedbackRequests: exercise.allowFeedbackRequests,
         presentationScoreEnabled: exercise.presentationScoreEnabled,
         secondCorrectionEnabled: exercise.secondCorrectionEnabled,
         gradingInstructions: exercise.gradingInstructions,

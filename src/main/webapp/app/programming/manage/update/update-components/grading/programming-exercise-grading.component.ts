@@ -8,12 +8,11 @@ import { faQuestionCircle } from '@fortawesome/free-solid-svg-icons';
 import { ProgrammingExerciseCreationConfig } from 'app/programming/manage/update/programming-exercise-creation-config';
 import { IncludedInOverallScorePickerComponent } from 'app/exercise/included-in-overall-score-picker/included-in-overall-score-picker.component';
 import { PresentationScoreComponent } from 'app/exercise/presentation-score/presentation-score.component';
-import { TutorScoreRowActionsCheckboxComponent } from 'app/exercise/tutor-score-actions/tutor-score-row-actions-checkbox.component';
 import { GradingInstructionsDetailsComponent } from 'app/exercise/structured-grading-criterion/grading-instructions-details/grading-instructions-details.component';
 import { Subject, Subscription } from 'rxjs';
 import { FormsModule, NgModel } from '@angular/forms';
 import { SubmissionPolicyUpdateComponent } from 'app/exercise/submission-policy/submission-policy-update.component';
-import { ProgrammingExerciseUpdateTimelineComponent } from '../../../../shared/programming-exercise-update-timeline/programming-exercise-update-timeline.component';
+import { ProgrammingExerciseTimelineComponent } from '../../../../shared/programming-exercise-update-timeline/programming-exercise-timeline.component';
 import { ImportOptions } from 'app/programming/manage/programming-exercises';
 import { ProgrammingExerciseInputField } from 'app/programming/manage/update/programming-exercise-update.helper';
 import { TranslateDirective } from 'app/foundation/language/translate.directive';
@@ -22,6 +21,7 @@ import { NgbTooltip } from '@ng-bootstrap/ng-bootstrap';
 import { KeyValuePipe } from '@angular/common';
 import { ArtemisTranslatePipe } from 'app/foundation/pipes/artemis-translate.pipe';
 import { Message } from 'primeng/message';
+import { TimelineStatus } from 'app/shared-ui/timeline/timeline.component';
 
 @Component({
     selector: 'jhi-programming-exercise-grading',
@@ -34,10 +34,9 @@ import { Message } from 'primeng/message';
         FaIconComponent,
         NgbTooltip,
         SubmissionPolicyUpdateComponent,
-        ProgrammingExerciseUpdateTimelineComponent,
+        ProgrammingExerciseTimelineComponent,
         GradingInstructionsDetailsComponent,
         PresentationScoreComponent,
-        TutorScoreRowActionsCheckboxComponent,
         KeyValuePipe,
         ArtemisTranslatePipe,
         Message,
@@ -56,24 +55,20 @@ export class ProgrammingExerciseGradingComponent implements AfterViewInit, OnDes
     programmingExerciseCreationConfig = input.required<ProgrammingExerciseCreationConfig>();
     importOptions = input.required<ImportOptions>();
     isEditFieldDisplayedRecord = input.required<Record<ProgrammingExerciseInputField, boolean>>();
-    /** Whether grading controls may currently be changed. */
+    exercisePartOfExerciseGroup = input<boolean>(false);
+    editGroupDates = output<void>();
     editable = input(true);
-    /** Emitted when generated criteria modify the programming exercise. */
     criteriaGenerated = output<void>();
-    /** When true the timeline dates are governed by the exercise's variant group (see {@link ExerciseTimelineComponent}). */
-    lockedToGroup = input<boolean>(false);
-    /** Emitted when the user clicks the locked timeline so the host can open the group-edit dialog. */
-    lockedClick = output<void>();
-    /** True for a MilestoneExercise - forwarded to the timeline (see ProgrammingExerciseUpdateTimelineComponent.isMilestoneMode). */
+    /** True for a MilestoneExercise - forwarded to the timeline (see ProgrammingExerciseTimelineComponent.isMilestoneMode). */
     isMilestoneMode = input<boolean>(false);
 
     submissionPolicyUpdateComponent = viewChild(SubmissionPolicyUpdateComponent);
-    lifecycleComponent = viewChild(ProgrammingExerciseUpdateTimelineComponent);
     maxScoreField = viewChild<NgModel>('maxScore');
     bonusPointsField = viewChild<NgModel>('bonusPoints');
     maxPenaltyField = viewChild<NgModel>('maxPenalty');
 
     formValidSignal = signal<boolean>(false);
+    timelineStatus = signal<TimelineStatus>({ valid: true, empty: false, invalidItems: [] });
 
     formValid!: boolean; // assigned in calculateFormStatus(); left unset so parent's `?? false` / `=== false` reads can distinguish "not yet computed"
     formEmpty!: boolean; // assigned in calculateFormStatus() (see formValid)
@@ -88,7 +83,6 @@ export class ProgrammingExerciseGradingComponent implements AfterViewInit, OnDes
         this.inputFieldSubscriptions.push(this.bonusPointsField()?.valueChanges?.subscribe(() => this.calculateFormStatus()));
         this.inputFieldSubscriptions.push(this.maxPenaltyField()?.valueChanges?.subscribe(() => this.calculateFormStatus()));
         this.inputFieldSubscriptions.push(this.submissionPolicyUpdateComponent()?.form?.valueChanges?.subscribe(() => this.calculateFormStatus()));
-        this.inputFieldSubscriptions.push(this.lifecycleComponent()?.formValidChanges?.subscribe(() => this.calculateFormStatus()));
         this.setEditPolicyPageLink();
     }
 
@@ -120,20 +114,22 @@ export class ProgrammingExerciseGradingComponent implements AfterViewInit, OnDes
             programmingExercise.includedInOverallScore !== IncludedInOverallScore.INCLUDED_COMPLETELY;
         const maxPenaltyValidOrDisabled = this.maxPenaltyField()?.valid || !programmingExercise.staticCodeAnalysisEnabled;
         const scoreFieldsValid = maxScoreValidOrOptional && bonusPointsValidOrHidden && maxPenaltyValidOrDisabled;
-        // `?? false` / `?? true`, not a bare `?.`: for a MilestoneExercise, Points/BonusPoints are hidden (see above),
-        // so nothing in this section ever re-fires calculateFormStatus() after the very first automatic call (from
-        // the timeline's own initial status emission in its constructor effect, before ngAfterViewInit's own
-        // subscriptions are even wired up). If either child's own validity hasn't resolved by then, `?.invalid`/
-        // `?.formValid` reads as `undefined`, and a bare `!undefined && undefined` permanently evaluates to `false`
-        // with no later re-computation to recover from it - unlike a normal programming exercise, where the always-
-        // visible Points field's own typing/blur naturally re-triggers this method once children have settled.
-        const dependentComponentsValid = !(this.submissionPolicyUpdateComponent()?.invalid ?? false) && (this.lifecycleComponent()?.formValid ?? true);
+        const timelineStatus = this.timelineStatus();
+        // `?? false`, not a bare `?.`: for a MilestoneExercise, Points/BonusPoints are hidden, so nothing in this section
+        // re-fires calculateFormStatus() once the submission policy child has settled. An unresolved `?.invalid` would read
+        // as `undefined` and keep the section invalid with no later re-computation to recover from it.
+        const dependentComponentsValid = !(this.submissionPolicyUpdateComponent()?.invalid ?? false) && timelineStatus.valid;
         const newFormValidValue = Boolean(scoreFieldsValid && dependentComponentsValid);
 
         this.formValidSignal.set(newFormValidValue);
         this.formValid = newFormValidValue;
-        this.formEmpty = this.lifecycleComponent()?.formEmpty ?? false;
+        this.formEmpty = timelineStatus.empty;
         this.formValidChanges.next(this.formValid);
+    }
+
+    onTimelineStatusChange(timelineStatus: TimelineStatus): void {
+        this.timelineStatus.set(timelineStatus);
+        this.calculateFormStatus();
     }
 
     onIncludedInOverallScoreChange(includedInOverallScore: IncludedInOverallScore): void {

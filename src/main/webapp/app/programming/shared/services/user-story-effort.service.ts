@@ -3,14 +3,14 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { UserStoryEffort } from 'app/exercise/shared/entities/participation/programming-exercise-student-participation.model';
 
-/** One started user story with the effort reported for it (mirrors the backend {@code UserStoryEffortStatusDTO}). */
+/** One started user story with the effort reported for it (mirrors the server {@code UserStoryEffortStatusDTO}). */
 export interface UserStoryEffortStatus extends UserStoryEffort {
     exerciseId: number;
 }
 
 /**
  * Reads the effort the current user has reported for a user story exercise - summed from their task board rather
- * than entered by hand (mirrors the backend {@code UserStoryEffortResource}).
+ * than entered by hand (mirrors the server {@code UserStoryEffortResource}).
  *
  * Every endpoint acts on the caller's own participation only, except reading one specific participation for the
  * tutor assessing it.

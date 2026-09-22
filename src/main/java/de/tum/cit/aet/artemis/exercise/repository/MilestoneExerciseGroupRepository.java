@@ -129,9 +129,9 @@ public interface MilestoneExerciseGroupRepository extends ArtemisJpaRepository<M
     }
 
     /**
-     * Like {@link #findByIdAndCourseId}, but additionally fetches the anchor exercise's own {@code buildConfig},
-     * {@code templateParticipation} and {@code solutionParticipation} (each a further {@code LAZY @OneToOne}) - needed by
-     * the call sites that copy the anchor's build config and repository URIs onto a member exercise, since
+     * Like {@link #findByIdAndCourseId}, but additionally fetches the anchor exercise's own {@code templateParticipation}
+     * and {@code solutionParticipation} (each a further {@code LAZY @OneToOne}) - needed by the call sites that copy the
+     * anchor's repository URIs onto a member exercise (its build config is a row of its own, read separately), since
      * {@code spring.jpa.open-in-view} is disabled and each would otherwise be an uninitialized proxy by then.
      *
      * @param groupId  the id of the milestone group to load
@@ -143,7 +143,6 @@ public interface MilestoneExerciseGroupRepository extends ArtemisJpaRepository<M
             FROM MilestoneExerciseGroup g
                 LEFT JOIN FETCH g.exercises
                 LEFT JOIN FETCH g.milestoneExercise me
-                LEFT JOIN FETCH me.buildConfig
                 LEFT JOIN FETCH me.templateParticipation
                 LEFT JOIN FETCH me.solutionParticipation
             WHERE g.id = :groupId
@@ -218,8 +217,8 @@ public interface MilestoneExerciseGroupRepository extends ArtemisJpaRepository<M
 
     /**
      * Resolves a {@code MilestoneExerciseGroup}'s anchor {@code milestoneExercise}, fully hydrated (its
-     * {@code buildConfig}, {@code templateParticipation} and {@code solutionParticipation}, each a further {@code LAZY}
-     * association). Used to hydrate an already-loaded {@code UserStoryExercise}'s {@code exerciseVariantGroup} before it
+     * {@code templateParticipation} and {@code solutionParticipation}, each a further {@code LAZY} association). Used to hydrate an already-loaded {@code UserStoryExercise}'s
+     * {@code exerciseVariantGroup} before it
      * is serialized (e.g. {@code ProgrammingExerciseRetrievalResource.getProgrammingExercise}): {@code MilestoneExerciseGroup}'s
      * timeline getters ({@code getReleaseDate()}, {@code getDueDate()}, etc. - see {@link MilestoneExerciseGroup}) all
      * delegate to {@code milestoneExercise}, so those getters throw {@code LazyInitializationException} once the loading
@@ -233,7 +232,6 @@ public interface MilestoneExerciseGroupRepository extends ArtemisJpaRepository<M
             SELECT me
             FROM MilestoneExerciseGroup g
                 JOIN g.milestoneExercise me
-                LEFT JOIN FETCH me.buildConfig
                 LEFT JOIN FETCH me.templateParticipation
                 LEFT JOIN FETCH me.solutionParticipation
             WHERE g.id = :groupId

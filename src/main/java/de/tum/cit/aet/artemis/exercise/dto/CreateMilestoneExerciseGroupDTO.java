@@ -61,15 +61,17 @@ public record CreateMilestoneExerciseGroupDTO(@NotBlank @Size(max = 255) String 
         exercise.setIncludedInOverallScore(IncludedInOverallScore.INCLUDED_COMPLETELY);
         exercise.setMaxPoints(0.0);
         exercise.setBonusPoints(0.0);
-        exercise.setBuildConfig(toBuildConfig());
         return exercise;
     }
 
     /**
-     * The build config to provision alongside the exercise. Always non-null: the creation pipeline validates against it
-     * unconditionally, so an omitted one becomes a default config rather than a {@code NullPointerException}.
+     * The build config to provision alongside the exercise. It is stored as a row of its own, so it travels next to the
+     * exercise rather than on it. Always non-null: the creation pipeline validates against it unconditionally, so an
+     * omitted one becomes a default config rather than a {@code NullPointerException}.
+     *
+     * @return the build config for the milestone exercise
      */
-    private ProgrammingExerciseBuildConfig toBuildConfig() {
+    public ProgrammingExerciseBuildConfig toBuildConfig() {
         ProgrammingExerciseBuildConfig config = new ProgrammingExerciseBuildConfig();
         if (buildConfig == null) {
             return config;

@@ -6,15 +6,16 @@ import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
-import de.tum.cit.aet.artemis.core.service.messaging.InstanceMessageSendService;
 import de.tum.cit.aet.artemis.exercise.repository.MilestoneExerciseGroupRepository;
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
 import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
+import de.tum.cit.aet.artemis.programming.domain.event.MilestoneScoreRecomputationRequestedEvent;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseRepository;
 
 /**
@@ -45,13 +46,13 @@ public class MilestoneExercisePointsService {
 
     private final ProgrammingExerciseRepository programmingExerciseRepository;
 
-    private final InstanceMessageSendService instanceMessageSendService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public MilestoneExercisePointsService(MilestoneExerciseGroupRepository milestoneExerciseGroupRepository, ProgrammingExerciseRepository programmingExerciseRepository,
-            InstanceMessageSendService instanceMessageSendService) {
+            ApplicationEventPublisher eventPublisher) {
         this.milestoneExerciseGroupRepository = milestoneExerciseGroupRepository;
         this.programmingExerciseRepository = programmingExerciseRepository;
-        this.instanceMessageSendService = instanceMessageSendService;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -75,7 +76,7 @@ public class MilestoneExercisePointsService {
         log.debug("Milestone exercise {} points change from {} to {} (sum of its user stories).", milestoneExerciseId, milestoneExercise.getMaxPoints(), summedPoints);
         milestoneExercise.setMaxPoints(summedPoints);
         programmingExerciseRepository.save(milestoneExercise);
-        instanceMessageSendService.sendMilestoneScoreScheduleForGroup(milestoneExerciseId);
+        eventPublisher.publishEvent(new MilestoneScoreRecomputationRequestedEvent(milestoneExerciseId));
     }
 
     /**
@@ -95,7 +96,7 @@ public class MilestoneExercisePointsService {
      */
     public void recomputeScores(ProgrammingExercise exercise) {
         if (exercise instanceof MilestoneExercise) {
-            instanceMessageSendService.sendMilestoneScoreScheduleForGroup(exercise.getId());
+            eventPublisher.publishEvent(new MilestoneScoreRecomputationRequestedEvent(exercise.getId()));
         }
     }
 

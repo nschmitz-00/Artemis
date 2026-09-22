@@ -6,10 +6,11 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 import de.tum.cit.aet.artemis.assessment.domain.AssessmentType;
 import de.tum.cit.aet.artemis.assessment.dto.GradingCriterionDTO;
+import de.tum.cit.aet.artemis.core.util.JsonObjectMapper;
 import de.tum.cit.aet.artemis.exercise.domain.DifficultyLevel;
 import de.tum.cit.aet.artemis.exercise.domain.ExerciseMode;
 import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
@@ -27,7 +28,7 @@ import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
  */
 class CreateUserStoryExerciseDTOTest {
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final JsonMapper OBJECT_MAPPER = JsonObjectMapper.get();
 
     @Test
     void deserializationDropsEverythingTheMilestoneGroupOwns() throws Exception {
@@ -78,7 +79,7 @@ class CreateUserStoryExerciseDTOTest {
     @Test
     void toUserStoryExerciseMapsTheSettingsAUserStoryOwns() {
         CreateUserStoryExerciseDTO dto = new CreateUserStoryExerciseDTO("Render the board", "board", "board-channel", "Draw it", Set.of("{\"category\":\"ui\"}"),
-                DifficultyLevel.MEDIUM, ExerciseMode.INDIVIDUAL, 5.0, 1.0, AssessmentType.AUTOMATIC, true, true, false, true, "Be fair",
+                DifficultyLevel.MEDIUM, ExerciseMode.INDIVIDUAL, 5.0, 1.0, AssessmentType.AUTOMATIC, true, false, true, "Be fair",
                 Set.of(new GradingCriterionDTO(null, "Style", null)), null);
 
         UserStoryExercise exercise = dto.toUserStoryExercise();
@@ -94,7 +95,6 @@ class CreateUserStoryExerciseDTOTest {
         assertThat(exercise.getBonusPoints()).isEqualTo(1.0);
         assertThat(exercise.getAssessmentType()).isEqualTo(AssessmentType.AUTOMATIC);
         assertThat(exercise.getAllowComplaintsForAutomaticAssessments()).isTrue();
-        assertThat(exercise.getAllowFeedbackRequests()).isTrue();
         assertThat(exercise.getPresentationScoreEnabled()).isFalse();
         assertThat(exercise.getSecondCorrectionEnabled()).isTrue();
         assertThat(exercise.getGradingInstructions()).isEqualTo("Be fair");
@@ -120,7 +120,6 @@ class CreateUserStoryExerciseDTOTest {
         assertThat(exercise.getMode()).isEqualTo(ExerciseMode.INDIVIDUAL);
         assertThat(exercise.getBonusPoints()).isZero();
         assertThat(exercise.getAllowComplaintsForAutomaticAssessments()).isFalse();
-        assertThat(exercise.getAllowFeedbackRequests()).isFalse();
         assertThat(exercise.getPresentationScoreEnabled()).isFalse();
         assertThat(exercise.getSecondCorrectionEnabled()).isFalse();
         assertThat(exercise.getCategories()).isEmpty();

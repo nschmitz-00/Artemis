@@ -1,7 +1,7 @@
 import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
 import { ExerciseService } from 'app/exercise/services/exercise.service';
 import { convertDateFromClient } from 'app/foundation/util/date.utils';
-import { DifficultyLevel, IncludedInOverallScore } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { DifficultyLevel, IncludedInOverallScore, PlagiarismDetectionConfig } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { ProgrammingLanguage, ProjectType } from 'app/programming/shared/entities/programming-exercise.model';
 import { SubmissionPolicy } from 'app/exercise/shared/entities/submission/submission-policy.model';
 import { CompetencyLinkDTO, GradingCriterionDTO } from 'app/exercise/shared/exercise-update-shared-dto.model';
@@ -56,11 +56,8 @@ export interface UpdateProgrammingExerciseDTO {
     bonusPoints?: number;
     includedInOverallScore?: IncludedInOverallScore;
     allowComplaintsForAutomaticAssessments?: boolean;
-    allowFeedbackRequests?: boolean;
     presentationScoreEnabled?: boolean;
-    allowTutorScoreRowActions?: boolean;
     secondCorrectionEnabled?: boolean;
-    feedbackSuggestionModule?: string;
     gradingInstructions?: string;
     /** MilestoneExercise-only: shown in the "choose a variant" banner on the student group-detail page. */
     description?: string;
@@ -101,6 +98,9 @@ export interface UpdateProgrammingExerciseDTO {
 
     // Build config
     buildConfig?: UpdateProgrammingExerciseBuildConfigDTO;
+
+    // Plagiarism detection config
+    plagiarismDetectionConfig?: PlagiarismDetectionConfig;
 }
 
 /**
@@ -182,11 +182,8 @@ export function toUpdateProgrammingExerciseDTO(exercise: ProgrammingExercise): U
         bonusPoints,
         includedInOverallScore: exercise.includedInOverallScore,
         allowComplaintsForAutomaticAssessments: exercise.allowComplaintsForAutomaticAssessments,
-        allowFeedbackRequests: exercise.allowFeedbackRequests,
         presentationScoreEnabled: exercise.presentationScoreEnabled,
-        allowTutorScoreRowActions: exercise.allowTutorScoreRowActions,
         secondCorrectionEnabled: exercise.secondCorrectionEnabled,
-        feedbackSuggestionModule: exercise.feedbackSuggestionModule,
         gradingInstructions: exercise.gradingInstructions,
         releaseDate: convertDateFromClient(exercise.releaseDate),
         startDate: convertDateFromClient(exercise.startDate),
@@ -215,5 +212,6 @@ export function toUpdateProgrammingExerciseDTO(exercise: ProgrammingExercise): U
         projectType: exercise.projectType,
         releaseTestsWithExampleSolution: exercise.releaseTestsWithExampleSolution ?? false,
         buildConfig: buildConfigDTO,
+        plagiarismDetectionConfig: exercise.plagiarismDetectionConfig,
     };
 }

@@ -427,7 +427,7 @@ describe('CourseOverviewService', () => {
                 exerciseVariantGroup: { id: collidingId, title: 'Variant Group' },
             } as Exercise;
 
-            const { ungroupedData } = courseOverviewService.buildGroupedExerciseData([ungrouped, variantA, variantB], course.id!);
+            const { ungroupedData } = courseOverviewService.buildGroupedExerciseData([ungrouped, variantA, variantB]);
 
             const groupCard = ungroupedData.find((card) => card.targetComponentSubRoute === 'group');
             const exerciseCard = ungroupedData.find((card) => card.targetComponentSubRoute !== 'group');
@@ -435,9 +435,8 @@ describe('CourseOverviewService', () => {
             expect(groupCard).toBeDefined();
             expect(exerciseCard).toBeDefined();
 
-            // Group card: raw id kept for routing, tracking key type-prefixed.
+            // Group card: raw id kept for routing (the card routes to ./group/<id>), tracking key type-prefixed.
             expect(groupCard!.id).toBe(collidingId);
-            expect(groupCard!.routerLink).toBe(`/courses/${course.id}/exercises/group/${collidingId}`);
             expect(groupCard!.trackId).toBe(`group-${collidingId}`);
 
             // Ungrouped exercise falls back to its raw id.
@@ -447,6 +446,32 @@ describe('CourseOverviewService', () => {
             const groupTrack = groupCard!.trackId ?? groupCard!.id;
             const exerciseTrack = exerciseCard!.trackId ?? exerciseCard!.id;
             expect(groupTrack).not.toBe(exerciseTrack);
+        });
+
+        it('keeps the members on the group card so it stays searchable and selectable, without rendering them', () => {
+            const reference = { id: 7, title: 'Variant Group' };
+            const variantA: Exercise = { id: 20, title: 'Variant A', dueDate: dayjs().add(1, 'day'), exerciseVariantGroup: reference } as Exercise;
+            const variantB: Exercise = { id: 21, title: 'Variant B', dueDate: dayjs().add(1, 'day'), exerciseVariantGroup: reference } as Exercise;
+
+            const { groupedData, ungroupedData } = courseOverviewService.buildGroupedExerciseData([variantA, variantB]);
+
+            // One card for the whole group, carrying its members.
+            expect(ungroupedData).toHaveLength(1);
+            expect(ungroupedData[0].groupedItems?.map((member) => member.id)).toEqual([20, 21]);
+            expect(Object.values(groupedData).flatMap((timeGroup) => timeGroup.entityData)).toHaveLength(1);
+            expect(ungroupedData[0].renderGroupedItems).toBe(false);
+        });
+
+        it('lists the user stories of a milestone group under its card', () => {
+            const reference = { id: 8, title: 'Sprint 1', type: 'milestone' as const };
+            const storyA: Exercise = { id: 30, title: 'Login form', dueDate: dayjs().add(1, 'day'), exerciseVariantGroup: reference } as Exercise;
+            const storyB: Exercise = { id: 31, title: 'Logout', dueDate: dayjs().add(1, 'day'), exerciseVariantGroup: reference } as Exercise;
+
+            const { ungroupedData } = courseOverviewService.buildGroupedExerciseData([storyA, storyB]);
+
+            expect(ungroupedData).toHaveLength(1);
+            expect(ungroupedData[0].renderGroupedItems).toBe(true);
+            expect(ungroupedData[0].groupedItems?.map((member) => member.id)).toEqual([30, 31]);
         });
     });
 

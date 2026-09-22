@@ -64,6 +64,7 @@ class UserStoryTaskIntegrationTest extends AbstractProgrammingIntegrationIndepen
         MilestoneExerciseGroup group = new MilestoneExerciseGroup();
         group.setTitle("Sprint 1");
         group.setMilestoneExercise(milestoneExercise);
+        group.setCourse(course);
         group = milestoneExerciseGroupRepository.save(group);
 
         course = courseRepository.findWithEagerExerciseVariantGroupsByIdElseThrow(course.getId());

@@ -1,5 +1,5 @@
 import dayjs from 'dayjs/esm';
-import { DifficultyLevel, ExerciseMode, IncludedInOverallScore } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { DifficultyLevel, ExerciseMode, IncludedInOverallScore, PlagiarismDetectionConfig } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { TextExercise } from 'app/text/shared/entities/text-exercise.model';
 import { ExerciseService } from 'app/exercise/services/exercise.service';
 import { convertDateFromClient } from 'app/foundation/util/date.utils';
@@ -36,11 +36,8 @@ export interface UpdateTextExerciseDTO {
     gradingInstructions?: string;
     categories?: string[];
     presentationScoreEnabled?: boolean;
-    allowTutorScoreRowActions?: boolean;
     secondCorrectionEnabled?: boolean;
-    feedbackSuggestionModule?: string;
     allowComplaintsForAutomaticAssessments?: boolean;
-    allowFeedbackRequests?: boolean;
     channelName?: string;
 
     // Grading criteria
@@ -59,6 +56,9 @@ export interface UpdateTextExerciseDTO {
 
     // TextExercise specific fields
     exampleSolution?: string;
+
+    // Plagiarism detection config
+    plagiarismDetectionConfig?: PlagiarismDetectionConfig;
 }
 
 /**
@@ -66,7 +66,7 @@ export interface UpdateTextExerciseDTO {
  * needed during import. Matches the server-side ImportTextExerciseDTO record.
  */
 export interface ImportTextExerciseDTO extends UpdateTextExerciseDTO {
-    plagiarismDetectionConfig?: TextExercise['plagiarismDetectionConfig'];
+    plagiarismDetectionConfig?: PlagiarismDetectionConfig;
 }
 
 /**
@@ -127,11 +127,8 @@ export function toUpdateTextExerciseDTO(textExercise: TextExercise): UpdateTextE
         gradingInstructions: textExercise.gradingInstructions,
         categories,
         presentationScoreEnabled: textExercise.presentationScoreEnabled,
-        allowTutorScoreRowActions: textExercise.allowTutorScoreRowActions,
         secondCorrectionEnabled: textExercise.secondCorrectionEnabled,
-        feedbackSuggestionModule: textExercise.feedbackSuggestionModule,
         allowComplaintsForAutomaticAssessments: textExercise.allowComplaintsForAutomaticAssessments,
-        allowFeedbackRequests: textExercise.allowFeedbackRequests,
         channelName: textExercise.channelName,
         gradingCriteria: gradingCriteriaDTOs,
         competencyLinks: competencyLinkDTOs,
@@ -142,6 +139,7 @@ export function toUpdateTextExerciseDTO(textExercise: TextExercise): UpdateTextE
         teamAssignmentConfig: textExercise.teamAssignmentConfig
             ? { minTeamSize: textExercise.teamAssignmentConfig.minTeamSize, maxTeamSize: textExercise.teamAssignmentConfig.maxTeamSize }
             : undefined,
+        plagiarismDetectionConfig: textExercise.plagiarismDetectionConfig,
     };
 }
 

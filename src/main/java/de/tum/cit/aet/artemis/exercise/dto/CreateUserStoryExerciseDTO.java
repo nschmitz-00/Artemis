@@ -45,9 +45,9 @@ import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public record CreateUserStoryExerciseDTO(@NotBlank @Size(max = 255) String title, @NotBlank @Size(max = 255) String shortName, @Nullable String channelName,
         @Nullable String problemStatement, @Nullable Set<String> categories, @Nullable DifficultyLevel difficulty, @Nullable ExerciseMode mode, @NotNull Double maxPoints,
-        @Nullable Double bonusPoints, @Nullable AssessmentType assessmentType, @Nullable Boolean allowComplaintsForAutomaticAssessments, @Nullable Boolean allowFeedbackRequests,
-        @Nullable Boolean presentationScoreEnabled, @Nullable Boolean secondCorrectionEnabled, @Nullable String gradingInstructions,
-        @Nullable Set<GradingCriterionDTO> gradingCriteria, @Nullable Set<CompetencyLinkDTO> competencyLinks) implements CompetencyLinksHolderDTO {
+        @Nullable Double bonusPoints, @Nullable AssessmentType assessmentType, @Nullable Boolean allowComplaintsForAutomaticAssessments, @Nullable Boolean presentationScoreEnabled,
+        @Nullable Boolean secondCorrectionEnabled, @Nullable String gradingInstructions, @Nullable Set<GradingCriterionDTO> gradingCriteria,
+        @Nullable Set<CompetencyLinkDTO> competencyLinks) implements CompetencyLinksHolderDTO {
 
     /**
      * Builds the (still transient) user story exercise this payload describes. Only the fields a user story owns for
@@ -71,7 +71,6 @@ public record CreateUserStoryExerciseDTO(@NotBlank @Size(max = 255) String title
         exercise.setBonusPoints(bonusPoints == null ? 0.0 : bonusPoints);
         exercise.setAssessmentType(assessmentType);
         exercise.setAllowComplaintsForAutomaticAssessments(Boolean.TRUE.equals(allowComplaintsForAutomaticAssessments));
-        exercise.setAllowFeedbackRequests(Boolean.TRUE.equals(allowFeedbackRequests));
         exercise.setPresentationScoreEnabled(Boolean.TRUE.equals(presentationScoreEnabled));
         exercise.setSecondCorrectionEnabled(Boolean.TRUE.equals(secondCorrectionEnabled));
         exercise.setGradingInstructions(gradingInstructions);

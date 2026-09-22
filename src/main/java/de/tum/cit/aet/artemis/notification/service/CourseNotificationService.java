@@ -14,7 +14,6 @@ import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
@@ -32,6 +31,7 @@ import de.tum.cit.aet.artemis.notification.domain.UserCourseNotificationStatusTy
 import de.tum.cit.aet.artemis.notification.domain.course_notifications.CourseNotification;
 import de.tum.cit.aet.artemis.notification.dto.CourseNotificationDTO;
 import de.tum.cit.aet.artemis.notification.dto.CourseNotificationPageableDTO;
+import de.tum.cit.aet.artemis.notification.dto.CourseNotificationParameterDTO;
 import de.tum.cit.aet.artemis.notification.dto.CourseNotificationRecipientDTO;
 import de.tum.cit.aet.artemis.notification.repository.CourseNotificationParameterRepository;
 import de.tum.cit.aet.artemis.notification.repository.CourseNotificationRepository;
@@ -91,12 +91,16 @@ public class CourseNotificationService {
 
         courseNotification.notificationId = courseNotificationEntityId;
 
+        // Read every recipient's settings once rather than per recipient per channel: the filter below runs for each
+        // supported channel, and asking per user made a course-wide announcement cost a lookup per student per channel.
+        var recipientSettings = courseNotificationSettingService.loadSettingsFor(courseNotification.courseId, recipients);
+
         for (var supportedChannel : supportedChannels) {
             var service = serviceMap.get(supportedChannel);
             if (service == null) {
                 continue;
             }
-            var filteredRecipients = courseNotificationSettingService.filterRecipientsBy(courseNotification, recipients, supportedChannel);
+            var filteredRecipients = courseNotificationSettingService.filterRecipientsBy(courseNotification, recipients, supportedChannel, recipientSettings);
             var recipientDTOs = filteredRecipients.stream().map(CourseNotificationRecipientDTO::from).toList();
             // One count per notification that actually reached somebody on this channel, which is what answers whether a
             // channel is worth maintaining. Sends that every recipient has switched off are not usage.
@@ -160,9 +164,6 @@ public class CourseNotificationService {
      * @param userId   The ID of the user
      * @return A paginated list of {@link CourseNotificationDTO} objects
      */
-    @Cacheable(cacheNames = CourseNotificationCacheService.USER_COURSE_NOTIFICATION_CACHE, key = "'user_course_notification_' + #userId + '_' " + "+ #courseId + '_' "
-            + "+ (#pageable != null ? (#pageable.isPaged() ? #pageable.pageNumber : 'unpaged') : 'null') + '_' "
-            + "+ (#pageable != null ? (#pageable.isPaged() ? #pageable.pageSize : 'unpaged') : 'null')", unless = "#result.totalElements() == 0")
     public CourseNotificationPageableDTO<CourseNotificationDTO> getCourseNotifications(Pageable pageable, long courseId, long userId) {
         var courseNotificationPage = courseNotificationRepository.findCourseNotificationsByUserIdAndCourseIdAndStatusNotArchived(userId, courseId, pageable);
 
@@ -186,16 +187,16 @@ public class CourseNotificationService {
     }
 
     /**
-     * Converts a set of {@link CourseNotificationParameter} entities to a map of key-value pairs.
+     * Converts a set of {@link CourseNotificationParameterDTO} records to a map of key-value pairs.
      *
-     * @param parameterSet The set of CourseNotificationParameter objects to convert
+     * @param parameterSet The set of CourseNotificationParameterDTO records to convert
      * @return A map containing parameter keys and their corresponding values
      */
-    private Map<String, String> parametersToMap(Set<CourseNotificationParameter> parameterSet) {
+    private Map<String, String> parametersToMap(Set<CourseNotificationParameterDTO> parameterSet) {
         var params = new HashMap<String, String>();
 
-        for (CourseNotificationParameter parameter : parameterSet) {
-            params.put(parameter.getKey(), parameter.getValue());
+        for (CourseNotificationParameterDTO parameter : parameterSet) {
+            params.put(parameter.key(), parameter.value());
         }
 
         return params;
@@ -210,7 +211,8 @@ public class CourseNotificationService {
      */
     private CourseNotificationDTO convertToCourseNotificationDTO(CourseNotification notification, UserCourseNotificationStatusType status) {
         return new CourseNotificationDTO(notification.getReadableNotificationType(), notification.notificationId, notification.courseId, notification.creationDate,
-                notification.getCourseNotificationCategory(), notification.getParameters(), status, notification.getRelativeWebAppUrl());
+                notification.getCourseNotificationCategory(), notification.courseTitle(), notification.courseIconUrl(), notification.payload(), status,
+                notification.getRelativeWebAppUrl());
     }
 
     /**

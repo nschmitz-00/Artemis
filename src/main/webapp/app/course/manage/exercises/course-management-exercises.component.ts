@@ -7,7 +7,7 @@ import { TranslateService } from '@ngx-translate/core';
 import { QuizExerciseExportComponent } from 'app/quiz/manage/export/quiz-exercise-export.component';
 import { CourseManagementService } from 'app/course/manage/services/course-management.service';
 import { FormsModule } from '@angular/forms';
-import { TumUiButtonComponent, TumUiButtonDirective, TumUiMessageComponent, TumUiPanelComponent, TumUiSelectButtonComponent, TumUiTooltipDirective } from '@tumaet/ui-angular';
+import { TumUiButtonComponent, TumUiButtonDirective, TumUiEmptyStateComponent, TumUiPanelComponent, TumUiSelectButtonComponent, TumUiTooltipDirective } from '@tumaet/ui-angular';
 import { FaIconComponent } from '@fortawesome/angular-fontawesome';
 import { IconProp } from '@fortawesome/fontawesome-svg-core';
 import {
@@ -21,6 +21,7 @@ import {
     faLayerGroup,
     faList,
     faListCheck,
+    faMagnifyingGlass,
     faPen,
     faPencilAlt,
     faPlus,
@@ -82,7 +83,7 @@ import { cloneWith, hydrate } from 'app/foundation/util/deep-clone.util';
         TumUiPanelComponent,
         TumUiButtonComponent,
         TumUiButtonDirective,
-        TumUiMessageComponent,
+        TumUiEmptyStateComponent,
         TumUiTooltipDirective,
         FaIconComponent,
         ExerciseTableComponent,
@@ -111,6 +112,8 @@ export class CourseManagementExercisesComponent implements OnInit {
     protected readonly faCode = faCode;
     protected readonly faEye = faEye;
     protected readonly faListCheck = faListCheck;
+    protected readonly faList = faList;
+    protected readonly faMagnifyingGlass = faMagnifyingGlass;
     protected readonly faPen = faPen;
     protected readonly faPencilAlt = faPencilAlt;
     protected readonly faTrash = faTrash;
@@ -314,7 +317,13 @@ export class CourseManagementExercisesComponent implements OnInit {
         if (courseId !== undefined && exercise.id !== undefined) {
             this.exerciseVariantGroupService.setExerciseVariantGroup(courseId, exercise.id, newGroup?.id).subscribe({
                 next: () => this.loadGroupsFromServer(courseId),
-                error: (errorRes: HttpErrorResponse) => this.alertService.addErrorAlert(errorRes.error?.title ?? errorRes.message, errorRes.error?.message, errorRes.error?.params),
+                error: (errorRes: HttpErrorResponse) => {
+                    if (errorRes.error?.errorKey === 'automaticTestRunAfterAssessmentDueDate') {
+                        this.alertService.addErrorAlert('artemisApp.exerciseManagement.error.automaticTestRunAfterAssessmentDueDate');
+                    } else {
+                        this.alertService.addErrorAlert(errorRes.error?.title ?? errorRes.message, errorRes.error?.message, errorRes.error?.params);
+                    }
+                },
             });
         }
     }
@@ -353,8 +362,8 @@ export class CourseManagementExercisesComponent implements OnInit {
     private deleteObservableFor(exercise: Exercise, event: { [key: string]: boolean }): Observable<HttpResponse<void>> {
         switch (exercise.type) {
             case ExerciseType.PROGRAMMING:
-                // The cleanup checks are only offered on non-LocalCI setups, so the flags default to false.
-                return this.programmingExerciseService.delete(exercise.id!, event.deleteStudentReposBuildPlans ?? false, event.deleteBaseReposBuildPlans ?? false);
+                // Preserve omitted LocalCI cleanup flags so the server applies its repository deletion defaults.
+                return this.programmingExerciseService.delete(exercise.id!, event.deleteStudentReposBuildPlans, event.deleteBaseReposBuildPlans);
             case ExerciseType.QUIZ:
                 return this.quizExerciseService.delete(exercise.id!);
             case ExerciseType.TEXT:

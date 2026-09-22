@@ -81,11 +81,6 @@ public interface ProgrammingExerciseStudentParticipationRepository extends Artem
     List<ProgrammingExerciseStudentParticipation> findAllWithBuildPlanIdWithResults();
 
     @EntityGraph(type = LOAD, attributePaths = { "submissions" })
-    Optional<ProgrammingExerciseStudentParticipation> findByExerciseIdAndStudentLogin(long exerciseId, String username);
-
-    List<ProgrammingExerciseStudentParticipation> findAllByExerciseIdAndStudentLogin(long exerciseId, String username);
-
-    @EntityGraph(type = LOAD, attributePaths = { "submissions" })
     Optional<ProgrammingExerciseStudentParticipation> findWithSubmissionsById(long participationId);
 
     /**
@@ -201,6 +196,31 @@ public interface ProgrammingExerciseStudentParticipationRepository extends Artem
 
     @EntityGraph(type = LOAD, attributePaths = { "team.students" })
     Optional<ProgrammingExerciseStudentParticipation> findByExerciseIdAndTeamId(long exerciseId, long teamId);
+
+    /**
+     * The id of the student participation a repository uri belongs to.
+     *
+     * <p>
+     * Reads one column and loads no entity, for callers that only have to point at the participation, such as an access
+     * log entry being attributed to a repository.
+     *
+     * <p>
+     * Scoped to the project key the repository lives under, because a {@code UserStoryExercise} participation shares its
+     * milestone's repository uri. The project key of such a shared repository is always the milestone's, so this resolves
+     * the milestone participation that owns it.
+     *
+     * @param repositoryUri the uri of the repository, without the git service suffix
+     * @param projectKey    the project key of the exercise the repository lives under
+     * @return the id of the participation, or empty if no repository has that uri
+     */
+    @Query("""
+            SELECT participation.id
+            FROM ProgrammingExerciseStudentParticipation participation
+                JOIN ProgrammingExercise exercise ON exercise.id = participation.exercise.id
+            WHERE participation.repositoryUri = :repositoryUri
+                AND exercise.projectKey = :projectKey
+            """)
+    Optional<Long> findIdByRepositoryUriAndProjectKey(@Param("repositoryUri") String repositoryUri, @Param("projectKey") String projectKey);
 
     @Query("""
             SELECT DISTINCT participation
@@ -325,10 +345,10 @@ public interface ProgrammingExerciseStudentParticipationRepository extends Artem
             FROM ProgrammingExerciseStudentParticipation participation
                 LEFT JOIN FETCH participation.submissions
             WHERE participation.exercise.id = :exerciseId
-                AND participation.student.login = :username
+                AND participation.student.id = :studentId
             ORDER BY participation.testRun ASC
             """)
-    List<ProgrammingExerciseStudentParticipation> findAllWithSubmissionsByExerciseIdAndStudentLogin(@Param("exerciseId") long exerciseId, @Param("username") String username);
+    List<ProgrammingExerciseStudentParticipation> findAllWithSubmissionsByExerciseIdAndStudentId(@Param("exerciseId") long exerciseId, @Param("studentId") long studentId);
 
     @Query("""
             SELECT participation
@@ -337,10 +357,10 @@ public interface ProgrammingExerciseStudentParticipationRepository extends Artem
                 LEFT JOIN FETCH team.students student
                 LEFT JOIN FETCH participation.submissions
             WHERE participation.exercise.id = :exerciseId
-                AND student.login = :username
+                AND student.id = :studentId
             ORDER BY participation.testRun ASC
             """)
-    List<ProgrammingExerciseStudentParticipation> findAllWithSubmissionByExerciseIdAndStudentLoginInTeam(@Param("exerciseId") long exerciseId, @Param("username") String username);
+    List<ProgrammingExerciseStudentParticipation> findAllWithSubmissionByExerciseIdAndStudentIdInTeam(@Param("exerciseId") long exerciseId, @Param("studentId") long studentId);
 
     @EntityGraph(type = LOAD, attributePaths = "team.students")
     Optional<ProgrammingExerciseStudentParticipation> findWithTeamStudentsById(long participationId);
@@ -391,23 +411,7 @@ public interface ProgrammingExerciseStudentParticipationRepository extends Artem
     @Query("""
             SELECT p
             FROM ProgrammingExerciseStudentParticipation p
-                LEFT JOIN FETCH p.submissions s
-            WHERE p.exercise.id = :exerciseId
-            """)
-    Set<ProgrammingExerciseStudentParticipation> findByExerciseIdWithEagerSubmissions(@Param("exerciseId") long exerciseId);
-
-    @Query("""
-            SELECT p
-            FROM ProgrammingExerciseStudentParticipation p
             WHERE p.id IN :participationIds
             """)
     Set<ProgrammingExerciseStudentParticipation> findByIds(@Param("participationIds") Collection<Long> participationIds);
-
-    @Query("""
-            SELECT p
-            FROM ProgrammingExerciseStudentParticipation p
-                LEFT JOIN FETCH p.submissions s
-            WHERE p.id IN :participationIds
-            """)
-    Set<ProgrammingExerciseStudentParticipation> findByIdsWithEagerSubmissions(@Param("participationIds") Collection<Long> participationIds);
 }

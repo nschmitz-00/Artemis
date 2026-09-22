@@ -42,8 +42,11 @@ import de.tum.cit.aet.artemis.notification.domain.UserCourseNotificationStatusTy
 import de.tum.cit.aet.artemis.notification.domain.course_notifications.CourseNotificationCategory;
 import de.tum.cit.aet.artemis.notification.dto.CourseNotificationDTO;
 import de.tum.cit.aet.artemis.notification.dto.CourseNotificationPageableDTO;
+import de.tum.cit.aet.artemis.notification.dto.CourseNotificationParameterDTO;
 import de.tum.cit.aet.artemis.notification.dto.CourseNotificationRecipientDTO;
 import de.tum.cit.aet.artemis.notification.dto.CourseNotificationWithStatusDTO;
+import de.tum.cit.aet.artemis.notification.dto.payload.CourseNotificationPayloadDTO;
+import de.tum.cit.aet.artemis.notification.dto.payload.ExerciseOpenForPracticePayloadDTO;
 import de.tum.cit.aet.artemis.notification.test_repository.CourseNotificationParameterTestRepository;
 import de.tum.cit.aet.artemis.notification.test_repository.CourseNotificationTestRepository;
 
@@ -100,7 +103,7 @@ class CourseNotificationServiceTest {
     void shouldRecordAFailedAsynchronousDeliveryAsAFailure() {
         TestNotification notification = createTestNotification(NotificationChannelOption.WEBAPP);
         List<User> recipients = List.of(createTestUser(1L));
-        when(courseNotificationSettingService.filterRecipientsBy(notification, recipients, NotificationChannelOption.WEBAPP)).thenReturn(recipients);
+        when(courseNotificationSettingService.filterRecipientsBy(eq(notification), eq(recipients), eq(NotificationChannelOption.WEBAPP), any())).thenReturn(recipients);
         when(courseNotificationRepository.save(any())).thenReturn(createTestCourseNotificationEntity(1L));
         when(courseNotificationRegistryService.getNotificationIdentifier(any())).thenReturn((short) 1);
         when(webappService.sendCourseNotification(any(CourseNotificationDTO.class), anyList()))
@@ -115,7 +118,7 @@ class CourseNotificationServiceTest {
     void shouldRecordASuccessfulDeliveryAsASuccess() {
         TestNotification notification = createTestNotification(NotificationChannelOption.WEBAPP);
         List<User> recipients = List.of(createTestUser(1L));
-        when(courseNotificationSettingService.filterRecipientsBy(notification, recipients, NotificationChannelOption.WEBAPP)).thenReturn(recipients);
+        when(courseNotificationSettingService.filterRecipientsBy(eq(notification), eq(recipients), eq(NotificationChannelOption.WEBAPP), any())).thenReturn(recipients);
         when(courseNotificationRepository.save(any())).thenReturn(createTestCourseNotificationEntity(1L));
         when(courseNotificationRegistryService.getNotificationIdentifier(any())).thenReturn((short) 1);
 
@@ -131,8 +134,8 @@ class CourseNotificationServiceTest {
         List<User> webappRecipients = List.of(createTestUser(1L));
         List<User> pushRecipients = List.of(createTestUser(2L));
 
-        when(courseNotificationSettingService.filterRecipientsBy(notification, allRecipients, NotificationChannelOption.WEBAPP)).thenReturn(webappRecipients);
-        when(courseNotificationSettingService.filterRecipientsBy(notification, allRecipients, NotificationChannelOption.PUSH)).thenReturn(pushRecipients);
+        when(courseNotificationSettingService.filterRecipientsBy(eq(notification), eq(allRecipients), eq(NotificationChannelOption.WEBAPP), any())).thenReturn(webappRecipients);
+        when(courseNotificationSettingService.filterRecipientsBy(eq(notification), eq(allRecipients), eq(NotificationChannelOption.PUSH), any())).thenReturn(pushRecipients);
         when(courseNotificationRepository.save(any())).thenReturn(createTestCourseNotificationEntity(1L));
         when(courseNotificationRegistryService.getNotificationIdentifier(any())).thenReturn((short) 1);
 
@@ -152,7 +155,7 @@ class CourseNotificationServiceTest {
         TestNotification notification = createTestNotification(NotificationChannelOption.WEBAPP);
         List<User> recipients = List.of(createTestUser(1L));
 
-        when(courseNotificationSettingService.filterRecipientsBy(any(), any(), any())).thenReturn(recipients);
+        when(courseNotificationSettingService.filterRecipientsBy(any(), any(), any(), any())).thenReturn(recipients);
         when(courseNotificationRepository.save(any())).thenReturn(createTestCourseNotificationEntity(1L));
         when(courseNotificationRegistryService.getNotificationIdentifier(any())).thenReturn((short) 1);
 
@@ -180,7 +183,9 @@ class CourseNotificationServiceTest {
                 entity.getCreationDate(), UserCourseNotificationStatusType.SEEN)));
 
         when(courseNotificationRepository.findCourseNotificationsByUserIdAndCourseIdAndStatusNotArchived(userId, courseId, pageable)).thenReturn(page);
-        when(courseNotificationParameterRepository.findByCourseNotificationIdEquals(entity.getId())).thenReturn(Set.of(param1, param2));
+        // The cached read answers with the key and value alone, so that the store never holds the parameter entity.
+        when(courseNotificationParameterRepository.findByCourseNotificationIdEquals(entity.getId()))
+                .thenReturn(Set.of(new CourseNotificationParameterDTO(param1.getKey(), param1.getValue()), new CourseNotificationParameterDTO(param2.getKey(), param2.getValue())));
         when(courseNotificationRegistryService.getNotificationClass(any())).thenReturn((Class) TestNotification.class);
 
         CourseNotificationPageableDTO<CourseNotificationDTO> result = courseNotificationService.getCourseNotifications(pageable, courseId, userId);
@@ -196,10 +201,7 @@ class CourseNotificationServiceTest {
 
     @Test
     void shouldConvertParametersToMapWhenProcessingNotification() {
-        CourseNotification entity = createTestCourseNotificationEntity(1L);
-        CourseNotificationParameter param1 = new CourseNotificationParameter(entity, "key1", "value1");
-        CourseNotificationParameter param2 = new CourseNotificationParameter(entity, "key2", "value2");
-        Set<CourseNotificationParameter> paramSet = Set.of(param1, param2);
+        Set<CourseNotificationParameterDTO> paramSet = Set.of(new CourseNotificationParameterDTO("key1", "value1"), new CourseNotificationParameterDTO("key2", "value2"));
 
         Map<String, String> result = ReflectionTestUtils.invokeMethod(courseNotificationService, "parametersToMap", paramSet);
 
@@ -272,6 +274,11 @@ class CourseNotificationServiceTest {
         @Override
         public Duration getCleanupDuration() {
             return Duration.ofDays(30);
+        }
+
+        @Override
+        public CourseNotificationPayloadDTO payload() {
+            return new ExerciseOpenForPracticePayloadDTO(1L, "Test Exercise");
         }
     }
 }
