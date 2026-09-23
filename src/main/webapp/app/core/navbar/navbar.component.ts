@@ -20,7 +20,7 @@ import { TranslateService } from '@ngx-translate/core';
 import { AlertService } from 'app/foundation/service/alert.service';
 import { LANGUAGES } from 'app/core/language/shared/language.constants';
 import { faBars, faChevronRight, faCog, faFlag, faLock, faSignOutAlt, faUser, faUserShield, faWrench } from '@fortawesome/free-solid-svg-icons';
-import { Exercise, ExerciseType, getExerciseUrlSegmentOrEmpty } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { Exercise, ExerciseType, getExerciseUrlSegment, getExerciseUrlSegmentOrEmpty } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { onError } from 'app/foundation/util/global.utils';
 import { StudentExam } from 'app/exam/shared/entities/student-exam.model';
 import { Title } from '@angular/platform-browser';
@@ -860,7 +860,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
                 ? ExerciseType.PROGRAMMING
                 : this.courseStorageService.getCourse(Number(courseId))?.exercises?.find((exercise) => exercise.id === Number(exerciseId))?.type;
             if (exerciseType) {
-                return [...baseManagementPath, `${exerciseType}-exercises`, exerciseId];
+                // Through the helper rather than the type itself: a milestone and a user story are managed under the
+                // programming routes, so concatenating their own discriminator built a path no route matches and the
+                // switch silently did nothing.
+                return [...baseManagementPath, getExerciseUrlSegment(exerciseType), exerciseId];
             }
         }
 

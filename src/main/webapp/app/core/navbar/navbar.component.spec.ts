@@ -381,6 +381,15 @@ describe('NavbarComponent', () => {
             expect(component.perspectiveSwitchLinks()?.managementViewLink).toEqual(['/course-management', '123', `${type}-exercises`, '41']);
         });
 
+        // A milestone and a user story are managed under the programming routes, so their own discriminator would build
+        // a path no route matches - the switch then refused the navigation and appeared to do nothing.
+        it.each([ExerciseType.USER_STORY, ExerciseType.MILESTONE])('should link from a student %s route to the programming management detail', (type) => {
+            courseStorageService.setCourses([{ ...tutorCourse, exercises: [{ id: 41, type } as Exercise] } as Course]);
+            router.setUrl('/courses/123/exercises/41');
+
+            expect(component.perspectiveSwitchLinks()?.managementViewLink).toEqual(['/course-management', '123', 'programming-exercises', '41']);
+        });
+
         it('should keep the management exercise overview fallback when the current course does not contain the exercise', () => {
             courseStorageService.setCourses([{ ...tutorCourse, exercises: [] } as Course]);
             router.setUrl('/courses/123/exercises/41');
