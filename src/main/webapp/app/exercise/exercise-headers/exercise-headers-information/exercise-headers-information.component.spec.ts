@@ -5,7 +5,7 @@ import { SubmissionResultStatusComponent } from 'app/course/overview/submission-
 import { NgbTooltipModule } from '@ng-bootstrap/ng-bootstrap';
 import { provideTranslateService } from '@ngx-translate/core';
 
-import { ExerciseHeadersInformationComponent } from 'app/exercise/exercise-headers/exercise-headers-information/exercise-headers-information.component';
+import { ExerciseHeadersInformationComponent, InformationPlacement } from 'app/exercise/exercise-headers/exercise-headers-information/exercise-headers-information.component';
 import { MockProvider } from 'ng-mocks';
 import { ExerciseService } from 'app/exercise/services/exercise.service';
 import { DifficultyLevel, Exercise, ExerciseType, IncludedInOverallScore } from 'app/exercise/shared/entities/exercise/exercise.model';
@@ -409,11 +409,12 @@ describe('ExerciseHeadersInformationComponent', () => {
     describe('milestone definition of done', () => {
         const milestoneGroup = { id: 10, type: 'milestone', milestoneExerciseId: 99 };
 
-        function render(exercise: Partial<Exercise>, options: { participation?: boolean; interactive?: boolean } = {}) {
+        function render(exercise: Partial<Exercise>, options: { participation?: boolean; interactive?: boolean; placement?: InformationPlacement } = {}) {
             fixture = TestBed.createComponent(ExerciseHeadersInformationComponent);
             component = fixture.componentInstance;
             fixture.componentRef.setInput('exercise', { ...baseExercise, ...exercise } as Exercise);
             fixture.componentRef.setInput('interactive', options.interactive ?? true);
+            fixture.componentRef.setInput('placement', options.placement ?? 'panel');
             if (options.participation ?? true) {
                 fixture.componentRef.setInput('studentParticipation', { id: 3 } as StudentParticipation);
             }
@@ -429,6 +430,8 @@ describe('ExerciseHeadersInformationComponent', () => {
             ['a user story without a participation', { type: ExerciseType.USER_STORY, exerciseVariantGroup: milestoneGroup }, { participation: false }],
             ['a read-only preview card', { type: ExerciseType.USER_STORY, exerciseVariantGroup: milestoneGroup }, { interactive: false }],
             ['a user story outside a milestone group', { type: ExerciseType.USER_STORY, exerciseVariantGroup: { id: 10, type: 'variant' } }, {}],
+            // The title bar renders this component as well, where the box would repeat what the panel below states.
+            ['the title bar of a started user story', { type: ExerciseType.USER_STORY, exerciseVariantGroup: milestoneGroup }, { placement: 'titleBar' }],
         ])('is not shown for %s', (_label, exercise, options) => {
             render(exercise as Partial<Exercise>, options);
             expect(component.showMilestoneDod()).toBe(false);

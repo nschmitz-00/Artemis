@@ -228,10 +228,15 @@ export class ExerciseHeadersInformationComponent {
      * Whether to show the milestone's Definition of Done box: only on the page of a started user story in a milestone
      * group. Read-only previews ({@link interactive} false) - the variant cards of the milestone group page - skip it,
      * since every card would otherwise request the same milestone standing and repeat a box that page already covers.
+     * <p>
+     * The panel only: the title bar renders this component too (see {@code ExerciseHeaderComponent}), and it is a wide
+     * box of its own rather than one of the two pills that bar has room for, so it would be a second copy of what the
+     * panel below already states.
      */
     readonly showMilestoneDod = computed<boolean>(() => {
         const exercise = this.exercise();
         return (
+            this.placement() === 'panel' &&
             exercise.type === ExerciseType.USER_STORY &&
             this.interactive() &&
             this.studentParticipation()?.id !== undefined &&
