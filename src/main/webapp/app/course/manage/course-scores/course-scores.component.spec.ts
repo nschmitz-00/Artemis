@@ -556,6 +556,71 @@ describe('CourseScoresComponent', () => {
         expect(exportKeys.indexOf('Uncapped Course Points')).toBe(exportKeys.indexOf('Excess Variant Points') - 1);
     });
 
+    it('should export a milestone as a programming exercise and leave its user stories out', () => {
+        // A milestone is scored as a programming exercise but carries its own discriminator, so it used to match no
+        // exercise type and dropped out of the export: no column of its own, and its points missing from the
+        // programming totals. Its user stories count through it, so they must stay out of both.
+        const milestoneGroup = { id: 300, type: 'milestone' };
+        const milestone = {
+            title: 'Sprint 1',
+            id: 301,
+            dueDate: dayjs().add(5, 'minutes'),
+            type: ExerciseType.MILESTONE,
+            includedInOverallScore: IncludedInOverallScore.INCLUDED_COMPLETELY,
+            maxPoints: 10,
+            bonusPoints: 0,
+        } as Exercise;
+        const userStory = {
+            title: 'Login form',
+            id: 302,
+            dueDate: dayjs().add(5, 'minutes'),
+            type: ExerciseType.USER_STORY,
+            includedInOverallScore: IncludedInOverallScore.INCLUDED_COMPLETELY,
+            maxPoints: 10,
+            bonusPoints: 0,
+            exerciseVariantGroup: milestoneGroup,
+        } as unknown as Exercise;
+        // A milestone group may also hold exercises of other kinds. They are not part of the milestone's aggregate, so
+        // they count on their own result, exactly as the server has it.
+        const textMember = {
+            title: 'Retrospective',
+            id: 303,
+            dueDate: dayjs().add(5, 'minutes'),
+            type: ExerciseType.TEXT,
+            includedInOverallScore: IncludedInOverallScore.INCLUDED_COMPLETELY,
+            maxPoints: 10,
+            bonusPoints: 0,
+            exerciseVariantGroup: milestoneGroup,
+        } as unknown as Exercise;
+        const milestoneCourse = { courseId: 1, exercises: [milestone, userStory, textMember], accuracyOfScores: 1 } as Course;
+        const milestoneGradeInfo: CourseGradeInformationDTO = {
+            gradeScores: [createGradeScore(1, 1, 301, 80), createGradeScore(2, 1, 302, 100), createGradeScore(3, 1, 303, 50)],
+            students: [{ id: 1, login: 'user1login', firstName: 'user1', lastName: '', name: 'user1', email: 'user1mail' }],
+        };
+        vi.spyOn(courseManagementService, 'findWithExercises').mockReturnValue(of(new HttpResponse({ body: milestoneCourse })));
+        vi.spyOn(courseManagementService, 'findGradeScores').mockReturnValue(of(milestoneGradeInfo));
+        vi.spyOn(plagiarismCasesService, 'getCoursePlagiarismCasesForScores').mockReturnValue(of(new HttpResponse<PlagiarismCaseDTO[]>({ body: [] })));
+        fixture.detectChanges();
+
+        const exportAsExcelStub = vi.spyOn(component, 'exportAsExcel').mockImplementation(() => {});
+        component.exportResults();
+        const exportKeys = exportAsExcelStub.mock.calls[0][0];
+        const generatedRows = exportAsExcelStub.mock.calls[0][1];
+
+        expect(exportKeys).toContain('Sprint 1');
+        expect(exportKeys).not.toContain('Login form');
+        // The group's other member keeps its own column and counts under its own type.
+        expect(exportKeys).toContain('Retrospective');
+        // 80 % of the milestone's 10 points, which is also all this student's programming points.
+        expect(generatedRows[0]['Sprint 1']).toEqual({ t: 'n', v: 8 });
+        expect(generatedRows[0]['Programming Points']).toEqual({ t: 'n', v: 8 });
+        expect(generatedRows[0]['Programming Score']).toEqual({ t: 'n', v: 0.8, z: '0%' });
+        expect(generatedRows[0]['Retrospective']).toEqual({ t: 'n', v: 5 });
+        expect(generatedRows[0]['Text Points']).toEqual({ t: 'n', v: 5 });
+        // Milestone plus the text member, with the user story credited through the milestone rather than on its own.
+        expect(generatedRows[0][COURSE_OVERALL_POINTS_KEY]).toEqual({ t: 'n', v: 13 });
+    });
+
     it('should cap a variant group whose variants span multiple exercise types as a whole', () => {
         // A single group with four variants of different types summing to 18 points, capped at 5.
         const variantGroup = { id: 200, maxPoints: 5 };

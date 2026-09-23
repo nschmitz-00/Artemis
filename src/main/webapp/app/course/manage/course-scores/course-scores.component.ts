@@ -5,7 +5,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import dayjs from 'dayjs/esm';
 import { sum } from 'lodash-es';
 import { downloadCsv } from 'app/foundation/util/csv-download.util';
-import { Exercise, ExerciseType, IncludedInOverallScore, exerciseTypes } from 'app/exercise/shared/entities/exercise/exercise.model';
+import { Exercise, ExerciseType, IncludedInOverallScore, baseExerciseType, exerciseTypes } from 'app/exercise/shared/entities/exercise/exercise.model';
 import { Course } from 'app/course/shared/entities/course.model';
 import { SortService } from 'app/foundation/service/sort.service';
 import { LocaleConversionService } from 'app/foundation/service/locale-conversion.service';
@@ -243,11 +243,13 @@ export class CourseScoresComponent implements OnInit {
             .exercises!.filter((exercise) => {
                 const isReleasedExercise = !exercise.releaseDate || exercise.releaseDate.isBefore(dayjs());
                 const isExerciseThatCounts = exercise.includedInOverallScore !== IncludedInOverallScore.NOT_INCLUDED;
-                // A milestone group's points are carried by its milestone exercise, which is in this list in its own
-                // right; its user stories would contribute the same points a second time. Mirrors the server's
-                // CourseScoreCalculator.includeIntoScoreCalculation.
-                const isCountedThroughItsGroup = exercise.exerciseVariantGroup?.type === 'milestone';
-                return isReleasedExercise && isExerciseThatCounts && !isCountedThroughItsGroup;
+                // Only the user stories of a milestone group are credited through its milestone exercise, which is in
+                // this list in its own right and carries their summed points; counting them here would count the same
+                // points twice. Every other member of the group - text, modeling, file upload, quiz or plain
+                // programming - is not part of that aggregate and counts on its own result, like any exercise. Mirrors
+                // the server's ExerciseCourseScoreDTO.creditedThroughMilestone.
+                const isCreditedThroughMilestone = exercise.type === ExerciseType.USER_STORY && exercise.exerciseVariantGroup?.type === 'milestone';
+                return isReleasedExercise && isExerciseThatCounts && !isCreditedThroughMilestone;
             })
             .sort(CourseScoresComponent.compareExercises);
     }
@@ -310,7 +312,9 @@ export class CourseScoresComponent implements OnInit {
         const includedExercises = this.includedExercises();
 
         for (const exerciseType of this.exerciseTypes) {
-            const exercisesOfType = includedExercises.filter((exercise) => exercise.type === exerciseType);
+            // A milestone exercise carries its own discriminator but is scored as a programming exercise, so it is
+            // bucketed as one - otherwise it matches no type here and drops out of the table and the export entirely.
+            const exercisesOfType = includedExercises.filter((exercise) => baseExerciseType(exercise.type) === exerciseType);
             this.exercisesPerType.set(exerciseType, exercisesOfType);
 
             const maxPointsOfAllExercisesOfType = new Map();
@@ -510,12 +514,12 @@ export class CourseScoresComponent implements OnInit {
                     exercise.numberOfSuccessfulParticipations! += 1;
                 }
 
-                student.pointsPerExerciseType.setValue(exercise.type!, exercise, pointsAchievedByStudentInExercise);
+                student.pointsPerExerciseType.setValue(baseExerciseType(exercise.type)!, exercise, pointsAchievedByStudentInExercise);
             }
         } else {
             // there is no result, the student has not participated or submitted too late
             student.pointsPerExercise.set(exercise.id!, 0);
-            student.pointsPerExerciseType.setValue(exercise.type!, exercise, Number.NaN);
+            student.pointsPerExerciseType.setValue(baseExerciseType(exercise.type)!, exercise, Number.NaN);
         }
     }
 
@@ -528,7 +532,7 @@ export class CourseScoresComponent implements OnInit {
     private applyVariantGroupCaps(student: CourseScoresStudentStatistics, includedExercises: Exercise[]): void {
         const pointsAchieved = (exercise: Exercise) => student.pointsPerExercise.get(exercise.id!)!;
         for (const exerciseType of this.exerciseTypes) {
-            const exercisesOfType = includedExercises.filter((exercise) => exercise.type === exerciseType && student.pointsPerExercise.has(exercise.id!));
+            const exercisesOfType = includedExercises.filter((exercise) => baseExerciseType(exercise.type) === exerciseType && student.pointsPerExercise.has(exercise.id!));
             // Non-variant exercises are summed individually.
             const nonVariantPoints = sum(exercisesOfType.filter((exercise) => !this.isExerciseVariant(exercise)).map(pointsAchieved));
             // Exercise variants: capped per group at the group's configured maxPoints.
