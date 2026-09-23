@@ -5,7 +5,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
@@ -432,6 +434,25 @@ class MilestoneExerciseGroupIntegrationTest extends AbstractProgrammingIntegrati
         assertThat(group).isNotNull();
         assertThat(group.get("type").asText()).isEqualTo("milestone");
         assertThat(group.get("milestoneExerciseId").asLong()).isEqualTo(milestoneExercise.getId());
+    }
+
+    /**
+     * The course management exercise list is where the client drops the milestone exercise, which the milestone group's
+     * card already represents. It can only do that when the milestone arrives under its own discriminator rather than as
+     * a plain programming exercise, and the same holds for the user stories it lists under that card.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "editor1", roles = "EDITOR")
+    void courseManagementExerciseListReportsMilestoneAndUserStoryUnderTheirOwnType() throws Exception {
+        UserStoryExercise story = addUserStoryMember("typed", null, null);
+
+        MvcResult result = request.performMvcRequest(MockMvcRequestBuilders.get("/api/course/courses/" + course.getId() + "/with-exercises")).andExpect(status().isOk())
+                .andReturn();
+        JsonNode exercises = request.getObjectMapper().readTree(result.getResponse().getContentAsString()).get("exercises");
+
+        Map<Long, String> typesById = new HashMap<>();
+        exercises.forEach(exercise -> typesById.put(exercise.get("id").asLong(), exercise.get("type").asText()));
+        assertThat(typesById).containsEntry(milestoneExercise.getId(), "milestone").containsEntry(story.getId(), "user-story");
     }
 
     /** Adds a user story to the milestone group. Kept minimal on purpose - only what the tests below read. */

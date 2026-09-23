@@ -87,7 +87,8 @@ interface AssessedCourseManagementExerciseDTO extends CourseManagementExerciseCo
 }
 
 interface ProgrammingCourseManagementExerciseDTO extends AssessedCourseManagementExerciseDTO {
-    type: ExerciseType.PROGRAMMING;
+    /** Milestone and user story exercises are served by this payload too, each under its own discriminator. */
+    type: ExerciseType.PROGRAMMING | ExerciseType.MILESTONE | ExerciseType.USER_STORY;
     programmingLanguage?: ProgrammingLanguage;
     projectType?: ProjectType;
     projectKey?: string;
@@ -357,7 +358,10 @@ export interface CourseDashboardExamDTO {
 
 export function exerciseFromCourseManagementDTO(dto: CourseManagementExerciseDTO): Exercise {
     switch (dto.type) {
+        // Milestone and user story exercises are programming exercises on the client; they keep their own type discriminator.
         case ExerciseType.PROGRAMMING:
+        case ExerciseType.MILESTONE:
+        case ExerciseType.USER_STORY:
             return withParsedCategories(
                 hydrate(new ProgrammingExercise(undefined, undefined), dto, sharedDateOverrides(dto), {
                     exampleSolutionPublicationDate: convertDateStringFromServer(dto.exampleSolutionPublicationDate),

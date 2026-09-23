@@ -8,6 +8,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 import de.tum.cit.aet.artemis.assessment.domain.AssessmentType;
 import de.tum.cit.aet.artemis.exercise.domain.ExerciseMode;
+import de.tum.cit.aet.artemis.exercise.domain.ExerciseType;
 import de.tum.cit.aet.artemis.exercise.domain.IncludedInOverallScore;
 import de.tum.cit.aet.artemis.exercise.dto.ExerciseVariantGroupReferenceDTO;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExercise;
@@ -21,7 +22,8 @@ import de.tum.cit.aet.artemis.programming.domain.ProgrammingLanguage;
  * table counts {@code participation.submissions[*].results}.
  *
  * @param id                                         the exercise id
- * @param type                                       the constant discriminator {@code "programming"}
+ * @param type                                       the exercise's discriminator: {@code "programming"}, or {@code "milestone"} /
+ *                                                       {@code "user-story"} for those subtypes, which the client branches on
  * @param title                                      the exercise title
  * @param shortName                                  the exercise short name
  * @param programmingLanguage                        the programming language
@@ -75,7 +77,7 @@ public record ProgrammingExerciseListItemDTO(Long id, String type, String title,
         ProgrammingExerciseExamGroupDTO exerciseGroup = ProgrammingExerciseExamGroupDTO.ofExamExercise(exercise);
         Set<String> categories = ProgrammingExerciseResponseDTO.copyCategories(exercise);
 
-        return new ProgrammingExerciseListItemDTO(exercise.getId(), ProgrammingExerciseResponseDTO.TYPE, exercise.getTitle(), exercise.getShortName(),
+        return new ProgrammingExerciseListItemDTO(exercise.getId(), ExerciseType.getDiscriminatorFromClass(exercise.getClass()), exercise.getTitle(), exercise.getShortName(),
                 exercise.getProgrammingLanguage(), categories, exercise.getReleaseDate(), exercise.getStartDate(), exercise.getDueDate(), exercise.getAssessmentDueDate(),
                 exercise.getExampleSolutionPublicationDate(), exercise.getBuildAndTestStudentSubmissionsAfterDueDate(), exercise.getAssessmentType(), exercise.getMaxPoints(),
                 exercise.getBonusPoints(), exercise.getIncludedInOverallScore(), exercise.getPresentationScoreEnabled(), exercise.getMode(), exercise.isTeamMode(),

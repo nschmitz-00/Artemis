@@ -45,7 +45,8 @@ import de.tum.cit.aet.artemis.programming.domain.ProjectType;
  * computed from the course group names and exam navigation walks {@code exerciseGroup.exam.course}.
  *
  * @param id                                         the exercise id
- * @param type                                       the constant discriminator {@code "programming"}
+ * @param type                                       the exercise's discriminator: {@code "programming"}, or {@code "milestone"} /
+ *                                                       {@code "user-story"} for those subtypes, which the client branches on;
  * @param title                                      the exercise title
  * @param shortName                                  the exercise short name
  * @param channelName                                the name of the associated communication channel
@@ -260,11 +261,11 @@ public record ProgrammingExerciseResponseDTO(Long id, String type, String title,
             studentParticipations = null;
         }
 
-        return new ProgrammingExerciseResponseDTO(exercise.getId(), TYPE, exercise.getTitle(), exercise.getShortName(), exercise.getChannelName(), exercise.getProblemStatement(),
-                categories, exercise.getDifficulty(), exercise.getMode(), exercise.isTeamMode(), teamAssignmentConfig, exercise.getMaxPoints(), exercise.getBonusPoints(),
-                exercise.getIncludedInOverallScore(), exercise.getReleaseDate(), exercise.getStartDate(), exercise.getDueDate(), exercise.getAssessmentDueDate(),
-                exercise.getExampleSolutionPublicationDate(), exercise.getBuildAndTestStudentSubmissionsAfterDueDate(), exercise.getAssessmentType(),
-                exercise.getAllowComplaintsForAutomaticAssessments(), exercise.getPresentationScoreEnabled(), exercise.getSecondCorrectionEnabled(),
+        return new ProgrammingExerciseResponseDTO(exercise.getId(), ExerciseType.getDiscriminatorFromClass(exercise.getClass()), exercise.getTitle(), exercise.getShortName(),
+                exercise.getChannelName(), exercise.getProblemStatement(), categories, exercise.getDifficulty(), exercise.getMode(), exercise.isTeamMode(), teamAssignmentConfig,
+                exercise.getMaxPoints(), exercise.getBonusPoints(), exercise.getIncludedInOverallScore(), exercise.getReleaseDate(), exercise.getStartDate(), exercise.getDueDate(),
+                exercise.getAssessmentDueDate(), exercise.getExampleSolutionPublicationDate(), exercise.getBuildAndTestStudentSubmissionsAfterDueDate(),
+                exercise.getAssessmentType(), exercise.getAllowComplaintsForAutomaticAssessments(), exercise.getPresentationScoreEnabled(), exercise.getSecondCorrectionEnabled(),
                 exercise.getGradingInstructions(), gradingCriteria, competencyLinks, plagiarismDetectionConfig, exercise.getProgrammingLanguage(), exercise.getPackageName(),
                 exercise.getProjectType(), exercise.getProjectKey(), exercise.getTestRepositoryUri(), exercise.isStaticCodeAnalysisEnabled(),
                 exercise.getMaxStaticCodeAnalysisPenalty(), exercise.getShowTestNamesToStudents(), exercise.isReleaseTestsWithExampleSolution(), exercise.getTestCasesChanged(),
