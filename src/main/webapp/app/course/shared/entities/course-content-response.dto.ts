@@ -47,6 +47,10 @@ export interface CourseCompetencyDashboardDTO {
 interface ExerciseVariantGroupReferenceDTO {
     id: number;
     title?: string;
+    /** `'variant'` or `'milestone'`; what tells a milestone group's members apart from plain variants. */
+    type?: 'variant' | 'milestone';
+    /** Only set for a milestone group: the id of its anchor MilestoneExercise. */
+    milestoneExerciseId?: number;
     maxPoints?: number;
     releaseDate?: string;
     startDate?: string;
@@ -512,6 +516,10 @@ function variantGroupFromDTO(dto?: ExerciseVariantGroupReferenceDTO): ExerciseVa
     return {
         id: dto.id,
         title: dto.title,
+        // Dropping these two made every member of a milestone group read as a plain variant: the course scores then
+        // counted a user story's points on top of the milestone's, and the sidebar stopped grouping them.
+        type: dto.type,
+        milestoneExerciseId: dto.milestoneExerciseId,
         maxPoints: dto.maxPoints,
         releaseDate: convertDateStringFromServer(dto.releaseDate),
         startDate: convertDateStringFromServer(dto.startDate),

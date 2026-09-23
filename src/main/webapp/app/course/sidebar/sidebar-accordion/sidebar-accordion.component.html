@@ -47,32 +47,53 @@
                                     track sidebarItem.trackId ?? sidebarItem.id
                                 ) {
                                     <div [ngClass]="{ 'mb-2': !last }">
-                                        <!-- loading sidebarCard with help of a directive depending on its size input-->
-                                        <div
-                                            jhiSidebarCard
-                                            [size]="sidebarItem.size"
-                                            [itemSelected]="itemSelected()"
-                                            [sidebarType]="sidebarType()"
-                                            [sidebarItem]="sidebarItem"
-                                            [groupKey]="groupKey"
-                                            [activeItemId]="selectedItemId()"
-                                            (onUpdateSidebar)="onUpdateSidebar.emit()"
-                                        ></div>
                                         @if (sidebarItem.renderGroupedItems && sidebarItem.groupedItems?.length) {
-                                            <div class="sidebar-group-members" data-testid="sidebar-group-members">
-                                                @for (member of sidebarItem.groupedItems; track member.id) {
-                                                    <div
-                                                        jhiSidebarCard
-                                                        [size]="member.size"
-                                                        [itemSelected]="itemSelected()"
-                                                        [sidebarType]="sidebarType()"
-                                                        [sidebarItem]="member"
-                                                        [groupKey]="groupKey"
-                                                        [activeItemId]="selectedItemId()"
-                                                        (onUpdateSidebar)="onUpdateSidebar.emit()"
-                                                    ></div>
-                                                }
+                                            <!--
+                                                A milestone and the exercises assigned to it read as one block: the milestone's own
+                                                card heads a single outlined container, and its exercises sit flush beneath it,
+                                                separated by a line rather than by a gap.
+                                            -->
+                                            <div class="sidebar-group sidebar-group--connected" data-testid="sidebar-group-members">
+                                                <div
+                                                    class="sidebar-group-header"
+                                                    jhiSidebarCard
+                                                    [size]="sidebarItem.size"
+                                                    [itemSelected]="itemSelected()"
+                                                    [sidebarType]="sidebarType()"
+                                                    [sidebarItem]="sidebarItem"
+                                                    [groupKey]="groupKey"
+                                                    [activeItemId]="selectedItemId()"
+                                                    (onUpdateSidebar)="onUpdateSidebar.emit()"
+                                                ></div>
+                                                <div class="sidebar-group-content">
+                                                    @for (member of sidebarItem.groupedItems; track member.id) {
+                                                        <div class="sidebar-group-variant">
+                                                            <div
+                                                                jhiSidebarCard
+                                                                [size]="member.size"
+                                                                [itemSelected]="itemSelected()"
+                                                                [sidebarType]="sidebarType()"
+                                                                [sidebarItem]="member"
+                                                                [groupKey]="groupKey"
+                                                                [activeItemId]="selectedItemId()"
+                                                                (onUpdateSidebar)="onUpdateSidebar.emit()"
+                                                            ></div>
+                                                        </div>
+                                                    }
+                                                </div>
                                             </div>
+                                        } @else {
+                                            <!-- loading sidebarCard with help of a directive depending on its size input-->
+                                            <div
+                                                jhiSidebarCard
+                                                [size]="sidebarItem.size"
+                                                [itemSelected]="itemSelected()"
+                                                [sidebarType]="sidebarType()"
+                                                [sidebarItem]="sidebarItem"
+                                                [groupKey]="groupKey"
+                                                [activeItemId]="selectedItemId()"
+                                                (onUpdateSidebar)="onUpdateSidebar.emit()"
+                                            ></div>
                                         }
                                     </div>
                                 }

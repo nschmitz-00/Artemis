@@ -28,13 +28,25 @@ hr {
     align-items: center;
 }
 
-// The user stories of a milestone, listed under the milestone's own card.
-.sidebar-group-members {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
-    margin-left: 0.75rem;
-    padding-left: 0.5rem;
-    border-left: 2px solid var(--border-color);
+// A milestone and the exercises assigned to it, drawn as one connected block: the container carries the single
+// outline, and the tiles inside it sit flush, so the group reads as a header with its exercises rather than as
+// separate cards. The tiles drop their own outline in sidebar-card-medium.component.scss.
+.sidebar-group {
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    background-color: var(--module-bg);
+}
+
+.sidebar-group--connected {
+    padding: 0;
+    overflow: hidden;
+    border-top: 5px solid var(--primary);
+
+    .sidebar-group-content {
+        border-top: 2px solid var(--border-color);
+    }
+
+    .sidebar-group-variant:not(:last-child) {
+        border-bottom: 1px solid var(--border-color);
+    }
 }

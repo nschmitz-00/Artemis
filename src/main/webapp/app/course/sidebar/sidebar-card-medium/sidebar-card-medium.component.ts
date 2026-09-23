@@ -35,12 +35,24 @@ export class SidebarCardMediumComponent {
     protected readonly isVariantGroup = computed<boolean>(() => !!this.sidebarItem().groupedItems?.length);
 
     /**
+     * True when this card heads a connected group - a milestone with the exercises assigned to it listed below. The card
+     * styles itself (see `.group-header` in the stylesheet) so the accordion need not reach into its markup.
+     */
+    protected readonly isConnectedGroupHeader = computed<boolean>(() => {
+        const item = this.sidebarItem();
+        return !!item.groupedItems?.length && !!item.renderGroupedItems;
+    });
+
+    /**
      * True when the open detail page belongs to one of this card's grouped members. A variant group is a single card
      * whose members have no card of their own, so `routerLinkActive` cannot highlight it while a variant is open.
+     * <p>
+     * A connected group is excluded: its members are rendered as cards of their own, which carry the highlight
+     * themselves, so marking the header too would light up two cards for one open exercise.
      */
     protected readonly containsActiveVariant = computed<boolean>(() => {
         const activeItemId = this.activeItemId();
-        return activeItemId !== undefined && !!this.sidebarItem().groupedItems?.some((member) => member.id === activeItemId);
+        return !this.isConnectedGroupHeader() && activeItemId !== undefined && !!this.sidebarItem().groupedItems?.some((member) => member.id === activeItemId);
     });
 
     /**

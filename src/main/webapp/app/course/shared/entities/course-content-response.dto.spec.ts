@@ -23,4 +23,18 @@ describe('exerciseFromCourseManagementDTO', () => {
     it.each([ExerciseType.PROGRAMMING, ExerciseType.MILESTONE, ExerciseType.USER_STORY])('should keep the %s discriminator on the converted exercise', (type) => {
         expect(exerciseFromCourseManagementDTO(programmingPayload(type)).type).toBe(type);
     });
+
+    // Without these, every member of a milestone group reads as a plain variant: the course scores count a user story's
+    // points on top of the milestone's, and the sidebar stops grouping them under it.
+    it('should keep the variant group type and its anchor milestone exercise', () => {
+        const payload = {
+            ...programmingPayload(ExerciseType.USER_STORY),
+            exerciseVariantGroup: { id: 10, title: 'Sprint 1', type: 'milestone', milestoneExerciseId: 99 },
+        } as CourseManagementExerciseDTO;
+
+        const group = exerciseFromCourseManagementDTO(payload).exerciseVariantGroup;
+
+        expect(group?.type).toBe('milestone');
+        expect(group?.milestoneExerciseId).toBe(99);
+    });
 });

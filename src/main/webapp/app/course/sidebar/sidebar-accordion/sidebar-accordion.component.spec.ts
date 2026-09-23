@@ -273,14 +273,25 @@ describe('SidebarAccordionComponent', () => {
         it('should render a card for the milestone and one per user story', () => {
             const container: HTMLElement = fixture.nativeElement.querySelector('#test-accordion-item-container-0');
             expect(container.querySelectorAll('#test-sidebar-card-medium')).toHaveLength(3);
-            expect(container.querySelector('[data-testid="sidebar-group-members"]')?.querySelectorAll('#test-sidebar-card-medium')).toHaveLength(2);
+            expect(container.querySelectorAll('[data-testid="sidebar-group-members"] .sidebar-group-content #test-sidebar-card-medium')).toHaveLength(2);
+        });
+
+        // The milestone heads one outlined block that its exercises sit inside, rather than a card with separate cards
+        // below it, so the group reads as a header with its exercises and nothing is spaced apart in between.
+        it('should render the milestone as the header of one connected group', () => {
+            const group: HTMLElement = fixture.nativeElement.querySelector('#test-accordion-item-container-0 .sidebar-group--connected');
+            expect(group).not.toBeNull();
+
+            // The card renders as a sibling of the element the directive sits on, so it carries the header styling itself.
+            expect(group.querySelector('#test-sidebar-card-medium.group-header')).not.toBeNull();
+            expect(group.querySelectorAll(':scope > .sidebar-group-content > .sidebar-group-variant')).toHaveLength(2);
         });
 
         it('should keep listing every user story when the search matches only one of them', () => {
             fixture.componentRef.setInput('searchValue', 'Logout');
             fixture.changeDetectorRef.detectChanges();
 
-            const members = fixture.nativeElement.querySelector('#test-accordion-item-container-0 [data-testid="sidebar-group-members"]');
+            const members = fixture.nativeElement.querySelector('#test-accordion-item-container-0 .sidebar-group-content');
             expect(members?.querySelectorAll('#test-sidebar-card-medium')).toHaveLength(2);
         });
     });
