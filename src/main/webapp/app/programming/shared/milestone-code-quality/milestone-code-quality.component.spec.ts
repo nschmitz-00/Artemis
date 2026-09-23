@@ -59,6 +59,7 @@ describe('MilestoneCodeQualityComponent', () => {
         pendingLabel: () => string;
         detailsVisible: { (): boolean; set: (value: boolean) => void };
         categories: () => { category: string; penalty: number; issues: { location: string; rule?: string; message?: string; penalty: number }[] }[];
+        infoBoxData: () => { title: string };
     } {
         return component as never;
     }
@@ -155,6 +156,15 @@ describe('MilestoneCodeQualityComponent', () => {
             const icon = fixture.nativeElement.querySelector('.code-quality__summary fa-icon') as HTMLElement | null;
             return icon?.className;
         }
+
+        // The box sits in the page's title bar, where every box is one row of the bar's own height, and the figure is
+        // the same one the exercise header states - so it carries the same label.
+        it('renders as a single-row box labelled like the standard code issues box', async () => {
+            const component = state(await setup(milestone(), { id: 1, feedbacks: [] } as unknown as Result));
+
+            expect(component.infoBoxData().title).toBe('artemisApp.courseOverview.exerciseDetails.codeIssues');
+            expect((fixture.nativeElement.querySelector('#test-information-box') as HTMLElement).className).toContain('information-box-inline');
+        });
 
         it('reads clean when the build found no issues', async () => {
             const component = state(await setup(milestone(), { id: 1, feedbacks: [] } as unknown as Result));

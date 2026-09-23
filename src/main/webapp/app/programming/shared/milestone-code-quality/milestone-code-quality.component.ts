@@ -128,7 +128,9 @@ export class MilestoneCodeQualityComponent {
     });
 
     protected readonly infoBoxData = computed<InformationBox>(() => ({
-        title: 'artemisApp.exerciseVariantGroup.detail.codeQuality.title',
+        // The label the standard static code analysis box uses, so the figure reads the same wherever it is shown
+        // (see ExerciseHeadersInformationComponent.getStaticCodeAnalysisItemIfEnabled).
+        title: 'artemisApp.courseOverview.exerciseDetails.codeIssues',
         content: { type: 'string', value: this.issueCount() },
         isContentComponent: true,
         tooltip: 'artemisApp.exerciseVariantGroup.detail.codeQuality.boxTooltip',

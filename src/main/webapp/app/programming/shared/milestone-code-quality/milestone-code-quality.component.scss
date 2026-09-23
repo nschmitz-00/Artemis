@@ -6,8 +6,9 @@
     // The information box is the button's only content, so the button itself carries no styling of its own -
     // it exists to make the box operable by keyboard and to announce it as an action.
     &__trigger {
-        display: block;
-        height: 100%;
+        // The box carries the title bar's own height, so the button wraps it exactly rather than stretching to the
+        // height of the bar around it.
+        display: inline-flex;
         padding: 0;
         border: 0;
         background: none;

@@ -5,7 +5,7 @@
         </div>
     } @else {
         <button type="button" class="code-quality__trigger" (click)="openDetails()">
-            <jhi-information-box [informationBoxData]="infoBoxData()">
+            <jhi-information-box [informationBoxData]="infoBoxData()" layout="inline">
                 <span contentComponent class="code-quality__summary">
                     @if (status() === 'building') {
                         <fa-icon [icon]="faCircleNotch" size="lg" animation="spin" class="text-primary" />
