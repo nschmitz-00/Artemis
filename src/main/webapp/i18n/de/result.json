@@ -39,6 +39,7 @@
             "resultString": {
                 "resultString": "Ergebnistext",
                 "buildFailed": "Build gescheitert",
+                "buildSuccessful": "Build erfolgreich",
                 "buildSuccessfulNoTests": "Build erfolgreich, keine Tests ausgeführt",
                 "buildSuccessfulTests": "{{ numberOfTestsPassed }} von {{ numberOfTestsTotal }} bestanden",
                 "nonProgramming": "{{ relativeScore }}%, {{ points }} Punkte",

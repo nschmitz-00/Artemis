@@ -31,7 +31,7 @@ import { AccountService } from 'app/core/auth/account.service';
 import { MockAccountService } from 'test/helpers/mocks/service/mock-account.service';
 import { ProgrammingSubmission } from 'app/programming/shared/entities/programming-submission.model';
 import { SubmissionExerciseType } from 'app/exercise/shared/entities/submission/submission.model';
-import { faCheckCircle } from '@fortawesome/free-regular-svg-icons';
+import { faCheckCircle, faTimesCircle } from '@fortawesome/free-regular-svg-icons';
 
 const mockExercise: Exercise = {
     id: 1,
@@ -442,6 +442,78 @@ describe('ResultComponent', () => {
         expect(comp.canShowDetails()).toBe(false);
         fixture.debugElement.query(By.css('#result-score')).triggerEventHandler('click', null);
         expect(openModalSpy).not.toHaveBeenCalled();
+    });
+
+    // A host that shows the badge as a pure status, like the milestone group page, where only a failed build has
+    // something to open.
+    it('should not open the details when the host disallows it', () => {
+        const openModalSpy = vi.spyOn(dialogService, 'open');
+
+        fixture.componentRef.setInput('exercise', {
+            type: ExerciseType.PROGRAMMING,
+            numberOfAssessmentsOfCorrectionRounds: [],
+            secondCorrectionEnabled: false,
+            studentAssignedTeamIdComputed: false,
+        });
+        fixture.componentRef.setInput('participation', mockParticipation);
+        fixture.componentRef.setInput('result', mockResult);
+        fixture.componentRef.setInput('allowOpeningDetails', false);
+        fixture.detectChanges();
+
+        expect(comp.canShowDetails()).toBe(false);
+        fixture.debugElement.query(By.css('#result-score')).triggerEventHandler('click', null);
+        expect(openModalSpy).not.toHaveBeenCalled();
+
+        fixture.componentRef.setInput('allowOpeningDetails', true);
+        fixture.detectChanges();
+        expect(comp.canShowDetails()).toBe(true);
+    });
+
+    // The milestone group page states only whether the shared build came through: the group's points and its code
+    // issues are boxes of their own on the same bar, so repeating the score here would say the same thing twice.
+    it('should state only the outcome of a failed build when the host asks for it', () => {
+        fixture.componentRef.setInput('exercise', mockExercise);
+        fixture.componentRef.setInput('participation', mockParticipation);
+        fixture.componentRef.setInput('result', {
+            id: 1,
+            completionDate: dayjs().subtract(2, 'hours'),
+            score: 0,
+            rated: true,
+            submission: { id: 42, submissionExerciseType: SubmissionExerciseType.PROGRAMMING, buildFailed: true } as ProgrammingSubmission,
+        } as Result);
+        fixture.componentRef.setInput('buildOutcomeOnly', true);
+        fixture.detectChanges();
+
+        expect(comp.buildFailed()).toBe(true);
+        expect(comp.resultString()).toContain('artemisApp.result.resultString.buildFailed');
+        expect(comp.textColorClass()).toBe('text-state-danger');
+        expect(comp.resultIconClass()).toBe(faTimesCircle);
+    });
+
+    it('should state a passed build without the score or the tests behind it', () => {
+        fixture.componentRef.setInput('exercise', mockExercise);
+        fixture.componentRef.setInput('participation', mockParticipation);
+        fixture.componentRef.setInput('result', {
+            id: 1,
+            completionDate: dayjs().subtract(2, 'hours'),
+            score: 85,
+            rated: true,
+            testCaseCount: 13,
+            passedTestCaseCount: 11,
+            codeIssueCount: 2,
+            submission: { id: 42, submissionExerciseType: SubmissionExerciseType.PROGRAMMING, buildFailed: false } as ProgrammingSubmission,
+        } as Result);
+        fixture.componentRef.setInput('buildOutcomeOnly', true);
+        fixture.detectChanges();
+
+        expect(comp.buildFailed()).toBe(false);
+        expect(comp.resultString()).toContain('artemisApp.result.resultString.buildSuccessful');
+        expect(comp.resultString()).not.toContain('85');
+        expect(comp.resultString()).not.toContain('11');
+        expect(comp.textColorClass()).toBe('text-state-success');
+        expect(comp.resultIconClass()).toBe(faCheckCircle);
+        // The code issues have a box of their own on that bar, so the warning triangle would only repeat it.
+        expect(fixture.debugElement.query(By.css('#code-issue-warnings-icon'))).toBeNull();
     });
 
     it('should display building message for IS_BUILDING status', () => {

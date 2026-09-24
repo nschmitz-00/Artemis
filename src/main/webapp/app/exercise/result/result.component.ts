@@ -15,6 +15,7 @@ import { Result } from 'app/exercise/shared/entities/result/result.model';
 import { AssessmentType } from 'app/assessment/shared/entities/assessment-type.model';
 import { IconProp } from '@fortawesome/fontawesome-svg-core';
 import { faCircleNotch, faExclamationCircle, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
+import { faCheckCircle, faTimesCircle } from '@fortawesome/free-regular-svg-icons';
 import { isPracticeMode } from 'app/exercise/shared/entities/participation/student-participation.model';
 import { ResultProgressBarComponent } from './result-progress-bar/result-progress-bar.component';
 import { FaIconComponent } from '@fortawesome/angular-fontawesome';
@@ -27,7 +28,16 @@ import { ArtemisDurationFromSecondsPipe } from 'app/foundation/pipes/artemis-dur
 import { ExerciseService } from 'app/exercise/services/exercise.service';
 import { ExerciseCacheService } from 'app/exercise/services/exercise-cache.service';
 import { Badge, ResultService } from 'app/exercise/result/result.service';
-import { MissingResultInformation, ResultTemplateStatus, evaluateTemplateStatus, getResultIconClass, getTextColorClass, isAthenaAIResult } from 'app/exercise/result/result.utils';
+import {
+    MissingResultInformation,
+    ResultTemplateStatus,
+    evaluateTemplateStatus,
+    getResultIconClass,
+    getSubmissionUnderReview,
+    getTextColorClass,
+    isAthenaAIResult,
+    isBuildFailed,
+} from 'app/exercise/result/result.utils';
 import { isProgrammingExerciseStudentParticipation, isResultPreliminary } from 'app/programming/shared/utils/programming-exercise.utils';
 import { prepareFeedbackComponentParameters } from 'app/exercise/feedback/feedback.utils';
 import { FeedbackComponent } from 'app/exercise/feedback/feedback.component';
@@ -100,6 +110,20 @@ export class ResultComponent {
      * student is not evidence either way).
      */
     readonly isOwnParticipation = input(true);
+
+    /**
+     * Whether the badge may open its details at all, for a host that shows it as a pure status. The milestone group
+     * page uses this: it states the shared build's outcome, but only a failed build has something to open, namely the
+     * build log.
+     */
+    readonly allowOpeningDetails = input(true);
+
+    /**
+     * Whether the badge states only the outcome of the build - "Build failed" or "Build successful" - rather than the
+     * score and the tests behind it. The milestone group page reads this way: the group's points and its code issues
+     * are boxes of their own on the same bar, so its status box is purely about whether the shared build came through.
+     */
+    readonly buildOutcomeOnly = input(false);
     readonly missingResultInfo = input(MissingResultInformation.NONE);
     readonly estimatedCompletionDate = input<dayjs.Dayjs>();
     readonly buildStartDate = input<dayjs.Dayjs>();
@@ -136,29 +160,45 @@ export class ResultComponent {
         return status === ResultTemplateStatus.MISSING ? status : ResultTemplateStatus.NO_RESULT;
     });
 
+    /** Whether the build this badge reports on failed, judged on the same submission the feedback dialog would show. */
+    readonly buildFailed = computed<boolean>(() => isBuildFailed(getSubmissionUnderReview(this.result(), this.resolvedParticipation())));
+
     readonly textColorClass = computed(() => {
         const status = this.templateStatus();
-        return status === ResultTemplateStatus.LATE || this.displayableResult()
-            ? getTextColorClass(this.result(), this.resolvedParticipation(), status, this.resolvedExercise())
-            : '';
+        if (!(status === ResultTemplateStatus.LATE || this.displayableResult())) {
+            return '';
+        }
+        if (this.buildOutcomeOnly()) {
+            return this.buildFailed() ? 'text-state-danger' : 'text-state-success';
+        }
+        return getTextColorClass(this.result(), this.resolvedParticipation(), status, this.resolvedExercise());
     });
 
     readonly resultIconClass = computed<IconProp | undefined>(() => {
         const status = this.templateStatus();
-        return status === ResultTemplateStatus.LATE || this.displayableResult()
-            ? getResultIconClass(this.result(), this.resolvedParticipation(), status, this.resolvedExercise())
-            : undefined;
+        if (!(status === ResultTemplateStatus.LATE || this.displayableResult())) {
+            return undefined;
+        }
+        if (this.buildOutcomeOnly()) {
+            return this.buildFailed() ? faTimesCircle : faCheckCircle;
+        }
+        return getResultIconClass(this.result(), this.resolvedParticipation(), status, this.resolvedExercise());
     });
 
     readonly resultString = computed(() => {
         this.currentLang(); // Recompute the translated text when the language changes.
         const status = this.templateStatus();
-        return status === ResultTemplateStatus.LATE || this.displayableResult()
-            ? this.resultService.getResultString(this.result(), this.resolvedExercise(), this.resolvedParticipation(), this.short())
-            : '';
+        if (!(status === ResultTemplateStatus.LATE || this.displayableResult())) {
+            return '';
+        }
+        if (this.buildOutcomeOnly()) {
+            return this.translateService.instant(this.buildFailed() ? 'artemisApp.result.resultString.buildFailed' : 'artemisApp.result.resultString.buildSuccessful');
+        }
+        return this.resultService.getResultString(this.result(), this.resolvedExercise(), this.resolvedParticipation(), this.short());
     });
 
-    readonly resultTooltip = computed<string | undefined>(() => (this.displayableResult() ? this.buildResultTooltip() : undefined));
+    // The remaining tooltips all explain how the score came about, which is exactly what the outcome-only badge leaves out.
+    readonly resultTooltip = computed<string | undefined>(() => (this.displayableResult() && !this.buildOutcomeOnly() ? this.buildResultTooltip() : undefined));
 
     /** Whether the details of this result open as the student submission view rather than as the feedback dialog. */
     private readonly opensSubmissionView = computed(() => {
@@ -177,6 +217,7 @@ export class ResultComponent {
      */
     readonly canShowDetails = computed(
         () =>
+            this.allowOpeningDetails() &&
             !this.isInSidebarCard() &&
             this.resolvedExercise()?.type !== ExerciseType.QUIZ &&
             this.resolvedParticipation() !== undefined &&

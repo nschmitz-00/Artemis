@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -46,6 +47,8 @@ import de.tum.cit.aet.artemis.programming.domain.ProgrammingLanguage;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingSubmission;
 import de.tum.cit.aet.artemis.programming.domain.StaticCodeAnalysisTool;
 import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
+import de.tum.cit.aet.artemis.programming.domain.build.BuildLogEntry;
+import de.tum.cit.aet.artemis.programming.dto.BuildLogEntryDTO;
 import de.tum.cit.aet.artemis.programming.dto.ResultDTO;
 import de.tum.cit.aet.artemis.programming.service.MilestoneExercisePointsService;
 import de.tum.cit.aet.artemis.programming.service.MilestoneScoreScheduleService;
@@ -97,7 +100,7 @@ class UserStoryExerciseGradingFanOutTest extends AbstractProgrammingIntegrationI
 
     @BeforeEach
     void setUp() {
-        userUtilService.addUsers(TEST_PREFIX, 1, 0, 0, 1);
+        userUtilService.addUsers(TEST_PREFIX, 2, 0, 0, 1);
         studentLogin = TEST_PREFIX + "student1";
 
         course = courseUtilService.addEnrolledEmptyCourse(TEST_PREFIX);
@@ -761,5 +764,121 @@ class UserStoryExerciseGradingFanOutTest extends AbstractProgrammingIntegrationI
                 .allSatisfy(feedback -> assertThat(feedback.getTestCase().getExercise().getId()).isEqualTo(newUserStory.getId()));
         assertThat(backfilledResult.getTestCaseFeedbacks()).filteredOn(feedback -> Boolean.FALSE.equals(feedback.isPositive())).singleElement()
                 .satisfies(feedback -> assertThat(feedback.getMessageText()).isEqualTo(FAILURE_MESSAGE));
+    }
+
+    /**
+     * Regression test: a failed build carries no test case feedback, so {@code calculateScoreForResult} returns the
+     * copied result untouched (its case 3). The canonical path survives that because the build pipeline already seeded
+     * the result with a temporary score; the fan-out builds its result by hand and used to leave the score null. A
+     * result without a score is "no result at all" to the client, so the student's user story read "Not graded"
+     * instead of "Build failed" - and an empty state has nothing to click, which cut off the only route to the build
+     * log. Every other fan-out test feeds test case feedback and therefore takes the other branch.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "instructor1", roles = "INSTRUCTOR")
+    void aFailedBuildFansOutAScoredResultRatherThanAnUngradedOne() {
+        UserStoryExercise userStory = createUserStoryExercise("failed");
+        createTestCase(userStory, "testA");
+        createTestCase(milestoneExercise, "testA");
+        ProgrammingExerciseStudentParticipation milestoneParticipation = participationFor(milestoneExercise);
+        ProgrammingExerciseStudentParticipation userStoryParticipation = participationFor(userStory);
+
+        // What a failed build leaves behind: the flag on the submission, no test case feedback, and a score of zero.
+        Result sourceResult = buildSourceResult(milestoneParticipation, "commit-failed", List.of());
+        sourceResult.setSuccessful(false);
+        sourceResult.setScore(0D);
+        ProgrammingSubmission failedSubmission = (ProgrammingSubmission) sourceResult.getSubmission();
+        failedSubmission.setBuildFailed(true);
+        programmingSubmissionRepository.save(failedSubmission);
+
+        Result fannedOutResult = gradingService.fanOutResultToUserStoryExercise(sourceResult, userStory, userStoryParticipation);
+
+        assertThat(fannedOutResult.getScore()).isZero();
+        assertThat(((ProgrammingSubmission) fannedOutResult.getSubmission()).isBuildFailed()).isTrue();
+        assertThat(resultRepository.findByIdElseThrow(fannedOutResult.getId()).getScore()).isZero();
+    }
+
+    @Nested
+    class BuildLogsOfAUserStory {
+
+        private UserStoryExercise userStory;
+
+        private ProgrammingExerciseStudentParticipation userStoryParticipation;
+
+        private ProgrammingSubmission userStorySubmission;
+
+        /**
+         * A failed build of the shared repository: the milestone's submission carries the log, and the user story's
+         * carries only the failed flag, exactly as the fan-out leaves them.
+         */
+        @BeforeEach
+        void failedBuildOnTheSharedRepository() {
+            userStory = createUserStoryExercise("logs");
+            ProgrammingExerciseStudentParticipation milestoneParticipation = participationFor(milestoneExercise);
+            userStoryParticipation = participationFor(userStory);
+            // What makes the two one repository, and what the read-through resolves the owning participation by.
+            userStoryParticipation.setRepositoryUri(milestoneParticipation.getRepositoryUri());
+            userStoryParticipation = programmingExerciseStudentParticipationRepository.save(userStoryParticipation);
+
+            ProgrammingSubmission milestoneSubmission = failedSubmission(milestoneParticipation);
+            buildLogEntryService.saveBuildLogs(List.of(new BuildLogEntry(ZonedDateTime.now(), "cannot find symbol")), milestoneSubmission);
+            userStorySubmission = failedSubmission(userStoryParticipation);
+        }
+
+        private ProgrammingSubmission failedSubmission(ProgrammingExerciseStudentParticipation participation) {
+            ProgrammingSubmission submission = new ProgrammingSubmission();
+            submission.setParticipation(participation);
+            submission.setCommitHash("commit-logs");
+            submission.setType(SubmissionType.MANUAL);
+            submission.setSubmissionDate(ZonedDateTime.now());
+            submission.setSubmitted(true);
+            submission.setBuildFailed(true);
+            return programmingSubmissionRepository.save(submission);
+        }
+
+        private String buildLogsUrl() {
+            return "/api/programming/participations/" + userStoryParticipation.getId() + "/buildlogs";
+        }
+
+        @Test
+        @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+        void readsTheMilestonesLogThroughTheUserStory() throws Exception {
+            // The build ran for the milestone, so its log is the only one there is - without the read-through the
+            // student saw a failed build and an empty build output.
+            List<BuildLogEntryDTO> logs = request.getList(buildLogsUrl(), HttpStatus.OK, BuildLogEntryDTO.class);
+
+            assertThat(logs).singleElement().satisfies(entry -> assertThat(entry.log()).isEqualTo("cannot find symbol"));
+        }
+
+        @Test
+        @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+        void readsTheMilestonesLogForTheResultTheDialogAsksAbout() throws Exception {
+            // The feedback dialog always names the result it shows, which takes the endpoint through its other branch.
+            Result userStoryResult = new Result();
+            userStoryResult.setAssessmentType(AssessmentType.AUTOMATIC);
+            userStoryResult.setCompletionDate(ZonedDateTime.now());
+            userStoryResult.setSubmission(userStorySubmission);
+            userStoryResult.setExerciseId(userStory.getId());
+            userStoryResult = resultRepository.save(userStoryResult);
+
+            List<BuildLogEntryDTO> logs = request.getList(buildLogsUrl() + "?resultId=" + userStoryResult.getId(), HttpStatus.OK, BuildLogEntryDTO.class);
+
+            assertThat(logs).singleElement().satisfies(entry -> assertThat(entry.log()).isEqualTo("cannot find symbol"));
+        }
+
+        @Test
+        @WithMockUser(username = TEST_PREFIX + "student1", roles = "USER")
+        void staysEmptyWhenTheBuildDidNotFail() throws Exception {
+            userStorySubmission.setBuildFailed(false);
+            programmingSubmissionRepository.save(userStorySubmission);
+
+            assertThat(request.getList(buildLogsUrl(), HttpStatus.OK, BuildLogEntryDTO.class)).isEmpty();
+        }
+
+        @Test
+        @WithMockUser(username = TEST_PREFIX + "student2", roles = "USER")
+        void cannotBeReadByAnotherStudent() throws Exception {
+            request.getList(buildLogsUrl(), HttpStatus.FORBIDDEN, BuildLogEntryDTO.class);
+        }
     }
 }

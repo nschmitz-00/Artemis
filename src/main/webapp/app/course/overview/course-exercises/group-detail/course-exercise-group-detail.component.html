@@ -37,6 +37,28 @@
                     </jhi-information-box>
                 }
                 @if (group.type === 'milestone') {
+                    <!--
+                        The outcome of the group's shared build, in the same labelled box the exercise page gives a
+                        status, so the bar reads as one row of pills. Only a failed build has something to open - the
+                        build log, which a student has no other way to read once the online editor is switched off.
+                    -->
+                    @if (milestoneParticipation()) {
+                        <jhi-information-box data-testid="milestone-build-status" [informationBoxData]="buildStatusInfoBoxData()" layout="inline">
+                            <span contentComponent class="d-flex align-items-center gap-1">
+                                <jhi-result
+                                    class="text-truncate"
+                                    [exercise]="milestoneExercise()"
+                                    [participation]="milestoneParticipation()"
+                                    [result]="milestoneResult()"
+                                    [isBuilding]="isMilestoneBuilding()"
+                                    [isQueued]="isMilestoneQueued()"
+                                    [allowOpeningDetails]="isMilestoneBuildFailed()"
+                                    [buildOutcomeOnly]="true"
+                                    [showCompletion]="false"
+                                />
+                            </span>
+                        </jhi-information-box>
+                    }
                     <jhi-milestone-code-quality
                         [exercise]="milestoneExercise()"
                         [result]="milestoneResult()"

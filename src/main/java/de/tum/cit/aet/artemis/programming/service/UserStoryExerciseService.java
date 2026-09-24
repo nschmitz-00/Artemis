@@ -5,6 +5,7 @@ import static de.tum.cit.aet.artemis.core.config.Constants.PROFILE_CORE;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -14,8 +15,11 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import de.tum.cit.aet.artemis.exercise.domain.MilestoneExerciseGroup;
+import de.tum.cit.aet.artemis.exercise.repository.MilestoneExerciseGroupRepository;
 import de.tum.cit.aet.artemis.programming.domain.MilestoneExercise;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseBuildConfig;
+import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseParticipation;
+import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParticipation;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseTask;
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseTestCase;
 import de.tum.cit.aet.artemis.programming.domain.SolutionProgrammingExerciseParticipation;
@@ -23,6 +27,7 @@ import de.tum.cit.aet.artemis.programming.domain.TemplateProgrammingExercisePart
 import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseBuildConfigRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseRepository;
+import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseStudentParticipationRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseTaskRepository;
 import de.tum.cit.aet.artemis.programming.repository.ProgrammingExerciseTestCaseRepository;
 
@@ -69,14 +74,46 @@ public class UserStoryExerciseService {
 
     private final ProgrammingExerciseBuildConfigRepository programmingExerciseBuildConfigRepository;
 
+    private final MilestoneExerciseGroupRepository milestoneExerciseGroupRepository;
+
+    private final ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository;
+
     public UserStoryExerciseService(ProgrammingExerciseTestCaseRepository programmingExerciseTestCaseRepository,
             ProgrammingExerciseTaskRepository programmingExerciseTaskRepository, ProgrammingExerciseTaskService programmingExerciseTaskService,
-            ProgrammingExerciseRepository programmingExerciseRepository, ProgrammingExerciseBuildConfigRepository programmingExerciseBuildConfigRepository) {
+            ProgrammingExerciseRepository programmingExerciseRepository, ProgrammingExerciseBuildConfigRepository programmingExerciseBuildConfigRepository,
+            MilestoneExerciseGroupRepository milestoneExerciseGroupRepository,
+            ProgrammingExerciseStudentParticipationRepository programmingExerciseStudentParticipationRepository) {
         this.programmingExerciseTestCaseRepository = programmingExerciseTestCaseRepository;
         this.programmingExerciseTaskRepository = programmingExerciseTaskRepository;
         this.programmingExerciseTaskService = programmingExerciseTaskService;
         this.programmingExerciseRepository = programmingExerciseRepository;
         this.programmingExerciseBuildConfigRepository = programmingExerciseBuildConfigRepository;
+        this.milestoneExerciseGroupRepository = milestoneExerciseGroupRepository;
+        this.programmingExerciseStudentParticipationRepository = programmingExerciseStudentParticipationRepository;
+    }
+
+    /**
+     * The participation of the milestone whose repository a user story participation works in.
+     * <p>
+     * A user story has no build of its own: its participation shares the milestone's repository, and the build that
+     * runs on a push belongs to the milestone's participation, which is where everything the build produced is
+     * recorded. A caller that needs one of those - the build log, for instance, which the fan-out does not copy onto
+     * the stories - resolves the owning participation here instead of reading a copy.
+     * <p>
+     * Resolved through the repository uri rather than the student: that uri is exactly what the two participations
+     * share, so the match is the participation whose build wrote the log. A team participation is not part of the
+     * sharing scheme (see {@code ParticipationService.startUserStoryExercise}) and simply finds nothing.
+     *
+     * @param userStoryParticipation the participation of a user story exercise
+     * @return the milestone participation sharing its repository, or empty if there is none
+     */
+    public Optional<ProgrammingExerciseStudentParticipation> findMilestoneParticipationForUserStory(ProgrammingExerciseParticipation userStoryParticipation) {
+        String repositoryUri = userStoryParticipation.getRepositoryUri();
+        if (repositoryUri == null) {
+            return Optional.empty();
+        }
+        return milestoneExerciseGroupRepository.findMilestoneExerciseIdByUserStoryExerciseId(userStoryParticipation.getProgrammingExercise().getId())
+                .flatMap(milestoneExerciseId -> programmingExerciseStudentParticipationRepository.findByExerciseIdAndRepositoryUri(milestoneExerciseId, repositoryUri));
     }
 
     /**

@@ -55,6 +55,7 @@ import de.tum.cit.aet.artemis.programming.domain.ProgrammingExerciseStudentParti
 import de.tum.cit.aet.artemis.programming.domain.ProgrammingSubmission;
 import de.tum.cit.aet.artemis.programming.domain.Repository;
 import de.tum.cit.aet.artemis.programming.domain.RepositoryType;
+import de.tum.cit.aet.artemis.programming.domain.UserStoryExercise;
 import de.tum.cit.aet.artemis.programming.domain.build.BuildLogEntry;
 import de.tum.cit.aet.artemis.programming.dto.BuildLogEntryDTO;
 import de.tum.cit.aet.artemis.programming.dto.FileMove;
@@ -67,6 +68,7 @@ import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseParticipati
 import de.tum.cit.aet.artemis.programming.service.RepositoryAccessService;
 import de.tum.cit.aet.artemis.programming.service.RepositoryParticipationService;
 import de.tum.cit.aet.artemis.programming.service.RepositoryService;
+import de.tum.cit.aet.artemis.programming.service.UserStoryExerciseService;
 
 /**
  * Executes repository actions on repositories related to the participation id transmitted. Available to the owner of the participation, TAs/Instructors of the exercise and Admins.
@@ -92,12 +94,14 @@ public class RepositoryProgrammingExerciseParticipationResource extends Reposito
 
     private final RepositoryParticipationService repositoryParticipationService;
 
+    private final UserStoryExerciseService userStoryExerciseService;
+
     public RepositoryProgrammingExerciseParticipationResource(UserRepository userRepository, AuthorizationCheckService authCheckService,
             ParticipationAuthorizationCheckService participationAuthCheckService, GitService gitService, RepositoryService repositoryService,
             ProgrammingExerciseParticipationService participationService, ProgrammingExerciseRepository programmingExerciseRepository,
             ParticipationRepository participationRepository, BuildLogEntryService buildLogService, ProgrammingSubmissionRepository programmingSubmissionRepository,
             SubmissionPolicyRepository submissionPolicyRepository, RepositoryAccessService repositoryAccessService, Optional<LocalVCServletService> localVCServletService,
-            RepositoryParticipationService repositoryParticipationService) {
+            RepositoryParticipationService repositoryParticipationService, UserStoryExerciseService userStoryExerciseService) {
         super(userRepository, authCheckService, gitService, repositoryService, programmingExerciseRepository, repositoryAccessService, localVCServletService);
         this.participationAuthCheckService = participationAuthCheckService;
         this.participationService = participationService;
@@ -106,6 +110,7 @@ public class RepositoryProgrammingExerciseParticipationResource extends Reposito
         this.participationRepository = participationRepository;
         this.submissionPolicyRepository = submissionPolicyRepository;
         this.repositoryParticipationService = repositoryParticipationService;
+        this.userStoryExerciseService = userStoryExerciseService;
     }
 
     /**
@@ -466,6 +471,32 @@ public class RepositoryProgrammingExerciseParticipationResource extends Reposito
 
         // Load the logs from the database
         List<BuildLogEntry> buildLogs = buildLogService.getLatestBuildLogs(programmingSubmission);
+        if (buildLogs.isEmpty() && participation.getProgrammingExercise() instanceof UserStoryExercise) {
+            buildLogs = milestoneBuildLogs(participation, programmingSubmission);
+        }
         return ResponseEntity.ok(buildLogs.stream().map(BuildLogEntryDTO::of).toList());
+    }
+
+    /**
+     * The build logs of the milestone whose repository a user story participation shares.
+     * <p>
+     * A user story has no build of its own: the build runs for the milestone's participation, so the logs are written
+     * to its submission and only the "build failed" flag is fanned out to the stories. Read through to that submission
+     * rather than copying the log onto every story of the group.
+     *
+     * @param userStoryParticipation the user story participation the request is for
+     * @param userStorySubmission    the user story's submission, whose commit the milestone submission must match
+     * @return the milestone's build logs, or an empty list when there is no such participation or submission
+     */
+    private List<BuildLogEntry> milestoneBuildLogs(ProgrammingExerciseParticipation userStoryParticipation, ProgrammingSubmission userStorySubmission) {
+        var milestoneParticipation = userStoryExerciseService.findMilestoneParticipationForUserStory(userStoryParticipation);
+        if (milestoneParticipation.isEmpty()) {
+            return List.of();
+        }
+        // The student owns both participations, but the milestone's own access is checked rather than inferred.
+        participationAuthCheckService.checkCanAccessParticipationElseThrow(milestoneParticipation.get());
+        ProgrammingSubmission milestoneSubmission = programmingSubmissionRepository
+                .findFirstByParticipationIdAndCommitHashOrderByIdDescWithFeedbacksAndTeamStudents(milestoneParticipation.get().getId(), userStorySubmission.getCommitHash());
+        return milestoneSubmission == null ? List.of() : buildLogService.getLatestBuildLogs(milestoneSubmission);
     }
 }

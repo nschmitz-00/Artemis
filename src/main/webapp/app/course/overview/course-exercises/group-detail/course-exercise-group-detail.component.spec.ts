@@ -10,6 +10,7 @@ import dayjs from 'dayjs/esm';
 import { MockComponent, MockDirective, MockPipe, MockProvider } from 'ng-mocks';
 import { TumUiTooltipDirective } from '@tumaet/ui-angular';
 import { CourseSidebarToggleButtonComponent } from 'app/course/shared/course-sidebar-toggle-button/course-sidebar-toggle-button.component';
+import { ResultComponent } from 'app/exercise/result/result.component';
 import { ExerciseHeadersInformationComponent } from 'app/exercise/exercise-headers/exercise-headers-information/exercise-headers-information.component';
 import { InformationBox, InformationBoxComponent } from 'app/shared-ui/information-box/information-box.component';
 import { StudentParticipation } from 'app/exercise/shared/entities/participation/student-participation.model';
@@ -203,6 +204,7 @@ describe('CourseExerciseGroupDetailComponent', () => {
                         ArtemisDatePipe,
                         ArtemisTimeAgoPipe,
                         ArtemisTranslatePipe,
+                        ResultComponent,
                     ],
                 },
                 add: {
@@ -215,6 +217,7 @@ describe('CourseExerciseGroupDetailComponent', () => {
                         MockPipe(ArtemisDatePipe),
                         MockPipe(ArtemisTimeAgoPipe),
                         MockPipe(ArtemisTranslatePipe),
+                        MockComponent(ResultComponent),
                     ],
                 },
             });
@@ -537,6 +540,67 @@ describe('CourseExerciseGroupDetailComponent', () => {
                 submissions: [{ id: 777, results: [result] }],
             } as unknown as ProgrammingExerciseStudentParticipation;
         }
+
+        /** Access to the protected build state the status badge reads. */
+        function buildFailed(): boolean {
+            return (fixture.componentInstance as unknown as { isMilestoneBuildFailed: () => boolean }).isMilestoneBuildFailed();
+        }
+
+        // The badge states the shared build's outcome; only a failed build has something to open, namely the log, which
+        // a student cannot reach any other way once the online editor is switched off.
+        it('lets the status badge open its details only for a failed build', async () => {
+            const result = { id: 888, submission: { id: 777, buildFailed: true } } as unknown as Result;
+            await setup([milestoneGroupMember()], {
+                getMilestoneStatus: () => of(startedStatus()),
+                getStudentParticipationWithLatestResult: () => of(participationWithResult(result)),
+                renderTemplate: true,
+            });
+            fixture.detectChanges();
+            await fixture.whenStable();
+            fixture.detectChanges();
+
+            expect(buildFailed()).toBe(true);
+            const badge = fixture.debugElement.query(By.directive(ResultComponent));
+            expect(badge).not.toBeNull();
+            expect((badge.componentInstance as ResultComponent).allowOpeningDetails()).toBe(true);
+        });
+
+        // The bar is a row of labelled pills, and the shared build's outcome is one of them - the same box, under the
+        // same label, that the exercise page gives a status.
+        it('renders the status badge inside the labelled status box', async () => {
+            const result = { id: 888, submission: { id: 777, buildFailed: true } } as unknown as Result;
+            await setup([milestoneGroupMember()], {
+                getMilestoneStatus: () => of(startedStatus()),
+                getStudentParticipationWithLatestResult: () => of(participationWithResult(result)),
+                renderTemplate: true,
+            });
+            fixture.detectChanges();
+            await fixture.whenStable();
+            fixture.detectChanges();
+
+            const statusBox = fixture.debugElement.query(By.css('[data-testid="milestone-build-status"]'));
+            expect(statusBox).not.toBeNull();
+            const badge = statusBox.query(By.directive(ResultComponent));
+            expect(badge).not.toBeNull();
+            // The bar states the group's points and its code issues in boxes of their own, so this one is purely
+            // about whether the shared build came through.
+            expect((badge.componentInstance as ResultComponent).buildOutcomeOnly()).toBe(true);
+            expect((fixture.componentInstance as unknown as { buildStatusInfoBoxData: () => InformationBox }).buildStatusInfoBoxData().title).toBe(
+                'artemisApp.courseOverview.exerciseDetails.status',
+            );
+        });
+
+        it('keeps the status badge closed for a build that passed', async () => {
+            const result = { id: 888, submission: { id: 777, buildFailed: false } } as unknown as Result;
+            await setup([milestoneGroupMember()], {
+                getMilestoneStatus: () => of(startedStatus()),
+                getStudentParticipationWithLatestResult: () => of(participationWithResult(result)),
+            });
+            fixture.detectChanges();
+            await fixture.whenStable();
+
+            expect(buildFailed()).toBe(false);
+        });
 
         it('loads the milestone participation with its latest result once the milestone has been started', async () => {
             const result = { id: 888, codeIssueCount: 2 } as Result;

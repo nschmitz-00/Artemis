@@ -277,7 +277,7 @@ export const evaluateTemplateStatus = (
  * The submission a result should be judged against: the result's own submission when present (it is the potentially
  * newer one, so `buildFailed` is up to date), otherwise the participation's latest submission.
  */
-const getSubmissionUnderReview = (result: Result | undefined, participation: Participation | undefined): Submission | undefined => {
+export const getSubmissionUnderReview = (result: Result | undefined, participation: Participation | undefined): Submission | undefined => {
     return result?.submission ?? (participation ? getLatestSubmission(participation) : undefined);
 };
 

@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -51,6 +52,7 @@ import de.tum.cit.aet.artemis.programming.service.ProgrammingExerciseParticipati
 import de.tum.cit.aet.artemis.programming.service.RepositoryAccessService;
 import de.tum.cit.aet.artemis.programming.service.RepositoryParticipationService;
 import de.tum.cit.aet.artemis.programming.service.RepositoryService;
+import de.tum.cit.aet.artemis.programming.service.UserStoryExerciseService;
 import de.tum.cit.aet.artemis.programming.test_repository.ProgrammingExerciseTestRepository;
 import de.tum.cit.aet.artemis.programming.test_repository.ProgrammingSubmissionTestRepository;
 
@@ -126,7 +128,7 @@ class RepositoryProgrammingExerciseParticipationResourceTest {
     void setUp() {
         resource = new RepositoryProgrammingExerciseParticipationResource(userRepository, authCheckService, participationAuthCheckService, gitService, repositoryService,
                 participationService, programmingExerciseRepository, participationRepository, buildLogService, programmingSubmissionRepository, submissionPolicyRepository,
-                repositoryAccessService, Optional.of(localVCServletService), repositoryParticipationService);
+                repositoryAccessService, Optional.of(localVCServletService), repositoryParticipationService, mock(UserStoryExerciseService.class));
         exercise = new ProgrammingExercise();
         exercise.setId(EXERCISE_ID);
         participation = new ProgrammingExerciseStudentParticipation();

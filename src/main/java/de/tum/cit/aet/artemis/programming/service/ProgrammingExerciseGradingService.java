@@ -628,6 +628,11 @@ public class ProgrammingExerciseGradingService {
         targetResult.setAssessmentType(sourceResult.getAssessmentType());
         targetResult.setCompletionDate(sourceResult.getCompletionDate());
         targetResult.setSuccessful(sourceResult.isSuccessful());
+        // The same temporary score createResultFromBuildResult seeds on the canonical result, and for the same reason: a
+        // failed build carries no test case feedback, so calculateScoreForResult's case 3 returns the result unchanged.
+        // A result without a score reads client-side as no result at all - the student would see "Not graded" instead of
+        // "Build failed", with no way into the build log. Grading overwrites it whenever there is feedback to score.
+        targetResult.setScore(0D);
         targetResult.setExerciseId(targetExercise.getId());
         targetResult.setSubmission(targetSubmission);
         targetResult.setRatedIfNotAfterDueDate();

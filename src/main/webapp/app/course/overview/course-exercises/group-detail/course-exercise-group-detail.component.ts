@@ -43,10 +43,11 @@ import { ProgrammingExerciseStudentParticipation } from 'app/exercise/shared/ent
 import { ProgrammingExerciseParticipationService } from 'app/programming/manage/services/programming-exercise-participation.service';
 import { ProgrammingExercise } from 'app/programming/shared/entities/programming-exercise.model';
 import { Result } from 'app/exercise/shared/entities/result/result.model';
-import { Participation } from 'app/exercise/shared/entities/participation/participation.model';
+import { Participation, getLatestSubmission } from 'app/exercise/shared/entities/participation/participation.model';
 import { getLatestResultOfStudentParticipation } from 'app/exercise/participation/participation.utils';
 import { ParticipationWebsocketService } from 'app/course/shared/services/participation-websocket.service';
 import { ProgrammingSubmissionService, ProgrammingSubmissionState } from 'app/programming/shared/services/programming-submission.service';
+import { ResultComponent } from 'app/exercise/result/result.component';
 import { MilestoneCodeQualityComponent } from 'app/programming/shared/milestone-code-quality/milestone-code-quality.component';
 import { ProgrammingExerciseInstructionComponent } from 'app/programming/shared/instructions-render/programming-exercise-instruction.component';
 import { NgbDropdown, NgbDropdownItem, NgbDropdownMenu, NgbDropdownToggle } from '@ng-bootstrap/ng-bootstrap';
@@ -73,6 +74,7 @@ import { NgbDropdown, NgbDropdownItem, NgbDropdownMenu, NgbDropdownToggle } from
         NgbDropdownMenu,
         NgbDropdownItem,
         MilestoneCodeQualityComponent,
+        ResultComponent,
         ProgrammingExerciseInstructionComponent,
         CourseSidebarToggleButtonComponent,
     ],
@@ -192,6 +194,18 @@ export class CourseExerciseGroupDetailComponent {
         // Across all submissions rather than off the latest one: a push creates a pending submission without a result, and
         // the latest submission's result would then be nothing for the whole build.
         return getLatestResultOfStudentParticipation(this.milestoneParticipation(), true);
+    });
+
+    /**
+     * Whether the group's shared build failed, which is what gives the status badge something to open: the build log.
+     * Reads the result's own submission first and falls back to the participation's latest, the same order
+     * {@link FeedbackComponent} uses to decide whether to fetch the log, so badge and dialog agree.
+     */
+    protected readonly isMilestoneBuildFailed = computed<boolean>(() => {
+        const participation = this.milestoneParticipation();
+        const submission = this.milestoneResult()?.submission ?? (participation ? getLatestSubmission(participation) : undefined);
+        // Read through the shared Submission type, which does not declare the flag a programming submission carries.
+        return submission !== undefined && 'buildFailed' in submission && submission.buildFailed === true;
     });
 
     private readonly groupId = signal<number | undefined>(undefined);
@@ -350,6 +364,13 @@ export class CourseExerciseGroupDetailComponent {
 
     protected readonly pointsInfoBoxData = computed<InformationBox>(() => ({
         title: 'artemisApp.courseOverview.exerciseDetails.points',
+        content: { type: 'string', value: '' },
+        isContentComponent: true,
+    }));
+
+    /** The shared build's status, labelled like the exercise page's own status box (see ExerciseHeadersInformationComponent). */
+    protected readonly buildStatusInfoBoxData = computed<InformationBox>(() => ({
+        title: 'artemisApp.courseOverview.exerciseDetails.status',
         content: { type: 'string', value: '' },
         isContentComponent: true,
     }));
