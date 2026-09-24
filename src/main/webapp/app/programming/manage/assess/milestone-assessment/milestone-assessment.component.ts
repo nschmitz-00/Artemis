@@ -13,6 +13,7 @@ import { ExerciseType } from 'app/exercise/shared/entities/exercise/exercise.mod
 import { FileUploadAssessmentComponent } from 'app/fileupload/manage/assess/file-upload-assessment.component';
 import { ModelingAssessmentEditorComponent } from 'app/modeling/manage/assess/modeling-assessment-editor/modeling-assessment-editor.component';
 import { TextSubmissionAssessmentComponent } from 'app/text/manage/assess/submission-assessment/text-submission-assessment.component';
+import { getMilestoneAssessmentDashboardLink } from 'app/foundation/util/navigation.utils';
 import { MilestoneAssessment, MilestoneAssessmentExercise, MilestoneAssessmentService } from './milestone-assessment.service';
 import { MilestoneAssessmentOverviewComponent } from './milestone-assessment-overview.component';
 
@@ -70,6 +71,13 @@ export class MilestoneAssessmentComponent {
     protected readonly OVERVIEW_TAB = OVERVIEW_TAB;
 
     protected readonly ExerciseType = ExerciseType;
+
+    /**
+     * Where each mounted editor's "Exercise Dashboard" button leads. A tutor arrives here from the group's dashboard,
+     * having chosen a student rather than a submission, so the exercise's own dashboard would drop them out of the
+     * milestone they are grading.
+     */
+    protected readonly assessmentDashboardLink = computed<string[]>(() => getMilestoneAssessmentDashboardLink(this.courseId(), this.groupId()));
 
     /** The group's exercises in tab order: user stories first, then the rest, as sorted by the server. */
     protected readonly exercises = computed<MilestoneAssessmentExercise[]>(() => this.assessment()?.exercises ?? []);

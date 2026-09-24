@@ -185,6 +185,33 @@ class MilestoneExerciseGroupIntegrationTest extends AbstractProgrammingIntegrati
         assertThat(group.dueDate().toInstant()).isEqualTo(milestoneExercise.getDueDate().toInstant());
     }
 
+    /**
+     * The exercise management page is a tutor's too, and its group view is the only place a milestone group is shown at
+     * all - and the only way into the group's assessment dashboard. Without the listing, a tutor sees the group's user
+     * stories as ungrouped exercises and cannot reach the dashboard.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "tutor1", roles = "TA")
+    void aTutorReadsTheCoursesMilestoneGroups() throws Exception {
+        List<MilestoneExerciseGroupDTO> groups = request.getList(milestoneGroupsUrl(), HttpStatus.OK, MilestoneExerciseGroupDTO.class);
+
+        assertThat(groups).singleElement().satisfies(group -> {
+            assertThat(group.id()).isEqualTo(milestoneGroup.getId());
+            assertThat(group.milestoneExerciseId()).isEqualTo(milestoneExercise.getId());
+        });
+        assertThat(request.getList(variantGroupsUrl(), HttpStatus.OK, ExerciseVariantGroupDTO.class)).extracting(ExerciseVariantGroupDTO::id).containsExactly(variantGroup.getId());
+    }
+
+    /** Reading the groups is all a tutor may do with them: every write stays with the editors. */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "tutor1", roles = "TA")
+    void aTutorMayNotChangeAMilestoneGroup() throws Exception {
+        UpdateMilestoneExerciseGroupDTO updateDTO = new UpdateMilestoneExerciseGroupDTO(milestoneGroup.getId(), "Renamed", null, null, null, null, null);
+
+        request.putWithResponseBody(milestoneGroupsUrl() + "/" + milestoneGroup.getId(), updateDTO, MilestoneExerciseGroupDTO.class, HttpStatus.FORBIDDEN);
+        request.delete(milestoneGroupsUrl() + "/" + milestoneGroup.getId(), HttpStatus.FORBIDDEN);
+    }
+
     @Test
     @WithMockUser(username = TEST_PREFIX + "editor1", roles = "EDITOR")
     void milestoneGroupEndpointExposesTheAnchorsLanguageAndProjectType() throws Exception {

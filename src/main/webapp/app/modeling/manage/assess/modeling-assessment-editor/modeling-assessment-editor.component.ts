@@ -175,6 +175,13 @@ export class ModelingAssessmentEditorComponent implements OnInit {
     readonly hostExerciseId = input<number | undefined>(undefined);
     readonly hostSubmissionId = input<number | undefined>(undefined);
 
+    /**
+     * Where the "Exercise Dashboard" button leads, for a host whose tutors do not come from the exercise's own
+     * dashboard. The milestone assessment page passes its group's dashboard: a milestone is graded per student across
+     * the whole group, so the per-exercise dashboard of one user story is not where the tutor belongs.
+     */
+    readonly overrideExerciseDashboardLink = input<string[] | undefined>(undefined);
+
     /** Whether a host drives this component instead of the router; the injected route is then the host's. */
     private readonly isEmbedded = computed<boolean>(() => this.hostSubmissionId() !== undefined);
 
@@ -266,7 +273,7 @@ export class ModelingAssessmentEditorComponent implements OnInit {
         this.hasPendingChanges = false;
         this.courseId = courseId;
         this.exerciseId = exerciseId;
-        this.exerciseDashboardLink.set(getExerciseDashboardLink(this.courseId, this.exerciseId, this.examId, this.isTestRun()));
+        this.exerciseDashboardLink.set(this.overrideExerciseDashboardLink() ?? getExerciseDashboardLink(this.courseId, this.exerciseId, this.examId, this.isTestRun()));
 
         this.correctionRound.set(this.correctionRoundFromUrl);
         if (submissionId === 'new') {

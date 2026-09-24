@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { Router, UrlTree } from '@angular/router';
 import { Location } from '@angular/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ArtemisNavigationUtilService } from 'app/foundation/util/navigation.utils';
+import { ArtemisNavigationUtilService, getExerciseDashboardLink, getMilestoneAssessmentDashboardLink } from 'app/foundation/util/navigation.utils';
 import { MockRouter } from 'test/helpers/mocks/mock-router';
 
 describe('Navigation Util Service', () => {
@@ -79,5 +79,14 @@ describe('Navigation Util Service', () => {
         expect(creationMock).toHaveBeenCalledOnce();
         expect(serializationMock).toHaveBeenCalledWith(urlTreeMock);
         expect(windowStub).toHaveBeenCalledWith('serializationMockTestValue', '_blank');
+    });
+});
+
+describe('getMilestoneAssessmentDashboardLink', () => {
+    // A milestone is graded per student across the whole group, so it is addressed by the group and not, like the
+    // dashboard below, by one exercise.
+    it('should address the group rather than an exercise', () => {
+        expect(getMilestoneAssessmentDashboardLink(3, 42)).toEqual(['/course-management', '3', 'milestone-exercise-groups', '42', 'assessment-dashboard']);
+        expect(getExerciseDashboardLink(3, 42)).toEqual(['/course-management', '3', 'assessment-dashboard', '42']);
     });
 });

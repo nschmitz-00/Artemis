@@ -315,6 +315,25 @@ describe('CodeEditorTutorAssessmentContainerComponent', () => {
         expect(findWithParticipationsStub).toHaveBeenCalledWith(exercise.id, false, true);
     });
 
+    it('should send the tutor back to the exercise dashboard it was routed from', async () => {
+        comp.ngOnInit();
+        await flushMicrotasks();
+
+        expect(comp.exerciseDashboardLink()).toEqual(['/course-management', String(comp.courseId), 'assessment-dashboard', String(comp.exerciseId)]);
+    });
+
+    // Embedded in the milestone assessment page, the tutor came from the group's dashboard after picking a student, so
+    // the exercise's own dashboard would drop them out of the milestone they are grading.
+    it('should send the tutor back to the dashboard a host names instead', async () => {
+        const groupDashboard = ['/course-management', '1', 'milestone-exercise-groups', '10', 'assessment-dashboard'];
+        fixture.componentRef.setInput('overrideExerciseDashboardLink', groupDashboard);
+
+        comp.ngOnInit();
+        await flushMicrotasks();
+
+        expect(comp.exerciseDashboardLink()).toEqual(groupDashboard);
+    });
+
     it('should load an anonymous submission for tutor assessment', async () => {
         const anonymousSubmission = structuredClone(submission);
         const anonymousParticipation = anonymousSubmission.participation as ProgrammingExerciseStudentParticipation;

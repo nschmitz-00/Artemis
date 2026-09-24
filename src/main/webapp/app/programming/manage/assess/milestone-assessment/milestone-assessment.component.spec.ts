@@ -62,6 +62,7 @@ describe('MilestoneAssessmentComponent', () => {
         nextExercise: () => { exerciseId: number } | undefined;
         studentLogin: () => string;
         exercises: () => { exerciseId: number }[];
+        assessmentDashboardLink: () => string[];
     } {
         return fixture.componentInstance as never;
     }
@@ -74,6 +75,14 @@ describe('MilestoneAssessmentComponent', () => {
         expect(comp().activeExercise()).toBeUndefined();
         expect(comp().studentLogin()).toBe('student1');
         expect(comp().exercises()).toHaveLength(4);
+    });
+
+    // A tutor arrives here from the group's dashboard, having picked a student rather than a submission, so the
+    // "Exercise Dashboard" button of whichever editor is mounted has to lead back there and not to one story's own.
+    it('sends every mounted editor back to the group dashboard rather than to a story dashboard', async () => {
+        await setup();
+
+        expect(comp().assessmentDashboardLink()).toEqual(['/course-management', '1', 'milestone-exercise-groups', '10', 'assessment-dashboard']);
     });
 
     it('switches to a story tab and exposes the submission its editor is opened on', async () => {

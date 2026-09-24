@@ -111,22 +111,42 @@ describe('Course Management Exercises Component', () => {
         expect(comp.exercises().every((e) => e.isAtLeastEditor === true && e.isAtLeastInstructor === true)).toBe(true);
     });
 
-    it('should not load groups for tutors (non-editors)', () => {
+    // The group view is the only place a milestone group is shown, and the only way into its assessment dashboard, so
+    // a tutor has to see the groups too - without them every user story would sit in the "ungrouped" card.
+    it('should load groups for tutors as well', () => {
         course.isAtLeastEditor = false;
-        const groupsSpy = vi.spyOn(variantGroupService, 'getGroupsForCourse');
+        const groupsSpy = vi.spyOn(variantGroupService, 'getGroupsForCourse').mockReturnValue(of([{ id: 10, title: 'Milestone', type: 'milestone' as const, exerciseIds: [1] }]));
+
         comp.ngOnInit();
-        expect(groupsSpy).not.toHaveBeenCalled();
+        comp.onViewChange('group');
+
+        expect(groupsSpy).toHaveBeenCalledWith(course.id);
+        expect(
+            comp
+                .cards()
+                .find((card) => card.group?.id === 10)
+                ?.exercises.map((exercise) => exercise.id),
+        ).toEqual([1]);
     });
 
-    it('should clear previously loaded groups when a reused component loads a non-editor course', () => {
-        // Simulate group state left over from a previously shown editor course.
-        comp.groups.set([{ id: 10, title: 'G', exercises: [] }]);
+    // Everything that writes a group is editor-only, so a tutor reads the cards and acts only on what the group links to.
+    it("should keep the group actions out of a tutor's reach", () => {
         course.isAtLeastEditor = false;
-        const groupsSpy = vi.spyOn(variantGroupService, 'getGroupsForCourse');
+        course.isAtLeastInstructor = false;
 
         comp.ngOnInit();
 
-        expect(groupsSpy).not.toHaveBeenCalled();
+        expect(comp.canEditGroups()).toBe(false);
+        expect(comp.canDeleteGroups()).toBe(false);
+    });
+
+    it('should replace groups left over from a previously shown course', () => {
+        // Simulate group state left over from a previously shown course, since the component instance is reused.
+        comp.groups.set([{ id: 10, title: 'G', exercises: [] }]);
+        vi.spyOn(variantGroupService, 'getGroupsForCourse').mockReturnValue(of([]));
+
+        comp.ngOnInit();
+
         expect(comp.groups()).toEqual([]);
         // The group view must not surface the stale group as a card / selector for the new course.
         comp.onViewChange('group');

@@ -43,6 +43,7 @@
                                     [overrideNextSubmission]="assessNextExercise"
                                     [hasNextSubmission]="!!nextExercise()"
                                     nextSubmissionLabel="artemisApp.milestoneAssessment.nextExercise"
+                                    [overrideExerciseDashboardLink]="assessmentDashboardLink()"
                                 />
                             }
                             @case (ExerciseType.TEXT) {
@@ -53,6 +54,7 @@
                                     [overrideNextSubmission]="assessNextExercise"
                                     [hasNextSubmission]="!!nextExercise()"
                                     nextSubmissionLabel="artemisApp.milestoneAssessment.nextExercise"
+                                    [overrideExerciseDashboardLink]="assessmentDashboardLink()"
                                 />
                             }
                             @case (ExerciseType.MODELING) {
@@ -63,6 +65,7 @@
                                     [overrideNextSubmission]="assessNextExercise"
                                     [hasNextSubmission]="!!nextExercise()"
                                     nextSubmissionLabel="artemisApp.milestoneAssessment.nextExercise"
+                                    [overrideExerciseDashboardLink]="assessmentDashboardLink()"
                                 />
                             }
                             @case (ExerciseType.FILE_UPLOAD) {
@@ -73,6 +76,7 @@
                                     [overrideNextSubmission]="assessNextExercise"
                                     [hasNextSubmission]="!!nextExercise()"
                                     nextSubmissionLabel="artemisApp.milestoneAssessment.nextExercise"
+                                    [overrideExerciseDashboardLink]="assessmentDashboardLink()"
                                 />
                             }
                             @case (ExerciseType.QUIZ) {

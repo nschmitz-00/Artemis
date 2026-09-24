@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 import de.tum.cit.aet.artemis.core.exception.BadRequestAlertException;
 import de.tum.cit.aet.artemis.core.security.annotations.enforceRoleInCourse.EnforceAtLeastEditorInCourse;
 import de.tum.cit.aet.artemis.core.security.annotations.enforceRoleInCourse.EnforceAtLeastInstructorInCourse;
+import de.tum.cit.aet.artemis.core.security.annotations.enforceRoleInCourse.EnforceAtLeastTutorInCourse;
 import de.tum.cit.aet.artemis.core.service.featureusage.FeatureUsage;
 import de.tum.cit.aet.artemis.core.util.HeaderUtil;
 import de.tum.cit.aet.artemis.course.domain.Course;
@@ -147,7 +148,9 @@ public class ExerciseVariantGroupResource {
      * @return the ResponseEntity with status 200 (OK) and the list of groups in the body
      */
     @GetMapping("courses/{courseId}/exercise-variant-groups")
-    @EnforceAtLeastEditorInCourse
+    // A tutor reads the listing too: the exercise management page is theirs as well, and its group view needs every
+    // group of the course to show a grouped exercise under the group it belongs to rather than as an ungrouped one.
+    @EnforceAtLeastTutorInCourse
     public ResponseEntity<List<ExerciseVariantGroupDTO>> getExerciseVariantGroupsForCourse(@PathVariable Long courseId) {
         log.debug("REST request to get all ExerciseVariantGroups for course {}", courseId);
         List<ExerciseVariantGroupDTO> groups = exerciseVariantGroupRepository.findAllByCourseId(courseId).stream().map(ExerciseVariantGroupDTO::new).toList();

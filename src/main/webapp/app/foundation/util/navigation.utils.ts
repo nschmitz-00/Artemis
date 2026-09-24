@@ -163,6 +163,22 @@ export const getExerciseDashboardLink = (courseId: number, exerciseId: number, e
         : ['/course-management', courseId.toString(), 'assessment-dashboard', exerciseId.toString()];
 };
 
+/**
+ * The assessment dashboard of a milestone exercise group: where a tutor picks the student whose milestone they grade.
+ * Addressed by the group rather than by an exercise - a milestone is graded per student across the whole group, so the
+ * per-exercise dashboard of one of its user stories is not where a tutor belongs.
+ *
+ * @param courseId the course the group belongs to
+ * @param groupId the milestone exercise group
+ */
+export const getMilestoneAssessmentDashboardLink = (courseId: number, groupId: number): string[] => [
+    '/course-management',
+    courseId.toString(),
+    'milestone-exercise-groups',
+    groupId.toString(),
+    'assessment-dashboard',
+];
+
 export const getLocalRepositoryLink = (
     courseId: number,
     exerciseId: number,

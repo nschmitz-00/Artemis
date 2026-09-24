@@ -218,6 +218,41 @@ class ExerciseVariantGroupIntegrationTest extends AbstractSpringIntegrationIndep
         assertThat(groups).extracting(ExerciseVariantGroupDTO::id).containsExactly(created.id());
     }
 
+    /**
+     * The exercise management page is a tutor's too, and its group view needs every group of the course to show a
+     * grouped exercise under its group rather than as an ungrouped one.
+     */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "tutor1", roles = "TA")
+    void testGetExerciseVariantGroupsForCourse_tutorMayRead() throws Exception {
+        // Persisted directly: creating one through the endpoint is editor-only, which is what the test below asserts.
+        ExerciseVariantGroup group = new ExerciseVariantGroup();
+        group.setTitle("Loop variants");
+        group.setMaxPoints(100.0);
+        group.setCourse(course);
+        group = exerciseVariantGroupRepository.save(group);
+
+        List<ExerciseVariantGroupDTO> groups = request.getList(groupsUrl(), HttpStatus.OK, ExerciseVariantGroupDTO.class);
+
+        assertThat(groups).extracting(ExerciseVariantGroupDTO::id).containsExactly(group.getId());
+    }
+
+    /** Reading the groups is all a tutor may do with them: every write stays with the editors and instructors. */
+    @Test
+    @WithMockUser(username = TEST_PREFIX + "tutor1", roles = "TA")
+    void testChangeExerciseVariantGroup_tutorForbidden() throws Exception {
+        ExerciseVariantGroup group = new ExerciseVariantGroup();
+        group.setTitle("Loop variants");
+        group.setCourse(course);
+        group = exerciseVariantGroupRepository.save(group);
+
+        UpdateExerciseVariantGroupDTO updateDTO = new UpdateExerciseVariantGroupDTO(group.getId(), "Renamed", null, null, null, null, null, null);
+        request.putWithResponseBody(groupsUrl() + "/" + group.getId(), updateDTO, ExerciseVariantGroupDTO.class, HttpStatus.FORBIDDEN);
+        request.delete(groupsUrl() + "/" + group.getId(), HttpStatus.FORBIDDEN);
+        request.put("/api/exercise/courses/" + course.getId() + "/exercises/" + exercise.getId() + "/variant-group", new ExerciseVariantGroupAssignmentDTO(group.getId()),
+                HttpStatus.FORBIDDEN);
+    }
+
     @Test
     @WithMockUser(username = TEST_PREFIX + "editor1", roles = "EDITOR")
     void testGetExerciseVariantGroup() throws Exception {

@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { Observable, Subject, catchError, forkJoin, map, of } from 'rxjs';
 import { ActivatedRoute, Router } from '@angular/router';
+import { getMilestoneAssessmentDashboardLink } from 'app/foundation/util/navigation.utils';
 import { TranslateService } from '@ngx-translate/core';
 import { QuizExerciseExportComponent } from 'app/quiz/manage/export/quiz-exercise-export.component';
 import { CourseManagementService } from 'app/course/manage/services/course-management.service';
@@ -159,6 +160,8 @@ export class CourseManagementExercisesComponent implements OnInit {
     readonly isGroup = computed(() => this.view() === 'group');
     /** Whether the course has at least one milestone exercise group — gates the "Create user story" card. */
     readonly hasMilestoneGroup = computed(() => this.groups().some((group) => group.type === 'milestone'));
+    /** Whether the viewer may change a group: everything that writes one is editor-only, a tutor only reads them. */
+    readonly canEditGroups = computed(() => this.course()?.isAtLeastEditor ?? false);
     /** Deleting a group requires the same permission as deleting an exercise: instructor (or admin) on the course. */
     readonly canDeleteGroups = computed(() => this.course()?.isAtLeastInstructor ?? false);
     /** Ids of all rendered cards, so each group's exercise table is a connected CDK drop target for the others. */
@@ -262,13 +265,9 @@ export class CourseManagementExercisesComponent implements OnInit {
                     }
                 });
                 this.exercises.set(exercises);
-                // The variant-group endpoints are editor-only, and this page is also reachable by tutors.
-                if (loadedCourse?.isAtLeastEditor) {
-                    this.loadGroupsFromServer(courseId);
-                } else {
-                    // Clear groups left over from a previously shown course, since the instance is reused.
-                    this.groups.set([]);
-                }
+                // Tutors read the groups as well - the group view is the only place a milestone group is shown, and
+                // with it the way into its assessment dashboard. Only the group actions are editor-only (canEditGroups).
+                this.loadGroupsFromServer(courseId);
                 this.rebuildCards();
                 this.loaded.set(true);
                 this.loadQuizBatches(courseId);
@@ -503,7 +502,7 @@ export class CourseManagementExercisesComponent implements OnInit {
         }
         // Addressed by the group id, unlike the two routes above: the dashboard is about the group's stories and their
         // participations, and never loads the anchor exercise itself.
-        void this.router.navigate(['/course-management', courseId, 'milestone-exercise-groups', group.id, 'assessment-dashboard']);
+        void this.router.navigate(getMilestoneAssessmentDashboardLink(courseId, group.id));
     }
 
     /**

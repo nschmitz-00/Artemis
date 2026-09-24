@@ -126,7 +126,9 @@ public class MilestoneExerciseGroupResource {
      * @return the ResponseEntity with status 200 (OK) and the list of milestone groups in the body
      */
     @GetMapping("courses/{courseId}/milestone-exercise-groups")
-    @EnforceAtLeastEditorInCourse
+    // A tutor reads the listing too: the exercise management page is theirs as well, and its group view is the only
+    // place a milestone group is shown at all - and with it the way into the group's assessment dashboard below.
+    @EnforceAtLeastTutorInCourse
     public ResponseEntity<List<MilestoneExerciseGroupDTO>> getMilestoneExerciseGroupsForCourse(@PathVariable Long courseId) {
         log.debug("REST request to get all MilestoneExerciseGroups for course {}", courseId);
         List<MilestoneExerciseGroupDTO> groups = milestoneExerciseService.findAllByCourseId(courseId).stream().map(MilestoneExerciseGroupDTO::new).toList();
