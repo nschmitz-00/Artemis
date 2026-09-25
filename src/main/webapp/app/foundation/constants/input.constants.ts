@@ -9,7 +9,7 @@ export const MAX_FILE_SIZE = 20 * 1024 * 1024;
 /** Maximum file size for communication: 5 MB **/
 export const MAX_FILE_SIZE_COMMUNICATION = 5 * 1024 * 1024;
 /** Maximum submission file size: 4 MB **/
-export const MAX_SUBMISSION_FILE_SIZE = 8 * 1024 * 1024;
+export const MAX_SUBMISSION_FILE_SIZE = 150 * 1024 * 1024;
 /** Maximum text exercise submission character length: 30.000 **/
 export const MAX_SUBMISSION_TEXT_LENGTH = 30 * 1000;
 /** Maximum length of the exam start/end/confirmation texts shown to students. Must be consistent with Constants.EXAM_TEXT_MAX_LENGTH. **/
